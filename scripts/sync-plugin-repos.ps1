@@ -55,6 +55,19 @@ function Sync-Plugin {
     }
 
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+
+    # Für Plugins mit lokalen csproj-Anpassungen: eigene Version nach dem Sync wiederherstellen.
+    # plugins-csproj-overrides\ enthält die angepassten .csproj-Dateien die NICHT vom Upstream
+    # überschrieben werden dürfen (z.B. StashValueByZx0.csproj mit lokalen ProjectReferences).
+    $overrideDir  = Join-Path $PSScriptRoot "plugins-csproj-overrides"
+    $overrideSrc  = Join-Path $overrideDir "$Folder.csproj"
+    if (Test-Path $overrideSrc) {
+        $csprojFiles = @(Get-ChildItem $dst -Filter "*.csproj" -ErrorAction SilentlyContinue)
+        $csprojDst   = if ($csprojFiles.Count -gt 0) { $csprojFiles[0].FullName } else { Join-Path $dst "$Folder.csproj" }
+        Copy-Item $overrideSrc $csprojDst -Force
+        Write-Host "  csproj-override wiederhergestellt: $Folder" -ForegroundColor DarkCyan
+    }
+
     Write-Host "  OK $Folder" -ForegroundColor Green
 }
 
