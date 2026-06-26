@@ -771,6 +771,24 @@ public class Win32ConsoleStable {
         }
     } catch {}
 
+    # --- Changelog aus aktuellem GitHub Release vorausfuellen ---
+    $existingChangelog = ""
+    try {
+        $repo = Get-GithubRepository
+        if ($repo -notlike "*(not configured*") {
+            $releaseJson = gh api "repos/$repo/releases/latest" 2>$null
+            if ($releaseJson) {
+                $release = $releaseJson | ConvertFrom-Json
+                $body = $release.body
+                if ($body) {
+                    $lines = $body -split "`r?`n" | Where-Object { $_ -match '^\s*[-*]\s+' } |
+                             ForEach-Object { $_ -replace '^\s*[-*]\s+','' }
+                    $existingChangelog = ($lines -join "`r`n").Trim()
+                }
+            }
+        }
+    } catch {}
+
     # --- Abschnitt: Commit-Nachricht + Version ---
     $commitPanel = New-SectionPanel 160
     $cLabel = New-SectionLabel "Changelog (eine Zeile pro Eintrag, leer = release-notes.txt):"
@@ -786,6 +804,7 @@ public class Win32ConsoleStable {
     $commitBox.Multiline   = $true
     $commitBox.ScrollBars  = "Vertical"
     $commitBox.AcceptsReturn = $true
+    $commitBox.Text        = $existingChangelog
     $commitPanel.Controls.Add($commitBox)
 
     $vLabel = New-SectionLabel "Version:"

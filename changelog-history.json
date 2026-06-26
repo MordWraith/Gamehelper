@@ -2,11 +2,10 @@
     "releases":  [
                      {
                          "version":  "1.4.2",
-                         "published":  "2026-06-25T18:42:41.5873485Z",
+                         "published":  "2026-06-26T11:11:58.1997351Z",
                          "changelog":  [
-                                           "Updated core (memory stability fixes) Gordin",
-                                           "SimpleBars: ES graduation marks, circle dot enhancements",
-                                           "SekhemaHelper v 0.1.0 YokkenUA"
+                                           "RitualHelper: min display value filter (hide items below X Exalted)",
+                                           "Gordin core 2.4.2: MouseOverEntity, Expedition Radar icons"
                                        ]
                      },
                      {

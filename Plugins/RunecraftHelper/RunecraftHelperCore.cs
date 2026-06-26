@@ -74,29 +74,32 @@ namespace RunecraftHelper
         private const int IsVisibleBit = 0x0B;
         private const uint IsVisibleMask = 1u << IsVisibleBit; // = 0x800
 
-        // ── Language-independent reward matching (offsets verified live on PoE2 0.5.x, see docs/re-findings.md §8) ──
+        // ── Language-independent reward matching (BaseItemTypes layout re-verified live; see memory
+        //    project-runecraft-overlay-ru-empty-dict) ──
         // The visible reward is shown only as LOCALIZED text, so matching that text to poe.ninja
         // (English) fails on non-English clients. We translate the localized name → the item's
-        // language-independent BaseItemType.Id via the game's own BaseItemTypes table:
+        // language-independent BaseItemType.Id via the game's own MAIN BaseItemTypes table, whose Name
+        // column is merged to the active-language strings at runtime:
         //   BaseItemType row (stride 0x168):
         //     +0x00 → meta-path "Metadata/Items/.../<Id>" (Id last segment is the canonical key
         //             — its trailing digit, when present, encodes the currency tier:
         //             Regal=CurrencyUpgradeMagicToRare, Greater=…2, Perfect=…3).
         //     +0x20 → localized display-name buffer.
-        //     +0x7C → +0x08 → art ".dds" path (used to NOT be enough on its own — 3 currency tiers
-        //             share one .dds icon, so we now use +0x00's tiered Id instead).
-        // We reach BaseItemTypes through the loaded Expedition2Recipes table (recipe row +0x34 holds the
-        // shared BaseItemTypes table object), found by walking the recipe panel's pointer graph to the
-        // dat-file handle (vtable at +0x00, "…Expedition2Recipes.dat" path at +0x08, rows-vector at +0x28).
-        private const int RecipeStride = 0xBA;
-        private const int RecipeRewardTableOffset = 0x34;  // recipe row → BaseItemTypes table object
+        //     +0x78 → +0x08 → art ".dds" path (one icon can cover 3 currency tiers, so we prefer
+        //             +0x00's tiered Id and use the dds only as a fallback key).
+        // The table is located DIRECTLY by walking the panel's (and the recipe handle's) pointer graph
+        // to the dat-file handle whose path ends with "Balance/BaseItemTypes.dat" — NOT a per-language
+        // overlay ("…/Russian/…"), whose rows lack the schema. Previously we hopped via the recipe
+        // table's reward-FK at recipe+0x34, but that row layout drifts between patches (it broke the
+        // whole dict, invisibly on EN where the English-name price fallback masked it). The dat handle:
+        // in-module vtable at +0x00, path string at +0x08, {begin,end} rows-vector pointer at +0x28.
         private const int TableRowsVectorOffset = 0x28;    // table object → ptr to {begin,end} rows vector
         private const int DatPathOffset = 0x08;            // dat-file handle/table object → path string ptr
         private const int BaseItemTypeStride = 0x168;
         private const int BaseItemTypeIdOffset = 0x00;     // → meta-path "Metadata/Items/.../<Id>"
         private const int BaseItemTypeNameOffset = 0x20;   // → localized display-name buffer
-        private const int BaseItemTypeArtOffset = 0x7C;    // → sub-object; +0x08 → ".dds" art path
-        private const int ArtSubPathOffset = 0x08;         //   art path = poe.ninja image-id (see docs/re-findings.md §8)
+        private const int BaseItemTypeArtOffset = 0x78;    // → sub-object; +0x08 → ".dds" art path
+        private const int ArtSubPathOffset = 0x08;         //   art path = poe.ninja image-id
 
         private IntPtr processHandle = IntPtr.Zero;
         private int handlePid;
@@ -112,6 +115,9 @@ namespace RunecraftHelper
         //           families (Jeweller's: …01/02/03) where the game's BaseItemType.Id diverges.
         // The price lookup tries metaId first, then ddsArt (see TryGetRecipePrice).
         private Dictionary<string, (string MetaId, string DdsArt)> nameToArtId = new(StringComparer.Ordinal);
+        // While the dict is empty, throttle the (BFS-heavy) build attempts so a table that can't be
+        // located doesn't re-run the pointer walk every frame. Reset on process change.
+        private DateTime nameToArtNextTryUtc = DateTime.MinValue;
 
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
         private string PriceCachePathname => Path.Join(this.DllDirectory, "config", "prices.json");
@@ -413,28 +419,21 @@ namespace RunecraftHelper
 
         // ── Reward art-id dictionary (localized name → language-independent art-id) ──────────
 
-        // Build {Normalize(localizedName) → artId} from the game's BaseItemTypes table, once per
-        // session (the table is loaded globally and stable until the game restarts). Reached via the
-        // Expedition2Recipes table found by walking the open panel's pointer graph.
+        // Build {localizedName → (metaId, ddsArt)} from the game's MAIN BaseItemTypes table, once per
+        // session (loaded globally, stable until the game restarts). The table is located DIRECTLY (no
+        // longer via the recipe table's reward FK, whose row layout drifts between patches and silently
+        // emptied this dict). Throttled while empty so the BFS doesn't run every frame.
         private void BuildNameToArtIfNeeded(IntPtr panel)
         {
             if (this.nameToArtId.Count > 0) return;
+            var now = DateTime.UtcNow;
+            if (now < this.nameToArtNextTryUtc) return;
+            this.nameToArtNextTryUtc = now.AddSeconds(2);
 
-            var handle = this.FindRecipeTableHandle(panel);
-            if (handle == IntPtr.Zero) return;
-
-            // Expedition2Recipes rows: handle+0x28 → vecObj{begin,end}.
-            var recVec = this.ReadPtr(handle + TableRowsVectorOffset);
-            var recBegin = this.ReadPtr(recVec);
-            var recEnd = this.ReadPtr(recVec + 8);
-            if (recBegin == IntPtr.Zero || (long)recEnd <= (long)recBegin) return;
-            long recCount = ((long)recEnd - (long)recBegin) / RecipeStride;
-            if (recCount <= 0 || recCount > 5000) return;
-
-            // BaseItemTypes table object = first recipe's reward-FK table ptr (recipe+0x34), shared by all.
-            IntPtr bitTable = IntPtr.Zero;
-            for (long k = 0; k < recCount && bitTable == IntPtr.Zero; k++)
-                bitTable = this.ReadPtr(recBegin + (nint)(k * RecipeStride) + RecipeRewardTableOffset);
+            // The recipe handle is reliably reachable from the panel and sits in the same dat-table
+            // registry as BaseItemTypes, so it serves as a second BFS root to reach the latter.
+            var recipeHandle = this.FindRecipeTableHandle(panel);
+            var bitTable = this.FindBaseItemTypesHandle(panel, recipeHandle);
             if (bitTable == IntPtr.Zero) return;
 
             var bitVec = this.ReadPtr(bitTable + TableRowsVectorOffset);
@@ -454,7 +453,7 @@ namespace RunecraftHelper
                 // Its trailing digit encodes the currency tier for shared-icon families (Regal …/…2/…3).
                 var metaId = LastMetaSegment(this.ReadUtf16Z(this.ReadPtr(row + BaseItemTypeIdOffset), 128));
                 // ddsArt: the .dds art filename (= poe.ninja's image-id). Distinct per tier for families
-                // whose BaseItemType.Id diverges from the art name (Jeweller's "…01/02/03"). row+0x7C →
+                // whose BaseItemType.Id diverges from the art name (Jeweller's "…01/02/03"). row+0x78 →
                 // sub-object, +0x08 → "Art/2DItems/.../<ArtId>.dds".
                 var artSub = this.ReadPtr(row + BaseItemTypeArtOffset);
                 var ddsArt = artSub == IntPtr.Zero
@@ -469,17 +468,19 @@ namespace RunecraftHelper
             if (dict.Count > 0) this.nameToArtId = dict;
         }
 
-        // Walk the open panel's pointer graph (BFS) to the loaded Expedition2Recipes dat-file handle:
-        // a heap object whose +0x00 is an in-module vtable and whose +0x08 points to a path string
-        // containing "Expedition2Recipes". The vtable gate keeps the (remote) string read off the
-        // vast majority of nodes. Bounded by visited count + depth so it can't run away.
-        private IntPtr FindRecipeTableHandle(IntPtr panel)
+        // Walk a pointer graph (BFS) to a loaded dat-file handle whose path satisfies `pathMatch`: a heap
+        // object whose +0x00 is an in-module vtable and whose +0x08 points to its path string. The vtable
+        // gate keeps the (remote) string read off the vast majority of nodes. TWO roots are accepted so a
+        // table not reachable from the panel can still be found via another handle in the same dat
+        // registry. Bounded by visited count + depth so it can't run away.
+        private IntPtr FindDatHandle(IntPtr root1, IntPtr root2, Func<string, bool> pathMatch)
         {
-            var seen = new HashSet<long> { (long)panel };
+            var seen = new HashSet<long>();
             var queue = new Queue<(IntPtr addr, int depth)>();
-            queue.Enqueue((panel, 0));
+            if (root1 != IntPtr.Zero && seen.Add((long)root1)) queue.Enqueue((root1, 0));
+            if (root2 != IntPtr.Zero && seen.Add((long)root2)) queue.Enqueue((root2, 0));
             int visited = 0;
-            while (queue.Count > 0 && visited < 40000)
+            while (queue.Count > 0 && visited < 80000)
             {
                 var (addr, depth) = queue.Dequeue();
                 visited++;
@@ -489,13 +490,12 @@ namespace RunecraftHelper
                     var pathPtr = this.ReadPtr(addr + DatPathOffset);
                     if (pathPtr != IntPtr.Zero)
                     {
-                        var s = this.ReadUtf16Z(pathPtr, 80);
-                        if (s.Contains("Expedition2Recipes", StringComparison.Ordinal))
-                            return addr;
+                        var s = this.ReadUtf16Z(pathPtr, 96);
+                        if (pathMatch(s)) return addr;
                     }
                 }
 
-                if (depth >= 7) continue;
+                if (depth >= 8) continue;
                 var buf = new byte[0x180];
                 if (!ReadProcessMemory(this.processHandle, addr, buf, (uint)buf.Length, out var got)) continue;
                 for (int o = 0; o + 8 <= got; o += 8)
@@ -507,6 +507,18 @@ namespace RunecraftHelper
             }
             return IntPtr.Zero;
         }
+
+        // Main Expedition2Recipes dat handle (path ends ".../Balance/Expedition2Recipes.dat") — excludes
+        // the per-language overlay (".../Russian/...") and ".datc64" caches, whose rows lack the schema.
+        private IntPtr FindRecipeTableHandle(IntPtr panel) =>
+            this.FindDatHandle(panel, IntPtr.Zero,
+                s => s.EndsWith("Balance/Expedition2Recipes.dat", StringComparison.Ordinal));
+
+        // Main BaseItemTypes dat handle (path ends ".../Balance/BaseItemTypes.dat"). `recipeHandle` is a
+        // second BFS root (same dat registry) for when the table isn't reachable from the panel alone.
+        private IntPtr FindBaseItemTypesHandle(IntPtr panel, IntPtr recipeHandle) =>
+            this.FindDatHandle(panel, recipeHandle,
+                s => s.EndsWith("Balance/BaseItemTypes.dat", StringComparison.Ordinal));
 
         // True for addresses inside a loaded module (exe/dll) — user-mode module region is ≥ ~0x7FF0…,
         // far above heap allocations (~0x000002…). Cheap gate for "looks like a vtable".
@@ -957,7 +969,9 @@ namespace RunecraftHelper
         //        shared across levels, so we must pin the level (parsed from "…Level<n>"); we do NOT
         //        fall through to the bare dds-art here — it would return some arbitrary level's price.
         //   2b) dds-art          — for non-leveled distinct-icon families (Jeweller's …01/02/03).
-        //   3) localized name    — English clients / unmapped.
+        //   3) English name      — from the offline catalog (poe.ninja keys some items, e.g. logbooks,
+        //        by NAME, and their metaId/dds miss); language-independent.
+        //   4) localized name    — English clients / unmapped.
         private bool TryGetRecipePrice(in Recipe r, out double unit)
         {
             // Uncut gems (Skill/Support/Spirit) reuse ONE icon per family; the level is the metaId's
@@ -990,38 +1004,44 @@ namespace RunecraftHelper
                 return true;
             }
 
+            // English-name fallback: poe.ninja keys some items (notably Expedition logbooks) by display
+            // NAME, not metaId/dds. The live panel only gives the LOCALIZED name, so resolve the reward's
+            // ENGLISH name from the offline catalog (by metaId) and price by that — language-independent.
+            if (!string.IsNullOrEmpty(r.MetaId))
+            {
+                this.BuildMetaIdToEnglishIfNeeded();
+                if (this.metaIdToEnglish.TryGetValue(r.MetaId, out var eng) &&
+                    this.priceCache.TryGetExaltedPrice(eng, out unit) && unit > 0)
+                    return true;
+            }
+
             if (this.priceCache.TryGetExaltedPrice(r.Name, out unit) && unit > 0)
                 return true;
             unit = 0;
             return false;
         }
 
-        // Same key priority as TryGetRecipePrice, but resolves the readable poe.ninja English name
-        // (for the debug window — the in-game name is non-Latin and GH's font can't render it).
-        private bool TryGetRecipeName(in Recipe r, out string name)
+        // {metaId (BaseItemType.Id last segment) → English reward name}, from the offline recipe catalog
+        // (built once; English names are language-independent). Used as a price fallback for items
+        // poe.ninja keys by name. monolithRecipes / LoadMonolithData live in the MonolithRewards partial.
+        private Dictionary<string, string> metaIdToEnglish = new(StringComparer.Ordinal);
+
+        private void BuildMetaIdToEnglishIfNeeded()
         {
-            if (IsUncutGem(r.MetaId))
+            if (this.metaIdToEnglish.Count > 0) return;
+            if (!this.LoadMonolithData()) return;
+
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var rec in this.monolithRecipes)
             {
-                int gemLevel = UncutGemLevel(r.MetaId);
-                if (gemLevel >= 0 && !string.IsNullOrEmpty(r.DdsArt) &&
-                    this.priceCache.TryGetNameByArtId(r.DdsArt + gemLevel.ToString(), out name) && !string.IsNullOrEmpty(name))
-                    return true;
-                name = string.Empty;
-                return false;
+                var id = rec?.reward?.id;
+                var nm = rec?.reward?.name;
+                if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(nm)) continue;
+                var key = LastMetaSegment(id);
+                if (key.Length > 0) map[key] = nm;
             }
 
-            if (!string.IsNullOrEmpty(r.MetaId) && this.priceCache.TryGetNameByArtId(r.MetaId, out name) && !string.IsNullOrEmpty(name))
-                return true;
-
-            int level = LevelFromMetaId(r.MetaId);
-            string? artKey = string.IsNullOrEmpty(r.DdsArt)
-                ? null
-                : (level >= 0 ? r.DdsArt + level.ToString() : r.DdsArt);
-            if (artKey != null && this.priceCache.TryGetNameByArtId(artKey, out name) && !string.IsNullOrEmpty(name))
-                return true;
-
-            name = string.Empty;
-            return false;
+            if (map.Count > 0) this.metaIdToEnglish = map;
         }
 
         // BaseItemType.Id ending in "Level<n>" → n (leveled gem currency, e.g. Thaumaturgic Flux's
@@ -1115,6 +1135,7 @@ namespace RunecraftHelper
             // The name→keys dict is built from the client's localized BaseItemTypes names, so it's
             // language-specific. Drop it on process change so it rebuilds (e.g. after a language switch).
             this.nameToArtId = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+            this.nameToArtNextTryUtc = DateTime.MinValue;
         }
 
         private bool IsUiElementVisible(IntPtr addr)
