@@ -1,4 +1,4 @@
-﻿namespace SimpleBars
+namespace SimpleBars
 {
     using System;
     using System.Reflection;
@@ -29,7 +29,7 @@
                 return ForkShouldHide(gameUi);
             }
 
-            return gameUi.IsAnyLargePanelOpen || gameUi.WorldMapPanel.IsVisible;
+            return gameUi.IsAnyLargePanelOpen || gameUi.Atlas.IsVisible;
         }
     }
 }

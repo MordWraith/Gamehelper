@@ -284,6 +284,12 @@ namespace Radar
         public Dictionary<string, IconPicker> ExpeditionMarkerIcons = new();
 
         /// <summary>
+        /// Icons for expedition markers detected by their .ao model file (works pre-detonation,
+        /// unlike the MinimapIcon-based <see cref="ExpeditionMarkerIcons"/>), keyed by display name.
+        /// </summary>
+        public Dictionary<string, IconPicker> ExpeditionModelIcons = new();
+
+        /// <summary>
         /// Icons for expedition remnants with specific mods.
         /// </summary>
         public Dictionary<string, IconPicker> ExpeditionRemnantIcons = new();
@@ -340,6 +346,63 @@ namespace Radar
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Normalizes an Expedition marker .ao model path to a base key that ignores the numeric
+        /// version suffix. e.g. "Metadata/.../chestmarker_02.ao" -> "chestmarker",
+        /// "chestmarker2_03.ao" -> "chestmarker2", "chestmarker_signpost_01.ao" -> "chestmarker_signpost".
+        /// Returns empty string when the path is empty.
+        /// </summary>
+        public static string NormalizeExpeditionModelName(string modelPath)
+        {
+            if (string.IsNullOrEmpty(modelPath))
+            {
+                return string.Empty;
+            }
+
+            var slash = modelPath.LastIndexOf('/');
+            var name = slash >= 0 ? modelPath[(slash + 1)..] : modelPath;
+            var dot = name.IndexOf('.');
+            if (dot >= 0)
+            {
+                name = name[..dot];
+            }
+
+            // Strip a single trailing "_<digits>" version suffix (e.g. "_03"), but keep non-numeric
+            // suffixes like "_signpost" so distinct variants don't collapse together.
+            var underscore = name.LastIndexOf('_');
+            if (underscore > 0 && underscore < name.Length - 1)
+            {
+                var allDigits = true;
+                for (var i = underscore + 1; i < name.Length; i++)
+                {
+                    if (!char.IsDigit(name[i]))
+                    {
+                        allDigits = false;
+                        break;
+                    }
+                }
+
+                if (allDigits)
+                {
+                    name = name[..underscore];
+                }
+            }
+
+            return name;
+        }
+
+        /// <summary>
+        /// Returns the <see cref="ExpeditionModelIcons"/> display-name key for a marker .ao model
+        /// path, or null if the model isn't mapped.
+        /// </summary>
+        public static string? ExpeditionModelKeyForPath(string modelPath)
+        {
+            var normalized = NormalizeExpeditionModelName(modelPath);
+            return normalized.Length > 0 && ExpeditionMarkerModelMap.TryGetValue(normalized, out var name)
+                ? name
+                : null;
         }
 
         /// <summary>
@@ -413,6 +476,30 @@ namespace Radar
             { "RewardChestMaps", "Maps Chest" },
             { "ExpeditionCavernEntrance", "Cavern Entrance" },
         };
+
+        /// <summary>
+        /// Maps a normalized Expedition marker .ao model name (see <see cref="NormalizeExpeditionModelName"/>)
+        /// to its display-name key in <see cref="ExpeditionModelIcons"/>. The numeric version suffix is
+        /// ignored, so "chestmarker.ao"/"chestmarker_02.ao" share one entry while "chestmarker2"/
+        /// "chestmarker3" stay distinct. Add new variants here plus a default in AddDefaultExpeditionModelIcons.
+        /// </summary>
+        [JsonIgnore]
+        public static readonly Dictionary<string, string> ExpeditionMarkerModelMap = new()
+        {
+            { "chestmarker", "Chest Marker" },
+            { "chestmarker2", "Chest Marker 2" },
+            { "chestmarker3", "Chest Marker 3" },
+            { "chestmarker_signpost", "Chest Signpost Marker" },
+            { "elitemarker", "Elite Marker" },
+            { "monstermarker", "Monster Marker" },
+        };
+
+        /// <summary>
+        /// Display-name key in <see cref="ExpeditionModelIcons"/> for the catch-all icon drawn on
+        /// ExpeditionMarker entities that match neither a known reward MinimapIcon nor a mapped model.
+        /// </summary>
+        [JsonIgnore]
+        public const string UnknownExpeditionMarkerKey = "Unknown Marker";
 
         /// <summary>
         /// Maps MinimapIcon.IconName to display name used as key in RunestoneIcons.
@@ -564,6 +651,7 @@ namespace Radar
             this.AddDefaultDeliriumIcons(basicIconPathName);
             this.AddDefaultExpeditionIcons(basicIconPathName);
             this.AddDefaultExpeditionMarkerIcons(basicIconPathName);
+            this.AddDefaultExpeditionModelIcons(basicIconPathName);
             this.AddDefaultExpeditionRemnantIcons(basicIconPathName);
             this.AddDefaultRunestoneIcons(basicIconPathName);
             this.AddDefaultRitualIcons(basicIconPathName);
@@ -689,6 +777,22 @@ namespace Radar
             this.AbyssIcons.TryAdd("Abyss Pit", new IconPicker(iconPathName, 7, 63, 50, IconSize,
                 showPath: true,
                 pathColor: new System.Numerics.Vector4(140f / 255f, 1f, 0f, 1f)));
+        }
+
+        private void AddDefaultExpeditionModelIcons(string iconPathName)
+        {
+            this.ExpeditionModelIcons.TryAdd("Chest Marker", new IconPicker(iconPathName, 1, 70, 30, IconSize));
+            this.ExpeditionModelIcons.TryAdd("Chest Marker 2", new IconPicker(iconPathName, 1, 70, 30, IconSize));
+            this.ExpeditionModelIcons.TryAdd("Chest Marker 3", new IconPicker(iconPathName, 1, 70, 30, IconSize));
+            this.ExpeditionModelIcons.TryAdd("Chest Signpost Marker", new IconPicker(iconPathName, 8, 38, 15, IconSize));
+            this.ExpeditionModelIcons.TryAdd("Elite Marker", new IconPicker(iconPathName, 0, 34, 30, IconSize));
+            var monsterMarker = new IconPicker(iconPathName, 2, 34, 15, IconSize);
+            monsterMarker.Show = false; // disabled by default
+            this.ExpeditionModelIcons.TryAdd("Monster Marker", monsterMarker);
+
+            // Catch-all for ExpeditionMarker entities whose .ao model isn't in ExpeditionMarkerModelMap
+            // (and which have no known reward MinimapIcon) - surfaces variants we haven't mapped yet.
+            this.ExpeditionModelIcons.TryAdd(UnknownExpeditionMarkerKey, new IconPicker(iconPathName, 13, 42, 40, IconSize));
         }
 
         private void AddDefaultExpeditionRemnantIcons(string iconPathName)

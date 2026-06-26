@@ -483,10 +483,23 @@ namespace LootTracker
             }
         }
 
+        // Extra non-combat hubs that aren't flagged IsHideout/IsTown by the game data but should be
+        // treated like the hideout for loot tracking (no run opened, the outgoing leg is folded on exit).
+        // Matched by area Id (language-independent) — the display name is localized AND ambiguous:
+        // "Abyss_Hub" (the safe staging hub) and the "Abyss_Pinnacle" boss arena share the name
+        // "The Well of Souls", so a name match would wrongly mark the boss map as safe.
+        private static readonly HashSet<string> SafeZoneIds = new(StringComparer.Ordinal)
+        {
+            "Abyss_Hub",   // The Well of Souls — safe staging hub (NOT Abyss_Pinnacle, which is a map)
+        };
+
+        private static bool IsSafeZone(GameHelper.RemoteObjects.FilesStructures.WorldAreaDat details)
+            => SafeZoneIds.Contains(details.Id);
+
         private void HandleZoneTransition(GameHelper.RemoteObjects.States.InGameStateObjects.AreaInstance area,
             GameHelper.RemoteObjects.FilesStructures.WorldAreaDat details, string inst)
         {
-            bool isMap = !details.IsHideout && !details.IsTown;
+            bool isMap = !details.IsHideout && !details.IsTown && !IsSafeZone(details);
             bool wasOnMap = this.onMapArea; // map-ness of the area we're leaving (before we overwrite it)
             this.onMapArea = isMap;
             var now = DateTime.UtcNow;

@@ -1,1 +1,1 @@
-SimpleBars: separate ES Gradation Marks (self bar), circle dot enhancements (arc thickness, background radius/color, arc offset, scale), individual Show Health Bar toggle || SimpleBars: separate ES-Strichmarkierungen (eigener Balken), Kreis-Dot-Erweiterungen, eigener "Show Health Bar"-Toggle
+﻿

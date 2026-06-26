@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 function Invoke-RobocopyMirror {
     param([string]$Source, [string]$Destination)
-    & robocopy $Source $Destination /MIR /XD bin obj .git .vs publish configs /XF Program.cs /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    & robocopy $Source $Destination /MIR /XD bin obj .git .vs publish configs /XF Program.cs StashValueByZx0.csproj /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
     $rc = $LASTEXITCODE
     $global:LASTEXITCODE = 0
     if ($rc -ge 8) { throw "robocopy failed ($rc): $Source -> $Destination" }

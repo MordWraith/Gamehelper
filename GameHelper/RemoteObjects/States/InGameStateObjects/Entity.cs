@@ -376,6 +376,20 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             this.componentAddresses?.Clear();
             this.componentCache?.Clear();
+
+            // Address set to Zero means this slot no longer points at an entity (e.g. nothing
+            // hovered, or player left the area). Reset the observable identity back to the empty
+            // state so stale Path/Id/IsValid from the previous entity aren't reported as current.
+            this.zone = NearbyZones.None;
+            this.Path = string.Empty;
+            this.Id = 0;
+            this.IsValid = false;
+            this.EntityType = EntityTypes.Unidentified;
+            this.EntitySubtype = EntitySubtypes.Unidentified;
+            this.oldSubtypeWithoutPOI = EntitySubtypes.None;
+            this.EntityState = EntityStates.None;
+            this.customGroup = 0;
+            this.consecutiveInvalidFrames = 0;
         }
 
         /// <inheritdoc />

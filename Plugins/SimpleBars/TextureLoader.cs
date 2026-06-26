@@ -1,4 +1,4 @@
-﻿// <copyright file="HealthBars.cs" company="PlaceholderCompany">
+// <copyright file="HealthBars.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 

@@ -2,9 +2,11 @@
     "releases":  [
                      {
                          "version":  "1.4.2",
-                         "published":  "2026-06-25T14:02:15.7394075Z",
+                         "published":  "2026-06-25T18:42:41.5873485Z",
                          "changelog":  [
-                                           "Version 1.4.2 release || Version 1.4.2 Release"
+                                           "Updated core (memory stability fixes) Gordin",
+                                           "SimpleBars: ES graduation marks, circle dot enhancements",
+                                           "SekhemaHelper v 0.1.0 YokkenUA"
                                        ]
                      },
                      {

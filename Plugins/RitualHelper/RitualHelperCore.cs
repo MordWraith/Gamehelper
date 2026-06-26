@@ -82,6 +82,7 @@ namespace RitualHelper
                     ImGui.SliderFloat("Offset X", ref this.Settings.PriceOffsetX, -50f, 50f);
                     ImGui.SliderFloat("Offset Y", ref this.Settings.PriceOffsetY, -50f, 50f);
                     ImGui.ColorEdit4("Text Color", ref this.Settings.PriceTextColor);
+                    ImGui.SliderFloat("Min display value (Ex)", ref this.Settings.MinDisplayExalted, 0f, 500f, "%.0f Ex");
                     ImGui.TextWrapped(
                         "Prices are shown as value + currency orb icon (no background box).");
 
@@ -516,6 +517,14 @@ namespace RitualHelper
                 }
 
                 var priceChaos = this.StabilizeSessionPrice(internalNameOnly, priceInfo.PriceChaos);
+
+                if (this.Settings.MinDisplayExalted > 0f)
+                {
+                    var (exValue, _) = PoeNinjaPriceFetcher.GetDisplayPrice(
+                        new PoeNinjaPrice { PriceChaos = priceChaos }, 1);
+                    if (exValue < this.Settings.MinDisplayExalted)
+                        continue;
+                }
 
                 var (displayValue, displayCurrency) = PoeNinjaPriceFetcher.GetDisplayPrice(
                     new PoeNinjaPrice { PriceChaos = priceChaos },

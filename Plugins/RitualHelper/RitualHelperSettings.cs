@@ -58,5 +58,8 @@ namespace RitualHelper
 
         /// <summary>Price value text color (RGBA, 0-1). Default ≈ RGB(255, 235, 140).</summary>
         public Vector4 PriceTextColor = new Vector4(1f, 235f / 255f, 140f / 255f, 1f);
+
+        /// <summary>Hide price labels for items below this value in Exalted orbs. Set to 0 to show all prices.</summary>
+        public float MinDisplayExalted = 50f;
     }
 }

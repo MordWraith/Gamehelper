@@ -50,6 +50,12 @@ namespace GameHelper.RemoteObjects.States
         /// </summary>
         public ImportantUiElements GameUi { get; } = new(IntPtr.Zero);
 
+        /// <summary>
+        ///     Gets the entity currently under the mouse cursor (monsters included).
+        ///     <see cref="Entity.IsValid" /> is false when nothing is hovered.
+        /// </summary>
+        public Entity MouseOverEntity { get; } = new();
+
         /// <inheritdoc />
         internal override void ToImGui()
         {
@@ -64,6 +70,7 @@ namespace GameHelper.RemoteObjects.States
             this.uiRootAddress = IntPtr.Zero;
             this.GameUi.Address = IntPtr.Zero;
             this.CurrentWorldInstance.Address = IntPtr.Zero;
+            this.MouseOverEntity.Address = IntPtr.Zero;
         }
 
         /// <inheritdoc />
@@ -82,6 +89,26 @@ namespace GameHelper.RemoteObjects.States
             var uiRootStruct = reader.ReadMemory<UiRootStruct>(uiManagerPtr);
             this.uiRootAddress = uiRootStruct.UiRootPtr;
             this.GameUi.Address = uiManagerPtr;
+
+            this.MouseOverEntity.Address = this.ReadMouseOverEntityAddress(reader, data.MouseOverHostPtr);
+        }
+
+        /// <summary>
+        ///     Follows the MouseOver pointer chain (host -> sub -> entity) and returns the
+        ///     address of the entity currently under the cursor, or <see cref="IntPtr.Zero" />
+        ///     when nothing is hovered or any hop is invalid.
+        /// </summary>
+        private IntPtr ReadMouseOverEntityAddress(SafeMemoryHandle reader, IntPtr hostPtr)
+        {
+            if (hostPtr == IntPtr.Zero ||
+                !reader.TryReadMemory<MouseOverHostStruct>(hostPtr, out var host) ||
+                host.MouseOverSubPtr == IntPtr.Zero ||
+                !reader.TryReadMemory<MouseOverSubStruct>(host.MouseOverSubPtr, out var sub))
+            {
+                return IntPtr.Zero;
+            }
+
+            return sub.EntityPtr;
         }
 
         private IEnumerator<Wait> OnPerFrame()

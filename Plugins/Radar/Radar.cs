@@ -282,6 +282,12 @@ namespace Radar
                     "Icons for expedition markers, keyed by MinimapIcon name. Set size to 0 to disable.");
 
                 this.Settings.DrawIconsSettingToImGui(
+                    "Expedition Model Marker Icons",
+                    this.Settings.ExpeditionModelIcons,
+                    "Icons for expedition markers detected by their .ao model (works before detonation). " +
+                    "Set size to 0 to disable.");
+
+                this.Settings.DrawIconsSettingToImGui(
                     "Expedition Remnant Icons",
                     this.Settings.ExpeditionRemnantIcons,
                     "Icons for expedition remnants with specific mods. Set size to 0 to disable.");
@@ -1209,13 +1215,33 @@ namespace Radar
                     case EntityTypes.OtherImportantObjects:
                         if (entityValue.EntityCustomGroup == RadarSettings.ExpeditionMarkerGroup)
                         {
+                            // Known reward chest (post-detonation, via MinimapIcon).
                             if (entityValue.TryGetComponent<MinimapIcon>(out var minimapIcon) &&
                                 !string.IsNullOrEmpty(minimapIcon.IconName) &&
-                                RadarSettings.ExpeditionMarkerIconNameMap.TryGetValue(minimapIcon.IconName, out var displayName) &&
-                                this.Settings.ExpeditionMarkerIcons.TryGetValue(displayName, out var expMarkerIcon) &&
-                                expMarkerIcon.Draw)
+                                RadarSettings.ExpeditionMarkerIconNameMap.TryGetValue(minimapIcon.IconName, out var displayName))
                             {
-                                DrawIcon(expMarkerIcon);
+                                if (this.Settings.ExpeditionMarkerIcons.TryGetValue(displayName, out var expMarkerIcon) &&
+                                    expMarkerIcon.Draw)
+                                {
+                                    DrawIcon(expMarkerIcon);
+                                }
+                            }
+                            // Known model variant (works pre-detonation, via the .ao model).
+                            else if (entityValue.TryGetComponent<Animated>(out var markerModel) &&
+                                RadarSettings.ExpeditionModelKeyForPath(markerModel.ModelPath) is { } modelKey)
+                            {
+                                if (this.Settings.ExpeditionModelIcons.TryGetValue(modelKey, out var modelIcon) &&
+                                    modelIcon.Draw)
+                                {
+                                    DrawIcon(modelIcon);
+                                }
+                            }
+                            // Catch-all: an ExpeditionMarker we haven't mapped yet.
+                            else if (this.Settings.ExpeditionModelIcons.TryGetValue(
+                                         RadarSettings.UnknownExpeditionMarkerKey, out var unknownIcon) &&
+                                     unknownIcon.Draw)
+                            {
+                                DrawIcon(unknownIcon);
                             }
                         }
                         else if (entityValue.EntityCustomGroup == RadarSettings.ExpeditionRemnantGroup)
@@ -1547,15 +1573,35 @@ namespace Radar
                     case EntityTypes.OtherImportantObjects:
                         if (ev.EntityCustomGroup == RadarSettings.ExpeditionMarkerGroup)
                         {
+                            // Known reward chest (post-detonation, via MinimapIcon).
                             if (ev.TryGetComponent<MinimapIcon>(out var mmIcon) &&
                                 !string.IsNullOrEmpty(mmIcon.IconName) &&
                                 RadarSettings.ExpeditionMarkerIconNameMap.TryGetValue(
-                                    mmIcon.IconName, out var displayName) &&
-                                this.Settings.ExpeditionMarkerIcons.TryGetValue(
-                                    displayName, out var expIcon) &&
-                                expIcon.Draw)
+                                    mmIcon.IconName, out var displayName))
                             {
-                                TryAdd(eId, ePos, expIcon);
+                                if (this.Settings.ExpeditionMarkerIcons.TryGetValue(
+                                        displayName, out var expIcon) &&
+                                    expIcon.Draw)
+                                {
+                                    TryAdd(eId, ePos, expIcon);
+                                }
+                            }
+                            // Known model variant (works pre-detonation, via the .ao model).
+                            else if (ev.TryGetComponent<Animated>(out var markerModel) &&
+                                RadarSettings.ExpeditionModelKeyForPath(markerModel.ModelPath) is { } modelKey)
+                            {
+                                if (this.Settings.ExpeditionModelIcons.TryGetValue(modelKey, out var modelIcon) &&
+                                    modelIcon.Draw)
+                                {
+                                    TryAdd(eId, ePos, modelIcon);
+                                }
+                            }
+                            // Catch-all: an ExpeditionMarker we haven't mapped yet.
+                            else if (this.Settings.ExpeditionModelIcons.TryGetValue(
+                                         RadarSettings.UnknownExpeditionMarkerKey, out var unknownIcon) &&
+                                     unknownIcon.Draw)
+                            {
+                                TryAdd(eId, ePos, unknownIcon);
                             }
                         }
                         else if (ev.EntityCustomGroup == RadarSettings.ExpeditionRemnantGroup)
