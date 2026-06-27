@@ -43,9 +43,9 @@ namespace Autopot
         public bool BypassControllerMode = false;
 
         /// <summary>Xbox 360 button pressed for Key1 (HP flask) in controller bypass mode.</summary>
-        public Xbox360Button ControllerKey1Button = Xbox360Button.A;
+        public Xbox360Button ControllerKey1Button = Xbox360Button.Left;
 
         /// <summary>Xbox 360 button pressed for Key2 (MP flask) in controller bypass mode.</summary>
-        public Xbox360Button ControllerKey2Button = Xbox360Button.B;
+        public Xbox360Button ControllerKey2Button = Xbox360Button.Right;
     }
 }
