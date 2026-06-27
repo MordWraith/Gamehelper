@@ -4,6 +4,7 @@ namespace Autopot
     using System.Diagnostics;
     using System.IO;
     using System.Numerics;
+    using System.Threading.Tasks;
     using ClickableTransparentOverlay.Win32;
     using GameHelper;
     using GameHelper.Plugin;
@@ -11,6 +12,9 @@ namespace Autopot
     using GameHelper.RemoteObjects.Components;
     using GameHelper.Utils;
     using ImGuiNET;
+    using Nefarius.ViGEm.Client;
+    using Nefarius.ViGEm.Client.Targets;
+    using Nefarius.ViGEm.Client.Targets.Xbox360;
     using Newtonsoft.Json;
 
     public sealed class AutopotCore : PCore<AutopotSettings>
@@ -25,9 +29,19 @@ namespace Autopot
         private readonly Stopwatch safetyLogoutCooldown = new();
         private bool safetyLogoutWaitingRecovery;
 
+        private ViGEmClient? _vigemClient;
+        private IXbox360Controller? _vigemController;
+        private bool _vigemReady;
+        private bool _vigemInitAttempted;
+        private string _vigemStatus = string.Empty;
+        private readonly object _vigemLock = new();
+
         private string SettingPathname => Path.Join(DllDirectory, "config", "settings.txt");
 
-        public override void OnDisable() { }
+        public override void OnDisable()
+        {
+            DisposeViGEm();
+        }
 
         public override void OnEnable(bool isGameOpened)
         {
@@ -36,6 +50,9 @@ namespace Autopot
                 var content = File.ReadAllText(SettingPathname);
                 Settings = JsonConvert.DeserializeObject<AutopotSettings>(content) ?? new AutopotSettings();
             }
+
+            if (Settings.BypassControllerMode)
+                InitializeViGEm();
         }
 
         public override void SaveSettings()
@@ -44,6 +61,66 @@ namespace Autopot
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
             File.WriteAllText(SettingPathname, JsonConvert.SerializeObject(Settings, Formatting.Indented));
+        }
+
+        private void InitializeViGEm()
+        {
+            if (_vigemReady || _vigemInitAttempted) return;
+            _vigemInitAttempted = true;
+            try
+            {
+                _vigemClient = new ViGEmClient();
+                _vigemController = _vigemClient.CreateXbox360Controller();
+                _vigemController.Connect();
+                _vigemReady = true;
+                _vigemStatus = "Virtual controller connected";
+            }
+            catch (Exception ex)
+            {
+                DisposeViGEm();
+                _vigemStatus = $"Failed: {ex.Message}";
+            }
+        }
+
+        private void DisposeViGEm()
+        {
+            try { _vigemController?.Disconnect(); } catch { }
+            try { _vigemClient?.Dispose(); } catch { }
+            _vigemController = null;
+            _vigemClient = null;
+            _vigemReady = false;
+            _vigemInitAttempted = false;
+        }
+
+        private bool PressViGEmButton(Xbox360Button button)
+        {
+            if (!_vigemReady || _vigemController == null) return false;
+            try
+            {
+                lock (_vigemLock)
+                {
+                    _vigemController.SetButtonState(button, true);
+                    _vigemController.SubmitReport();
+                }
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(100);
+                    try
+                    {
+                        lock (_vigemLock)
+                        {
+                            _vigemController?.SetButtonState(button, false);
+                            _vigemController?.SubmitReport();
+                        }
+                    }
+                    catch { }
+                });
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public override void DrawSettings()
@@ -60,6 +137,12 @@ namespace Autopot
 
         public override void DrawUI()
         {
+            // Keep ViGEm in sync with the bypass checkbox without needing a restart.
+            if (Settings.BypassControllerMode && !_vigemReady)
+                InitializeViGEm();
+            else if (!Settings.BypassControllerMode && _vigemReady)
+                DisposeViGEm();
+
             RefreshVitals();
             UpdateServiceStatus();
 
@@ -75,7 +158,7 @@ namespace Autopot
             if (!CanExecute(out _))
                 return;
 
-            if (Core.GHSettings.EnableControllerMode)
+            if (Core.GHSettings.EnableControllerMode && !Settings.BypassControllerMode)
                 return;
 
             if (Core.States.InGameStateObject.GameUi.ChatParent.IsChatActive)
@@ -240,30 +323,76 @@ namespace Autopot
                 key = tmp;
         }
 
-        private static void DrawDeviceStatus()
+        private void DrawDeviceStatus()
         {
             bool vigem = InputDeviceStatus.IsViGEmBusInstalled();
             if (vigem)
                 ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "ViGEmBus: Installed");
             else
             {
-                ImGui.TextColored(new Vector4(1f, 0.35f, 0.35f, 1f),
-                    "ViGEmBus: Not installed");
+                ImGui.TextColored(new Vector4(1f, 0.35f, 0.35f, 1f), "ViGEmBus: Not installed");
                 ImGui.SameLine();
                 if (ImGui.SmallButton("[Download]"))
                     System.Diagnostics.Process.Start(new ProcessStartInfo(InputDeviceStatus.ViGEmDownloadLink) { UseShellExecute = true });
             }
 
-            bool controller = InputDeviceStatus.IsControllerConnected();
-            if (controller)
+            if (InputDeviceStatus.IsControllerConnected())
                 ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "Controller: Detected");
             else
-                ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f),
-                    "Controller: Not detected");
+                ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), "Controller: Not detected");
 
+            ImGui.Spacing();
+            if (Core.GHSettings.EnableControllerMode)
+                ImGui.TextColored(new Vector4(1f, 0.75f, 0.2f, 1f), "PoE2 UI: Controller mode");
+            else
+                ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), "PoE2 UI: Keyboard mode");
+            ImGuiHelper.ToolTip("In controller mode PoE2 ignores keyboard events — enable Controller bypass below.");
+
+            ImGui.Spacing();
+            ImGui.Checkbox("Controller bypass (ViGEmBus)", ref Settings.BypassControllerMode);
             ImGuiHelper.ToolTip(
-                "Keyboard autopot uses GameHelper key simulation (like AutoHotKey Trigger). " +
-                "ViGEmBus is optional and only needed for virtual-controller setups.");
+                "Creates a virtual Xbox 360 controller via ViGEmBus and injects button presses\n" +
+                "instead of keyboard events. Required when PoE2 is in controller mode.\n" +
+                "ViGEmBus driver must be installed.");
+
+            if (Settings.BypassControllerMode)
+            {
+                ImGui.Spacing();
+                if (_vigemReady)
+                    ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), $"ViGEm: {_vigemStatus}");
+                else
+                    ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f),
+                        $"ViGEm: {(_vigemStatus.Length > 0 ? _vigemStatus : "Initializing...")}");
+
+                ImGui.Spacing();
+                ImGui.TextDisabled("HP flask / Key1 button:");
+                DrawXboxButtonCombo("##ctrlbtn1", ref Settings.ControllerKey1Button);
+                ImGui.TextDisabled("MP flask / Key2 button:");
+                DrawXboxButtonCombo("##ctrlbtn2", ref Settings.ControllerKey2Button);
+            }
+        }
+
+        private static void DrawXboxButtonCombo(string id, ref Xbox360Button current)
+        {
+            var allButtons = new[]
+            {
+                Xbox360Button.A, Xbox360Button.B, Xbox360Button.X, Xbox360Button.Y,
+                Xbox360Button.LeftShoulder, Xbox360Button.RightShoulder,
+                Xbox360Button.Up, Xbox360Button.Down, Xbox360Button.Left, Xbox360Button.Right,
+                Xbox360Button.Start, Xbox360Button.Back,
+                Xbox360Button.LeftThumb, Xbox360Button.RightThumb,
+            };
+            if (ImGui.BeginCombo(id, current.ToString()))
+            {
+                foreach (var btn in allButtons)
+                {
+                    bool sel = current == btn;
+                    if (ImGui.Selectable(btn.ToString(), sel))
+                        current = btn;
+                    if (sel) ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
         }
 
         private static void DrawVitalBar(string label, int percent, Vector4 fillColor)
@@ -310,14 +439,18 @@ namespace Autopot
 
             if (key1Trigger && key1Cooldown.ElapsedMilliseconds >= Settings.Key1DelayMs)
             {
-                if (MiscHelper.KeyUp(Settings.Key1))
-                    key1Cooldown.Restart();
+                bool sent = _vigemReady
+                    ? PressViGEmButton(Settings.ControllerKey1Button)
+                    : MiscHelper.KeyUp(Settings.Key1);
+                if (sent) key1Cooldown.Restart();
             }
 
             if (key2Trigger && key2Cooldown.ElapsedMilliseconds >= Settings.Key2DelayMs)
             {
-                if (MiscHelper.KeyUp(Settings.Key2))
-                    key2Cooldown.Restart();
+                bool sent = _vigemReady
+                    ? PressViGEmButton(Settings.ControllerKey2Button)
+                    : MiscHelper.KeyUp(Settings.Key2);
+                if (sent) key2Cooldown.Restart();
             }
         }
 
