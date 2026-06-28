@@ -54,6 +54,17 @@ function Sync-Plugin {
         }
     }
 
+    # SHA vor dem Loeschen merken und im State-File speichern (fuer Update-Check in maintain)
+    try {
+        $syncedSha = (& git -C $tempDir rev-parse HEAD 2>$null).Trim()
+        if ($syncedSha) {
+            $statePath = Join-Path $PSScriptRoot ".plugin-sync-state.json"
+            $st = if (Test-Path $statePath) { Get-Content $statePath -Raw | ConvertFrom-Json } else { [PSCustomObject]@{} }
+            $st | Add-Member -NotePropertyName $Folder -NotePropertyValue $syncedSha -Force
+            $st | ConvertTo-Json | Set-Content $statePath -Encoding UTF8
+        }
+    } catch {}
+
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 
     # Für Plugins mit lokalen csproj-Anpassungen: eigene Version nach dem Sync wiederherstellen.
@@ -67,6 +78,31 @@ function Sync-Plugin {
         Copy-Item $overrideSrc $csprojDst -Force
         Write-Host "  csproj-override wiederhergestellt: $Folder" -ForegroundColor DarkCyan
     }
+
+    # Release-Notes des neuesten Releases fuer Changelog-Vorschlag holen
+    try {
+        $releaseJson = & gh release view --repo $GithubRepo --json tagName,body 2>$null
+        if ($releaseJson) {
+            $rel  = $releaseJson | ConvertFrom-Json
+            $body = $rel.body
+            if ($body) {
+                # Erste Zeile jedes Absatzes (= Titel der Aenderung), max 120 Zeichen
+                $blocks = $body -split "(?:\r?\n){2,}" | Where-Object { $_.Trim() }
+                $titles = foreach ($block in $blocks) {
+                    $line = ($block -split "\r?\n")[0].Trim()
+                    # Fuehrende Bullet/Emoji-Zeichen entfernen
+                    $line = $line -replace '^[\-\*\•]\s+', ''
+                    if ($line -and $line.Length -le 120) { $line }
+                }
+                if ($titles) {
+                    $pendingPath = Join-Path $PSScriptRoot ".pending-changelog.txt"
+                    foreach ($title in $titles) {
+                        "$Folder`: $title" | Add-Content $pendingPath -Encoding UTF8
+                    }
+                }
+            }
+        }
+    } catch {}
 
     Write-Host "  OK $Folder" -ForegroundColor Green
 }

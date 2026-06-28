@@ -871,9 +871,12 @@ namespace Atlas
                 var coarseBounds = new RectangleF(0, 0, ImGui.GetIO().DisplaySize.X, ImGui.GetIO().DisplaySize.Y);
                 coarseBounds.Inflate(256f, 256f);
 
-                // Staggers each route's chevron phase so routes sharing a segment interleave their
-                // triangles (different colours alternate) instead of one colour painting over the rest.
-                int routeDrawIndex = 0;
+                // Routes are COLLECTED here and drawn after the node pass (below), so each one can be
+                // assigned a distinct chevron phase on every edge it shares with another route. Drawing
+                // inline with a global phase let two routes whose phase slots collided stamp opaque
+                // triangles on the same spots — the later colour (usually a white/cream content route)
+                // then fully hid the earlier one (e.g. a red arbiter route) on their common segment.
+                var pendingRoutes = new List<(List<StdTuple2D<int>> path, uint color, float thickness)>();
 
                 foreach (var nd in nodeCache)
                 {
@@ -967,7 +970,7 @@ namespace Atlas
                             }
                             else if (path != null && path.Count > 0)
                             {
-                                DrawNodePath(drawList, path, routeCenters, lineColor, thickness, uiScale, Settings.RouteArrowSpacing, routeDrawIndex++);
+                                pendingRoutes.Add((path, lineColor, thickness));
                                 int hops = path.Count - 1;
 
                                 // Green dot on the accessible entry node (where you start running).
@@ -1096,6 +1099,34 @@ namespace Atlas
                         DrawContentDots(drawList, nd.ContentCount, labelCenterX, ref nextRowTopY, rowGap, uiScale);
                 }
 
+                // ── Deferred route drawing — interleave chevrons per shared edge ──────────
+                // Build, per atlas edge, the ordered list of routes that traverse it; each route
+                // then draws its chevrons at a distinct phase slot (local index / count) on that
+                // edge, so every colour on a shared segment stays visible instead of being
+                // overprinted by whichever route happened to draw last.
+                if (pendingRoutes.Count > 0)
+                {
+                    var edgeRoutes = new Dictionary<(StdTuple2D<int>, StdTuple2D<int>), List<int>>();
+                    for (int ri = 0; ri < pendingRoutes.Count; ri++)
+                    {
+                        var p = pendingRoutes[ri].path;
+                        for (int i = 1; i < p.Count; i++)
+                        {
+                            if (!routeCenters.ContainsKey(p[i - 1]) || !routeCenters.ContainsKey(p[i]))
+                                continue;
+                            var key = EdgeKey(p[i - 1], p[i]);
+                            if (!edgeRoutes.TryGetValue(key, out var list))
+                                edgeRoutes[key] = list = new List<int>();
+                            list.Add(ri);
+                        }
+                    }
+                    for (int ri = 0; ri < pendingRoutes.Count; ri++)
+                    {
+                        var (p, col, th) = pendingRoutes[ri];
+                        DrawNodePath(drawList, p, routeCenters, col, th, uiScale, Settings.RouteArrowSpacing, ri, edgeRoutes);
+                    }
+                }
+
                 // "You are here" marker dot (context only — not the route start).
                 if (wantRoute && markerFound)
                 {
@@ -1188,7 +1219,7 @@ namespace Atlas
                     ContentCount = GetContentCount(nodeUi),
                     ContentTokens = contentTokens,
                     BadgeContentIds = badgeIds,
-                    ContentNames = BuildContentNames(contentTokens, badgeIds),
+                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId),
                     GridPosition = node.GridPosition,
                 });
             }
@@ -1254,7 +1285,7 @@ namespace Atlas
                         ContentCount = (int)(nBadgeCount?.GetValue(map) ?? 0),
                         ContentTokens = tokens,
                         BadgeContentIds = badgeIds,
-                        ContentNames = BuildContentNames(tokens, badgeIds),
+                        ContentNames = BuildContentNames(tokens, badgeIds, internalId),
                         GridPosition = (StdTuple2D<int>)(nGrid.GetValue(map) ?? default(StdTuple2D<int>)),
                     });
                 }
@@ -1422,9 +1453,11 @@ namespace Atlas
 
         // Draw a node path (accessible source → target) as a thin guide line plus evenly-spaced
         // directional chevrons (filled triangles) pointing toward the target. The chevrons make the
-        // route direction obvious and — because two overlapping routes interleave their chevrons —
-        // keep BOTH visible where they share a segment (a solid line would just blend). Off-screen
-        // path nodes break the path into visible segments.
+        // route direction obvious and — because routes sharing an edge interleave their chevrons by
+        // distinct phase slots — keep ALL of them visible where they overlap (a solid line would just
+        // blend, and equal-phase opaque triangles would overprint). Off-screen path nodes break the
+        // path into visible segments. `edgeRoutes` maps each shared edge to the ordered list of route
+        // indices traversing it; this route's slot on an edge picks its chevron phase there.
         private static void DrawNodePath(
             ImDrawListPtr drawList,
             List<StdTuple2D<int>> path,
@@ -1433,41 +1466,58 @@ namespace Atlas
             float thickness,
             float uiScale,
             float spacingMul,
-            int phaseIndex)
+            int routeIndex,
+            Dictionary<(StdTuple2D<int>, StdTuple2D<int>), List<int>> edgeRoutes)
         {
             float chevron = MathF.Max(7f * uiScale, thickness * 2.2f); // triangle length along the path
             float spacing = chevron * MathF.Max(1.5f, spacingMul);     // distance between chevrons
             float guide = MathF.Max(1f, thickness * 0.5f);             // faint connecting line under them
 
-            // Stagger this route's first-chevron offset by its phase slot so routes sharing a segment
-            // place their triangles in each other's gaps (interleaved) rather than on top of one another.
-            const int Phases = 3;
-            float carryStart = spacing * (0.15f + (phaseIndex % Phases) / (float)Phases);
-
             drawList.ChannelsSetCurrent(ChannelLines);
             Vector2? prev = null;
-            float carry = carryStart;
+            StdTuple2D<int> prevG = default;
             foreach (var g in path)
             {
                 if (!centers.TryGetValue(g, out var c))
                 {
                     prev = null;
-                    carry = carryStart;
                     continue;
                 }
 
                 if (prev.HasValue)
                 {
                     drawList.AddLine(prev.Value, c, color, guide);
+
+                    // This route's phase among all routes sharing this edge: chevrons sit at
+                    // (local + 0.5)/count of the spacing, so colours interleave evenly and never
+                    // land on identical spots. Carry is reset per segment (kept phase-correct).
+                    float phaseFrac = 0.5f;
+                    if (edgeRoutes != null && edgeRoutes.TryGetValue(EdgeKey(prevG, g), out var sharers) && sharers.Count > 0)
+                    {
+                        int local = sharers.IndexOf(routeIndex);
+                        if (local < 0)
+                            local = 0;
+                        phaseFrac = (local + 0.5f) / sharers.Count;
+                    }
+                    float carry = spacing * phaseFrac;
                     DrawChevrons(drawList, prev.Value, c, color, chevron, spacing, ref carry);
                 }
                 prev = c;
+                prevG = g;
             }
 
             drawList.ChannelsSetCurrent(ChannelDots);
             foreach (var g in path)
                 if (centers.TryGetValue(g, out var c))
                     drawList.AddCircleFilled(c, MathF.Max(2f, thickness * 0.9f), color);
+        }
+
+        // Direction-independent key for an atlas edge, so a segment shared by two routes hashes to the
+        // same bucket regardless of which way each route walks it.
+        private static (StdTuple2D<int>, StdTuple2D<int>) EdgeKey(StdTuple2D<int> a, StdTuple2D<int> b)
+        {
+            bool aFirst = a.X < b.X || (a.X == b.X && a.Y <= b.Y);
+            return aFirst ? (a, b) : (b, a);
         }
 
         // Lay filled arrowhead triangles along a→b at `spacing` intervals, each `size` long, pointing
@@ -2725,13 +2775,8 @@ namespace Atlas
         // cache refresh (not per frame) so the per-frame draw path stays allocation-free. Non-content
         // markers (names wrapped in parentheses, e.g. atlas skill point) are filtered out here.
         private static readonly string[] NoContentNames = System.Array.Empty<string>();
-        private static string[] BuildContentNames(uint[] tokens, uint[] badges)
+        private static string[] BuildContentNames(uint[] tokens, uint[] badges, string internalId)
         {
-            bool hasTokens = tokens is { Length: > 0 };
-            bool hasBadges = badges is { Length: > 0 };
-            if (!hasTokens && !hasBadges)
-                return NoContentNames;
-
             var seen = new List<string>(4);
             void Add(string s)
             {
@@ -2741,12 +2786,38 @@ namespace Atlas
                     seen.Add(s);
             }
 
-            if (hasTokens)
+            if (tokens is { Length: > 0 })
                 foreach (var t in tokens) Add(ResolveContentToken(t));
-            if (hasBadges)
+            if (badges is { Length: > 0 })
                 foreach (var b in badges) Add(ResolveBadgeContent(b));
 
+            // Map-type-inherent content fallback, derived from the persistent MapId (NOT the per-node
+            // content widgets/vectors). The game culls a distant node's content badges AND its inline
+            // content vectors, so far/fogged nodes — notably the whole sea cluster when the player is on
+            // land — carry NO content client-side (see docs/re-findings-atlas.md §2.10.8b/c). Content that
+            // is intrinsic to the MAP TYPE can still be recovered from the MapId, which IS persistent for
+            // every node incl. fog. Matched by id prefix (exact — avoids spillover to the broader
+            // "expedition"/"boss" maps.json tag sets which also cover doodads/other bosses):
+            //   ExpeditionLogBook_* → Grand Expedition,   ExpeditionSubArea_* → Powerful Map Boss.
+            // Drawn only on non-visible nodes (the icon draw is gated on !nodeVisible), so this never
+            // duplicates the game's native icons on visible nodes.
+            AddMapIdDerivedContent(internalId, Add);
+
             return seen.Count == 0 ? NoContentNames : seen.ToArray();
+        }
+
+        // Content names that are determined by the map TYPE (MapId), shown for fogged/distant nodes
+        // whose per-node content data the client has culled. Names must match mapcontent.json entries so
+        // DrawContentRow can resolve their icons (Grand Expedition → AtlasIconContentExpedition,
+        // Powerful Map Boss → AtlasIconContentMapBoss).
+        private static void AddMapIdDerivedContent(string internalId, Action<string> add)
+        {
+            if (string.IsNullOrEmpty(internalId))
+                return;
+            if (internalId.StartsWith("ExpeditionSubArea", StringComparison.OrdinalIgnoreCase))
+                add("Powerful Map Boss");
+            else if (internalId.StartsWith("ExpeditionLogBook", StringComparison.OrdinalIgnoreCase))
+                add("Grand Expedition");
         }
 
         // Resolve a badge content id to its name. The low 16 bits are either an EndgameMapContent

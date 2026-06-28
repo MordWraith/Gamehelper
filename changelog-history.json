@@ -2,10 +2,10 @@
     "releases":  [
                      {
                          "version":  "1.4.2",
-                         "published":  "2026-06-26T11:11:58.1997351Z",
+                         "published":  "2026-06-26T12:18:26.0552997Z",
                          "changelog":  [
-                                           "RitualHelper: min display value filter (hide items below X Exalted)",
-                                           "Gordin core 2.4.2: MouseOverEntity, Expedition Radar icons"
+                                           "Gordin core 2.4.2: MouseOverEntity, Expedition Radar icons",
+                                           "New: fixed overlay price issue on non-english game clients by yokkenUA"
                                        ]
                      },
                      {

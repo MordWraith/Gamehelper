@@ -37,8 +37,8 @@
         "desc": "ด่านมี บอสประจำแผนที่ที่ทรงพลัง"
       },
       "traditional chinese": {
-        "name": "強力地圖頭目",
-        "desc": "區域含有一個強力地圖頭目"
+        "name": "強大地圖頭目",
+        "desc": "區域含有一個強大地圖頭目"
       }
     }
   },
@@ -740,36 +740,36 @@
         "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "german": {
-        "name": "Schreine der Natur",
-        "desc": "Enthält 2 zusätzliche Schreine\nSchreine lassen bei Aktivierung einen Azmeri-Geist frei"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "japanese": {
-        "name": "自然のシュライン",
-        "desc": "シュラインが追加で2個出現する\nシュラインは起動された時にアズメリの精霊を解放する"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "korean": {
-        "name": "자연 성소",
-        "desc": "성소 2개 추가 등장\n성소가 활성화될 때 아즈메리 혼백 방출"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "portuguese": {
-        "name": "Altares da Natureza",
-        "desc": "Contém 2 altares adicionais\nAltares liberam um Espírito Azmeri quando ativados"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "russian": {
-        "name": "Природные алтари",
-        "desc": "В области можно найти 2 дополнительных алтаря\nАлтари при активации выпускают духа азмири"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "spanish": {
-        "name": "Santuarios de la naturaleza",
-        "desc": "Contiene 2 santuarios adicionales\nLos santuarios liberan un espíritu azmeri cuando se activan"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "thai": {
         "name": "แท่นบูชาธรรมชาติ",
         "desc": "มีแท่นบูชา เพิ่มเติม 2 แท่น\nแท่นบูชา ปลดปล่อย วิญญาณแอสเมรี 1 ตน เมื่อใช้งาน"
       },
       "traditional chinese": {
-        "name": "自然神殿",
-        "desc": "含有額外2座會在啟動時釋放一個阿茲莫里魂靈的神殿"
+        "name": "Nature Shrines",
+        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       }
     }
   },
@@ -855,7 +855,7 @@
       },
       "traditional chinese": {
         "name": "不屈精髓",
-        "desc": "含有額外3個精髓怪物群\n精髓會於死亡時轉化為一名隨機傳奇怪物"
+        "desc": "含有額外3個精髓怪物群\n精髓會於死亡時轉移至一名隨機傳奇怪物"
       }
     }
   },
@@ -929,7 +929,7 @@
       },
       "russian": {
         "name": "Миграция духа",
-        "desc": "Дух азмири перемещается на ближайшую карту по завершении, со временем превращаясь в священный огонёк"
+        "desc": "Дух азмири перемещается на ближайшую карту по завершении, со временем превращаясь в священный дух"
       },
       "spanish": {
         "name": "Migración de espíritu",
@@ -971,8 +971,8 @@
         "desc": "O Espírito Azmeri ascendeu a um Espírito Sagrado"
       },
       "russian": {
-        "name": "Священный огонёк",
-        "desc": "Дух азмири возвысился до священного огонька"
+        "name": "Священный дух",
+        "desc": "Дух азмири возвысился до священного духа"
       },
       "spanish": {
         "name": "Espíritu sagrado",
@@ -1238,7 +1238,7 @@
       },
       "thai": {
         "name": "ศรัทธายืนยาว",
-        "desc": "บัฟแท่นบูชา ส่งผลอีกครั้งเมื่อเข้าไปใน ลานประลองบอสประจำแผนที่"
+        "desc": "บัฟแท่นบูชา ส่งผลอีกครั้งเมื่อเข้าไปใน สังเวียนบอสประจำแผนที่"
       },
       "traditional chinese": {
         "name": "矢志不渝",
@@ -1601,27 +1601,27 @@
       },
       "german": {
         "name": "Simulacrum",
-        "desc": "Enthält eine Manifestation des Deliriums, die 100% Deliriösität benötigt, um sie zu betreten"
+        "desc": "Enthält eine Manifestation von Delirium"
       },
       "japanese": {
         "name": "シミュラクラム",
-        "desc": "入るのにせん妄度100%が必要なデリリウムの具現化が出現する"
+        "desc": "デリリウムの具現化が出現する"
       },
       "korean": {
         "name": "복제된 영토",
-        "desc": "환영이 100%여야만 들어갈 수 있는 환영의 현신 등장"
+        "desc": "환영의 발현 등장"
       },
       "portuguese": {
         "name": "Simulacrum",
-        "desc": "Contém uma manifestação de Delírio que requer 100% de Delírio para ser acessada"
+        "desc": "Contém uma manifestação de Delírio"
       },
       "russian": {
         "name": "Симулякр",
-        "desc": "В области можно встретить воплощение Делириума, требующее 100% бредовости для входа"
+        "desc": "В области можно встретить воплощение Делириума"
       },
       "spanish": {
         "name": "Simulacro",
-        "desc": "Contiene una manifestación del delirio que requiere un 100% de delirio para entrar"
+        "desc": "Contiene una manifestación del delirio"
       },
       "thai": {
         "name": "เมืองจำแลง",
@@ -1629,7 +1629,7 @@
       },
       "traditional chinese": {
         "name": "幻像異界",
-        "desc": "含有一座需要 100% 譫妄才能進入的譫妄顯現"
+        "desc": "含有一個具現化的譫妄"
       }
     }
   },
@@ -1729,27 +1729,27 @@
         "desc": "Map Boss drops a Unique item"
       },
       "german": {
-        "name": "Monströser Schatz",
+        "name": "Kolossale Beute",
         "desc": "Kartenboss lässt einen einzigartigen Gegenstand fallen"
       },
       "japanese": {
-        "name": "怪物の財宝",
+        "name": "ベヒモスの報酬",
         "desc": "マップボスはユニークアイテムを1個ドロップする"
       },
       "korean": {
-        "name": "무시무시한 보물",
+        "name": "거대괴수의 하사품",
         "desc": "지도 보스가 고유 아이템을 1개 떨어뜨림"
       },
       "portuguese": {
-        "name": "Tesouro Monstruoso",
+        "name": "Recompensa Monstruosa",
         "desc": "Chefe do mapa larga um item único"
       },
       "russian": {
-        "name": "Чудовищное сокровище",
+        "name": "Трофей великана",
         "desc": "Из босса карты выпадает уникальный предмет"
       },
       "spanish": {
-        "name": "Tesoro monstruoso",
+        "name": "Botín del behemot",
         "desc": "El jefe de mapa arroja un objeto único"
       },
       "thai": {
@@ -2250,7 +2250,7 @@
       },
       "japanese": {
         "name": "規格外の発見",
-        "desc": "エリアで見つかる規格外アイテムが100%増加する\nモンスターは規格外アイテムをドロップすることがある"
+        "desc": "エリアで見つかる規格外アイテムの数が1000%増加する\nモンスターは規格外アイテムをドロップすることがある"
       },
       "korean": {
         "name": "특출난 발견",
@@ -2274,7 +2274,7 @@
       },
       "traditional chinese": {
         "name": "卓越發現",
-        "desc": "區域內找到的卓越物品提高1000%\n怪物可以掉落任意卓越物品"
+        "desc": "增加1000%區域內找到的卓越物品\n怪物可以掉落任意卓越物品"
       }
     }
   },
@@ -2618,7 +2618,7 @@
       },
       "traditional chinese": {
         "name": "財富幻象",
-        "desc": "Equipment dropped by monsters is replaced with other items"
+        "desc": "怪物掉落的裝備會被其他物品替換"
       }
     }
   },
@@ -2834,6 +2834,49 @@
       "traditional chinese": {
         "name": "力量回聲",
         "desc": "5名稀有怪物會被複製"
+      }
+    }
+  },
+  "1001": {
+    "name": "Grand Expedition",
+    "icon": "AtlasIconContentExpedition",
+    "desc": "Area contains a Grand Expedition",
+    "translates": {
+      "french": {
+        "name": "Grand Expedition",
+        "desc": "Area contains a Grand Expedition"
+      },
+      "german": {
+        "name": "Große Expedition",
+        "desc": "Gebiet enthält eine Große Expedition"
+      },
+      "japanese": {
+        "name": "グランドエクスペディション",
+        "desc": "エリアにグランドエクスペディションが出現する"
+      },
+      "korean": {
+        "name": "대탐험",
+        "desc": "지역에 대탐험 등장"
+      },
+      "portuguese": {
+        "name": "Grande Expedição",
+        "desc": "Área contém uma Grande Expedição"
+      },
+      "russian": {
+        "name": "Большая экспедиция",
+        "desc": "В области можно встретить большую экспедицию"
+      },
+      "spanish": {
+        "name": "Expedición grande",
+        "desc": "El área contiene una expedición grande"
+      },
+      "thai": {
+        "name": "กองสำรวจยิ่งใหญ่",
+        "desc": "ด่านมี กองสำรวจยิ่งใหญ่ 1 แห่ง"
+      },
+      "traditional chinese": {
+        "name": "大型探險",
+        "desc": "區域含有一個大型探險"
       }
     }
   },

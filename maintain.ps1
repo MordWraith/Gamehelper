@@ -16,6 +16,7 @@ param(
     [string]$Version,
     [string]$CommitMessage = "",
     [string]$PluginOnly = "",
+    [string]$PluginMulti = "",
     [switch]$Gui,
     [switch]$Console
 )
@@ -99,6 +100,13 @@ function Invoke-MaintainAction {
             $args = @{ Set = "All" }
             if (-not [string]::IsNullOrWhiteSpace($PluginOnly)) { $args.Only = $PluginOnly }
             Invoke-Script (Join-Path $Scripts "sync-plugin-repos.ps1") $args
+            return
+        }
+        "SyncPluginsMulti" {
+            $names = $PluginMulti -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+            foreach ($name in $names) {
+                Invoke-Script (Join-Path $Scripts "sync-plugin-repos.ps1") @{ Set = "All"; Only = $name }
+            }
             return
         }
         "SyncPluginsMordWraith" {
@@ -250,8 +258,9 @@ function Invoke-MaintainGuiAction {
         $argList.Add("-CommitMessage"); $argList.Add($CommitMessage)
     }
     if (-not [string]::IsNullOrWhiteSpace($ExtraArgs)) {
-        if ($ExtraArgs -match '(?i)-Version\s+"?(\S+)"?')    { $argList.Add("-Version");    $argList.Add($Matches[1]) }
-        if ($ExtraArgs -match '(?i)-PluginOnly\s+"?(\S+)"?') { $argList.Add("-PluginOnly"); $argList.Add($Matches[1]) }
+        if ($ExtraArgs -match '(?i)-Version\s+"?(\S+)"?')         { $argList.Add("-Version");     $argList.Add($Matches[1]) }
+        if ($ExtraArgs -match '(?i)-PluginOnly\s+"?(\S+)"?')      { $argList.Add("-PluginOnly");  $argList.Add($Matches[1]) }
+        if ($ExtraArgs -match '(?i)-PluginMulti\s+"?([^"]+)"?')   { $argList.Add("-PluginMulti"); $argList.Add($Matches[1]) }
     }
     $frozenArgs = $argList.ToArray()
 
@@ -283,7 +292,22 @@ function Invoke-MaintainGuiAction {
                 }
                 $ok = $job.State -eq 'Completed'
                 Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-                if ($ok) { $g.Log.AppendText("`r`nFertig.`r`n") }
+                if ($ok) {
+                    $g.Log.AppendText("`r`nFertig.`r`n")
+                    # Changelog-Eintraege aus Plugin-Sync einlesen und in Textfeld einfuegen
+                    $pendingPath = Join-Path $g.Root "scripts\.pending-changelog.txt"
+                    if ((Test-Path $pendingPath) -and $g.CommitBox) {
+                        try {
+                            $newEntries = (Get-Content $pendingPath -Encoding UTF8 -ErrorAction SilentlyContinue) -join "`r`n"
+                            Remove-Item $pendingPath -Force -ErrorAction SilentlyContinue
+                            if ($newEntries.Trim()) {
+                                $existing = $g.CommitBox.Text.Trim()
+                                $g.CommitBox.Text = if ($existing) { "$existing`r`n$newEntries" } else { $newEntries }
+                                $g.Log.AppendText("Changelog automatisch ergaenzt.`r`n")
+                            }
+                        } catch {}
+                    }
+                }
                 else     { $g.Log.AppendText("`r`nFehler - siehe Ausgabe oben.`r`n") }
                 $g.Log.SelectionStart = $g.Log.Text.Length
                 $g.Log.ScrollToCaret()
@@ -626,6 +650,152 @@ function Show-AddExistingToSlnDialog {
 }
 
 # ---------------------------------------------------------------------------
+# GUI: Dialog "Einzelnes Plugin syncen"
+# ---------------------------------------------------------------------------
+function Show-SyncSinglePluginDialog {
+    $g           = $script:MaintainGui
+    $sourcesPath = Join-Path $g.Root "scripts\plugins-sources.json"
+    if (-not (Test-Path $sourcesPath)) {
+        [System.Windows.Forms.MessageBox]::Show("plugins-sources.json nicht gefunden.", "Fehler",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+        return
+    }
+
+    $sources = Get-Content $sourcesPath -Raw | ConvertFrom-Json
+
+    # Alle Plugins mit Repo-Info sammeln
+    $allPlugins = [System.Collections.Generic.List[hashtable]]@()
+    foreach ($p in $sources.mordWraith.PSObject.Properties) { $allPlugins.Add(@{ Name=$p.Name; Repo=$p.Value; Group="MordWraith" }) }
+    foreach ($p in $sources.upstream.PSObject.Properties)   { $allPlugins.Add(@{ Name=$p.Name; Repo=$p.Value; Group="Upstream" }) }
+    $allPlugins = @($allPlugins | Sort-Object { $_['Name'] })
+
+    # Letzte Sync-SHAs lesen
+    $statePath = Join-Path $g.Root "scripts\.plugin-sync-state.json"
+    $syncState = if (Test-Path $statePath) { Get-Content $statePath -Raw | ConvertFrom-Json } else { $null }
+
+    # Update-Check: parallele GitHub-API-Abfragen
+    $updateMap = @{}
+    if ($syncState) {
+        [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
+        $jobs = @{}
+        foreach ($plugin in $allPlugins) {
+            $name = $plugin['Name']
+            $repo = $plugin['Repo']
+            $localSha = $syncState.$name
+            if ($localSha) {
+                $jobs[$name] = Start-Job -ScriptBlock {
+                    param($r)
+                    try { & gh api "repos/$r/commits?per_page=1" --jq '.[0].sha' 2>$null } catch { "" }
+                } -ArgumentList $repo
+            }
+        }
+        if ($jobs.Count -gt 0) {
+            $null = Wait-Job -Job @($jobs.Values) -Timeout 8
+            foreach ($name in @($jobs.Keys)) {
+                $job = $jobs[$name]
+                if ($job.State -eq 'Completed') {
+                    $remoteSha = (Receive-Job $job 2>$null | Select-Object -First 1)
+                    if ($remoteSha) { $remoteSha = $remoteSha.Trim() }
+                    $localSha = $syncState.$name
+                    if ($remoteSha -and $localSha -and ($remoteSha -ne $localSha)) {
+                        $updateMap[$name] = $true
+                    }
+                }
+                Remove-Job $job -Force -ErrorAction SilentlyContinue
+            }
+        }
+        [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::Default
+    }
+
+    # Eintraege fuer Listbox aufbauen
+    $displayItems = [System.Collections.Generic.List[string]]@()
+    foreach ($plugin in $allPlugins) {
+        $name    = $plugin['Name']
+        $group   = $plugin['Group']
+        $marker  = if ($updateMap[$name]) { "  *** Update verfuegbar" } else { "" }
+        $displayItems.Add("$name  [$group]$marker")
+    }
+
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text            = "Plugins syncen"
+    $dlg.Size            = New-Object System.Drawing.Size(420, 380)
+    $dlg.FormBorderStyle = "FixedDialog"
+    $dlg.MaximizeBox     = $false; $dlg.MinimizeBox = $false
+    $dlg.StartPosition   = "CenterParent"
+    $dlg.BackColor       = [System.Drawing.Color]::FromArgb(28, 30, 38)
+    $dlg.ForeColor       = [System.Drawing.Color]::FromArgb(235, 237, 245)
+    $dlg.Font            = New-Object System.Drawing.Font("Segoe UI", 9.5)
+
+    $cBg  = [System.Drawing.Color]::FromArgb(22, 25, 32)
+    $cTxt = [System.Drawing.Color]::FromArgb(235, 237, 245)
+
+    $hasUpdates = $updateMap.Count -gt 0
+    $stateNote  = if ($syncState) { if ($hasUpdates) { "$($updateMap.Count) Update(s) verfuegbar  ***" } else { "Alles aktuell" } } else { "Kein Sync-Verlauf (erst nach 1. Sync sichtbar)" }
+
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text     = "Plugin(e) auswaehlen und von GitHub syncen:"
+    $lbl.AutoSize = $false
+    $lbl.Location = New-Object System.Drawing.Point(14, 12)
+    $lbl.Size     = New-Object System.Drawing.Size(380, 22)
+    $dlg.Controls.Add($lbl)
+
+    $lblState = New-Object System.Windows.Forms.Label
+    $lblState.Text      = $stateNote
+    $lblState.AutoSize  = $false
+    $lblState.Location  = New-Object System.Drawing.Point(14, 34)
+    $lblState.Size      = New-Object System.Drawing.Size(380, 18)
+    $lblState.Font      = New-Object System.Drawing.Font("Segoe UI", 8.5)
+    $lblState.ForeColor = if ($hasUpdates) { [System.Drawing.Color]::FromArgb(255, 200, 60) } else { [System.Drawing.Color]::FromArgb(140, 160, 140) }
+    $dlg.Controls.Add($lblState)
+
+    $list = New-Object System.Windows.Forms.ListBox
+    $list.Location      = New-Object System.Drawing.Point(14, 58)
+    $list.Size          = New-Object System.Drawing.Size(380, 240)
+    $list.BackColor     = $cBg; $list.ForeColor = $cTxt
+    $list.BorderStyle   = "FixedSingle"
+    $list.SelectionMode = "MultiExtended"
+    foreach ($item in $displayItems) { [void]$list.Items.Add($item) }
+    $dlg.Controls.Add($list)
+
+    $lblHint = New-Object System.Windows.Forms.Label
+    $lblHint.Text      = "Strg+Klick = Mehrfachauswahl"
+    $lblHint.AutoSize  = $false
+    $lblHint.Location  = New-Object System.Drawing.Point(14, 304)
+    $lblHint.Size      = New-Object System.Drawing.Size(200, 18)
+    $lblHint.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
+    $lblHint.ForeColor = [System.Drawing.Color]::FromArgb(110, 120, 140)
+    $dlg.Controls.Add($lblHint)
+
+    $btnOk = New-Object System.Windows.Forms.Button
+    $btnOk.Text         = "Syncen"
+    $btnOk.Location     = New-Object System.Drawing.Point(230, 298)
+    $btnOk.Size         = New-Object System.Drawing.Size(164, 32)
+    $btnOk.FlatStyle    = "Flat"
+    $btnOk.FlatAppearance.BorderSize = 0
+    $btnOk.BackColor    = [System.Drawing.Color]::FromArgb(92, 140, 240)
+    $btnOk.ForeColor    = $cTxt
+    $btnOk.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $dlg.Controls.Add($btnOk); $dlg.AcceptButton = $btnOk
+
+    if ($dlg.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+    if ($list.SelectedIndices.Count -eq 0) { return }
+
+    $selectedNames = @($list.SelectedIndices | ForEach-Object {
+        $allPlugins[$_]['Name']
+    })
+
+    if ($selectedNames.Count -eq 1) {
+        $g.Log.AppendText("Sync Plugin: $($selectedNames[0]) ...`r`n")
+        Invoke-MaintainGuiAction -ActionName "SyncPlugins" -ExtraArgs "-PluginOnly `"$($selectedNames[0])`""
+    } else {
+        $joined = $selectedNames -join ','
+        $g.Log.AppendText("Sync Plugins: $joined ...`r`n")
+        Invoke-MaintainGuiAction -ActionName "SyncPluginsMulti" -ExtraArgs "-PluginMulti `"$joined`""
+    }
+}
+
+# ---------------------------------------------------------------------------
 # GUI
 # ---------------------------------------------------------------------------
 function Show-Gui {
@@ -848,19 +1018,21 @@ public class Win32ConsoleStable {
     $plbl = New-SectionLabel "1b  Plugin-Repos syncen (MordWraith + Upstream aus GitHub)"
     $plbl.Location = New-Object System.Drawing.Point(14, 8)
     $pluginsPanel.Controls.Add($plbl)
-    $btnPAll      = New-Btn "Alle holen"           $false 150
-    $btnPMord     = New-Btn "MordWraith"            $false 140
-    $btnPUp       = New-Btn "Upstream"              $false 130
-    $btnPAdd      = New-Btn "+ Plugin hinzu..."     $false 160
-    $btnPRem      = New-Btn "- Plugin entfernen"   $false 170
+    $btnPAll      = New-Btn "Alle holen"            $false 150
+    $btnPMord     = New-Btn "MordWraith"             $false 140
+    $btnPUp       = New-Btn "Upstream"               $false 130
+    $btnPSingle   = New-Btn "Einzeln..."             $false 120
+    $btnPAdd      = New-Btn "+ Plugin hinzu..."      $false 160
+    $btnPRem      = New-Btn "- Plugin entfernen"    $false 170
     $btnPSln      = New-Btn "SLN: Plugin eintragen" $false 200
-    $btnPAll.Location  = New-Object System.Drawing.Point(14, 32)
-    $btnPMord.Location = New-Object System.Drawing.Point(174, 32)
-    $btnPUp.Location   = New-Object System.Drawing.Point(324, 32)
-    $btnPAdd.Location  = New-Object System.Drawing.Point(14, 70)
-    $btnPRem.Location  = New-Object System.Drawing.Point(194, 70)
-    $btnPSln.Location  = New-Object System.Drawing.Point(14, 106)
-    $pluginsPanel.Controls.AddRange(@($btnPAll, $btnPMord, $btnPUp, $btnPAdd, $btnPRem, $btnPSln))
+    $btnPAll.Location    = New-Object System.Drawing.Point(14, 32)
+    $btnPMord.Location   = New-Object System.Drawing.Point(174, 32)
+    $btnPUp.Location     = New-Object System.Drawing.Point(324, 32)
+    $btnPSingle.Location = New-Object System.Drawing.Point(464, 32)
+    $btnPAdd.Location    = New-Object System.Drawing.Point(14, 70)
+    $btnPRem.Location    = New-Object System.Drawing.Point(194, 70)
+    $btnPSln.Location    = New-Object System.Drawing.Point(14, 106)
+    $pluginsPanel.Controls.AddRange(@($btnPAll, $btnPMord, $btnPUp, $btnPSingle, $btnPAdd, $btnPRem, $btnPSln))
 
     # --- Abschnitt: Push + Publish ---
     $pushPanel = New-SectionPanel 72
@@ -916,6 +1088,7 @@ public class Win32ConsoleStable {
         Log          = $log
         VersionBox   = $versionBox
         RunningLabel = $runningLabel
+        CommitBox    = $commitBox
     }
 
     # --- Button-Handler ---
@@ -956,9 +1129,13 @@ public class Win32ConsoleStable {
     })
 
     # Plugin-Repos
-    $btnPAll.Add_Click({  try { Invoke-Gui "SyncPlugins" }          catch {} })
-    $btnPMord.Add_Click({ try { Invoke-Gui "SyncPluginsMordWraith" } catch {} })
-    $btnPUp.Add_Click({   try { Invoke-Gui "SyncPluginsUpstream" }  catch {} })
+    $btnPAll.Add_Click({    try { Invoke-Gui "SyncPlugins" }          catch {} })
+    $btnPMord.Add_Click({   try { Invoke-Gui "SyncPluginsMordWraith" } catch {} })
+    $btnPUp.Add_Click({     try { Invoke-Gui "SyncPluginsUpstream" }  catch {} })
+    $btnPSingle.Add_Click({ try {
+        if ($script:MaintainGui -and $script:MaintainGui['ActionRunning']) { return }
+        Show-SyncSinglePluginDialog
+    } catch { $log.AppendText("Fehler: $($_.Exception.Message)") } })
     $btnPAdd.Add_Click({
         try {
             if ($script:MaintainGui -and $script:MaintainGui['ActionRunning']) { return }
