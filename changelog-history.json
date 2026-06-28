@@ -1,6 +1,15 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.3",
+                         "published":  "2026-06-28T11:52:51.2640566Z",
+                         "changelog":  [
+                                           "Atlas:  Sea node content detection fixed; Overlapping routes stay readable (yokkenUA)",
+                                           "SekhemaHelper: Trial Overlay Update: Chests, Crystals \u0026 Hazards (yokkenUA)",
+                                           "New Offsets by Immo"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.2",
                          "published":  "2026-06-26T12:18:26.0552997Z",
                          "changelog":  [

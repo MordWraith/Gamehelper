@@ -296,13 +296,13 @@ function Invoke-MaintainGuiAction {
                     $g.Log.AppendText("`r`nFertig.`r`n")
                     # Changelog-Eintraege aus Plugin-Sync einlesen und in Textfeld einfuegen
                     $pendingPath = Join-Path $g.Root "scripts\.pending-changelog.txt"
-                    if ((Test-Path $pendingPath) -and $g.CommitBox) {
+                    if ((Test-Path $pendingPath) -and $g['CommitBox']) {
                         try {
                             $newEntries = (Get-Content $pendingPath -Encoding UTF8 -ErrorAction SilentlyContinue) -join "`r`n"
                             Remove-Item $pendingPath -Force -ErrorAction SilentlyContinue
                             if ($newEntries.Trim()) {
-                                $existing = $g.CommitBox.Text.Trim()
-                                $g.CommitBox.Text = if ($existing) { "$existing`r`n$newEntries" } else { $newEntries }
+                                $existing = $g['CommitBox'].Text.Trim()
+                                $g['CommitBox'].Text = if ($existing) { "$existing`r`n$newEntries" } else { $newEntries }
                                 $g.Log.AppendText("Changelog automatisch ergaenzt.`r`n")
                             }
                         } catch {}

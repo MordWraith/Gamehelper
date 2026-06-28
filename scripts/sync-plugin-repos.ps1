@@ -81,28 +81,31 @@ function Sync-Plugin {
 
     # Release-Notes des neuesten Releases fuer Changelog-Vorschlag holen
     try {
-        $releaseJson = & gh release view --repo $GithubRepo --json tagName,body 2>$null
-        if ($releaseJson) {
-            $rel  = $releaseJson | ConvertFrom-Json
+        $releaseRaw = (& gh api "repos/$GithubRepo/releases/latest" 2>$null) -join ""
+        if ($releaseRaw) {
+            $rel  = $releaseRaw | ConvertFrom-Json
             $body = $rel.body
             if ($body) {
                 # Erste Zeile jedes Absatzes (= Titel der Aenderung), max 120 Zeichen
                 $blocks = $body -split "(?:\r?\n){2,}" | Where-Object { $_.Trim() }
-                $titles = foreach ($block in $blocks) {
+                $titles = @(foreach ($block in $blocks) {
                     $line = ($block -split "\r?\n")[0].Trim()
-                    # Fuehrende Bullet/Emoji-Zeichen entfernen
-                    $line = $line -replace '^[\-\*\•]\s+', ''
+                    $line = $line -replace '^[-*]\s+', ''
+                    $line = ($line -replace '[^\x20-\x7E]', '').Trim()
                     if ($line -and $line.Length -le 120) { $line }
-                }
-                if ($titles) {
+                })
+                if ($titles.Count -gt 0) {
                     $pendingPath = Join-Path $PSScriptRoot ".pending-changelog.txt"
                     foreach ($title in $titles) {
                         "$Folder`: $title" | Add-Content $pendingPath -Encoding UTF8
                     }
+                    Write-Host "  Changelog-Eintraege hinzugefuegt: $Folder ($($titles.Count))" -ForegroundColor DarkYellow
                 }
             }
         }
-    } catch {}
+    } catch {
+        Write-Host "  Changelog-Fetch fehlgeschlagen: $Folder ($_)" -ForegroundColor DarkGray
+    }
 
     Write-Host "  OK $Folder" -ForegroundColor Green
 }

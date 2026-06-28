@@ -1,6 +1,5 @@
 ﻿{
     "AmanamuVoidAlert":  "6488c67a367d2460ad930636349ee405dd3c0595",
-    "Atlas":  "f1da3e1e0bc7946268071715dab63f0fc9ffb26d",
     "AuraTracker":  "c3f44dcfee7d8bec7b4345ddfd19e9f5e73df13b",
     "Autopot":  "8944835cef14acf20fe8721a13643e209a5d81b6",
     "Hiveblood":  "855bee2fc8aaf2a7b091adec49ea0a8f492acc57",
@@ -10,5 +9,6 @@
     "RunecraftHelper":  "4cf21a13d4db42a6b29d52466e680b2310026c86",
     "SekhemaHelper":  "1c739cc82b3853677e48d0318713fd24cfae26da",
     "SimpleBars":  "e73a80cfcfacc944b2da5ab36722926a8847b8aa",
-    "StashValueByZx0":  "e2ca5140337fb2092125e0b1630fd3341921f551"
+    "StashValueByZx0":  "e2ca5140337fb2092125e0b1630fd3341921f551",
+    "Atlas":  "f1da3e1e0bc7946268071715dab63f0fc9ffb26d"
 }
