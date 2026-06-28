@@ -1,5 +1,6 @@
 using ClickableTransparentOverlay.Win32;
 using GameHelper.Plugin;
+using Nefarius.ViGEm.Client.Targets.Xbox360;
 
 namespace Autopot
 {
@@ -34,5 +35,17 @@ namespace Autopot
 
         public bool ShowVitalsOverlay = false;
         public bool RunInHideout = false;
+
+        /// <summary>
+        /// Use ViGEmBus virtual controller button injection instead of keyboard when a controller is detected.
+        /// Requires ViGEmBus driver to be installed.
+        /// </summary>
+        public bool BypassControllerMode = false;
+
+        /// <summary>Xbox 360 button pressed for Key1 (HP flask) in controller bypass mode.</summary>
+        public Xbox360Button ControllerKey1Button = Xbox360Button.Left;
+
+        /// <summary>Xbox 360 button pressed for Key2 (MP flask) in controller bypass mode.</summary>
+        public Xbox360Button ControllerKey2Button = Xbox360Button.Right;
     }
 }
