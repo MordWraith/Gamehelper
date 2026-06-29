@@ -20,6 +20,12 @@ namespace LootTracker
             return Math.Clamp(auto * this.Settings.UiScale, 0.5f, 3f);
         }
 
+        // True when overlay values should be shown in Divine only: the user opted in AND a live
+        // Divine→Exalted rate exists to convert by. While the rate is unknown we keep Exalted so the
+        // numbers never blank out.
+        private bool DivineOnly =>
+            this.Settings.ShowPricesInDivineOnly && this.priceCache.DivineToExaltedRate > 0;
+
         // ── Map strip ────────────────────────────────────────────────────
         // A slim, click-through line pinned to the bottom of the game window (right side by default),
         // shown while on a map so it doesn't block the run: "<map> · <timer> · <+X ex>". Sits just
@@ -74,22 +80,33 @@ namespace LootTracker
             if (this.DrawInlineIcon("Time")) ImGui.SameLine(0f, pad);
             ImGui.TextUnformatted(FormatDuration(this.CurrentLiveTime()));
 
-            // +X [exalt]
-            ImGui.SameLine(0f, gap);
-            ImGui.TextColored(col, $"{ex:+0;-0;0}");
-            ImGui.SameLine(0f, pad);
-            this.DrawInlineIcon("Exalt");
-
-            // (+Y [divine])  — same profit converted to Divine, shown only when the rate is known
             var rate = this.priceCache.DivineToExaltedRate;
-            if (rate > 0)
+            if (this.DivineOnly)
             {
-                var div = ex / rate;
+                // +Y [divine] only — Exalted hidden by user choice.
                 ImGui.SameLine(0f, gap);
-                ImGui.TextColored(col, $"({div:+0.0;-0.0;0}");
+                ImGui.TextColored(col, $"{ex / rate:+0.##;-0.##;0}");
                 ImGui.SameLine(0f, pad);
-                if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 1f);
-                ImGui.TextColored(col, ")");
+                this.DrawInlineIcon("Divine");
+            }
+            else
+            {
+                // +X [exalt]
+                ImGui.SameLine(0f, gap);
+                ImGui.TextColored(col, $"{ex:+0;-0;0}");
+                ImGui.SameLine(0f, pad);
+                this.DrawInlineIcon("Exalt");
+
+                // (+Y [divine])  — same profit converted to Divine, shown only when the rate is known
+                if (rate > 0)
+                {
+                    var div = ex / rate;
+                    ImGui.SameLine(0f, gap);
+                    ImGui.TextColored(col, $"({div:+0.0;-0.0;0}");
+                    ImGui.SameLine(0f, pad);
+                    if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 1f);
+                    ImGui.TextColored(col, ")");
+                }
             }
 
             // <n>[normal] <n>[magic] <n>[rare] <n>[unique]  — monsters slain this run, by rarity.
@@ -184,8 +201,17 @@ namespace LootTracker
             ImGui.Text($"Maps: {maps}");
             if (this.DrawInlineIcon("Time")) ImGui.SameLine(0f, 5f);
             ImGui.Text($"AVG Time: {FormatDuration(avgTime)}");
-            if (this.DrawInlineIcon("Exalt")) ImGui.SameLine(0f, 5f);
-            ImGui.Text($"AVG Profit: {avgProfit:0} Ex");
+            if (this.DivineOnly)
+            {
+                if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 5f);
+                ImGui.Text($"AVG Profit: {avgProfit / rate:0.##} Div");
+            }
+            else
+            {
+                if (this.DrawInlineIcon("Exalt")) ImGui.SameLine(0f, 5f);
+                ImGui.Text($"AVG Profit: {avgProfit:0} Ex");
+            }
+
             ImGui.EndGroup();
 
             // Column 2 — totals in Divine + the session clock (kept narrow so the table gets the width).
@@ -232,7 +258,9 @@ namespace LootTracker
                     ImGui.TextUnformatted(FormatDuration(r.ActiveTime));
                     ImGui.TableNextColumn();
                     double ex = this.ValueOf(r.Gained, out _, out _);
-                    ImGui.TextColored(ex >= 0 ? GreenCol : RedCol, $"{ex:+0.0;-0.0;0} ex");
+                    ImGui.TextColored(ex >= 0 ? GreenCol : RedCol, this.DivineOnly
+                        ? $"{ex / rate:+0.##;-0.##;0} div"
+                        : $"{ex:+0.0;-0.0;0} ex");
                 }
 
                 ImGui.EndTable();

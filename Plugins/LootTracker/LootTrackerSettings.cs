@@ -46,5 +46,21 @@ namespace LootTracker
         // bars' font and fixed metrics, so the overlay shrinks/grows with the game HUD across
         // resolutions. 1.0 = pure auto scale; tune per setup if the auto factor isn't ideal.
         public float UiScale = 1.2f;
+
+        // ── Pickup notifications (toasts above the map strip) ──
+        // Show a brief toast (item name + value) when an item is picked up on a map. Off by default.
+        public bool ShowPickupToasts = false;
+
+        // Only toast a pickup whose poe.ninja value is at least this many Exalted. Unpriced pickups
+        // (no listed value) never toast. Keeps everything but the worthwhile drops off the stack.
+        public float NotifyMinEx = 20f;
+
+        // How long each toast stays on screen before it fades out (seconds; the last ~0.6s is the fade).
+        public float NotifyDurationSec = 2.5f;
+
+        // Show all overlay values in Divine only: hide the Exalted figures (map strip, compact bar,
+        // toasts) and show the Divine equivalent instead, including fractions (e.g. 0.5 div). Falls back
+        // to Exalted while the Divine→Exalted rate is unknown.
+        public bool ShowPricesInDivineOnly = false;
     }
 }

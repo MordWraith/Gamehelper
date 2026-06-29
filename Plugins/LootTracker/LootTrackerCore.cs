@@ -89,6 +89,7 @@ namespace LootTracker
         private string lastProcessedZoneHash = string.Empty; // last zone we reacted to (transition edge detector)
         private Dictionary<string, long>? baseline; // inventory snapshot taken on map entry; delta is measured against it
         private bool baselinePending;            // set on map entry; the baseline is captured on the first readable frame
+        private Dictionary<string, long>? prevSnapshot; // previous live snapshot; pickup toasts diff against it (null = re-establish)
         private readonly List<MapRun> completed = new();
         private DateTime sessionStartUtc = DateTime.UtcNow;
         private bool onMapArea;                  // true while the current area is a map (not hideout/town)
@@ -238,6 +239,7 @@ namespace LootTracker
             this.sessionStartUtc = DateTime.UtcNow;
             this.LoadMetaArtMap();
             this.LoadIcons();
+            this.LoadActiveState(); // resume an in-progress session that survived a close/crash
 
             var fresh = this.priceCache.TryLoadFromDisk(this.PriceCachePathname, this.Settings.CacheTtlMinutes);
             if (!fresh)
@@ -246,8 +248,10 @@ namespace LootTracker
 
         public override void OnDisable()
         {
+            this.SaveActiveState(); // persist the live session on a clean GH close
             this.ResetHandle();
             this.UnloadIcons();
+            this.ClearPickupToasts();
         }
 
         // Load the 64x64 PNG icons shipped in icons\ into the overlay (name = filename without ext).
@@ -325,6 +329,23 @@ namespace LootTracker
                     "Font and fixed widths scale with it, so the bars match the HUD across resolutions.");
                 ImGui.Checkbox("Show kill counts", ref this.Settings.ShowKills);
                 ImGui.TextDisabled("Per-rarity monsters slain this run (Normal · Magic · Rare · Unique).");
+
+                ImGui.Spacing();
+                ImGui.SeparatorText("Pickup notifications");
+                ImGui.Checkbox("Show pickup toasts", ref this.Settings.ShowPickupToasts);
+                ImGui.TextDisabled("A brief toast (item name + value) above the map strip when you pick an item up.\n" +
+                    "Up to 3 at once; same-item pickups merge. Only while actively on a map.");
+                ImGui.BeginDisabled(!this.Settings.ShowPickupToasts);
+                ImGui.SliderFloat("Min value to notify (ex)", ref this.Settings.NotifyMinEx, 20f, 200f, "%.0f");
+                ImGui.TextDisabled("Only pickups worth at least this many Exalted toast. Unpriced items never toast.");
+                ImGui.SliderFloat("Toast duration (s)", ref this.Settings.NotifyDurationSec, 1f, 6f, "%.1f");
+                ImGui.EndDisabled();
+
+                ImGui.Spacing();
+                ImGui.SeparatorText("Display");
+                ImGui.Checkbox("Show prices only in Divine", ref this.Settings.ShowPricesInDivineOnly);
+                ImGui.TextDisabled("Hide the Exalted figures everywhere on the overlay and show Divine instead\n" +
+                    "(including fractions, e.g. 0.5 div). Falls back to Exalted until the rate is known.");
             }
 
             ImGui.Spacing();
@@ -342,6 +363,11 @@ namespace LootTracker
 
             ImGui.SliderInt("Sessions to keep", ref this.Settings.MaxSessions, 1, 200);
             ImGui.TextDisabled("Older sessions are deleted once this many are stored. A session is saved on \"New session\".");
+
+            ImGui.Spacing();
+            ImGui.SeparatorText("Active session");
+            this.DrawActiveSessionTable();
+
             ImGui.Spacing();
             ImGui.Separator();
 
@@ -385,6 +411,8 @@ namespace LootTracker
             this.MaybeAutoRefreshPrices();
             this.UpdateAreaState();
             this.ScanKills();
+            this.UpdateLiveInventory();
+            this.MaybeAutoSaveSession();
 
             // HUD bars hide when the game window isn't focused (alt-tabbed), and whenever the experience
             // bar can't be resolved. The game hides the experience bar whenever a large panel covers the
@@ -401,6 +429,8 @@ namespace LootTracker
                 {
                     this.DrawCompactBar();
                 }
+
+                this.DrawPickupToasts();
             }
         }
 
@@ -426,9 +456,12 @@ namespace LootTracker
             this.runStartUtc = null;
             this.baseline = null;
             this.baselinePending = false;
+            this.prevSnapshot = null;
             this.lastProcessedZoneHash = string.Empty;
             this.sessionStartUtc = DateTime.UtcNow;
             this.ResetKillTally();
+            this.ClearPickupToasts();
+            this.DeleteActiveState(); // archived to history above; the autosave mirror is now obsolete
         }
 
         // Re-fetch prices once the cache ages past the TTL (checked at most once a minute).
@@ -450,6 +483,24 @@ namespace LootTracker
             if (age > TimeSpan.FromMinutes(Math.Max(1, this.Settings.CacheTtlMinutes)))
             {
                 this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
+            }
+        }
+
+        // Autosave the live session at most every ~20s, so a crash mid-map loses only the last few
+        // seconds of loot rather than the whole session. Zone transitions also force a save (banked maps
+        // are persisted immediately); this timer only adds protection for long stays inside one map.
+        private void MaybeAutoSaveSession()
+        {
+            var now = DateTime.UtcNow;
+            if (now < this.nextAutoSaveUtc)
+            {
+                return;
+            }
+
+            this.nextAutoSaveUtc = now.AddSeconds(20);
+            if (this.completed.Count > 0)
+            {
+                this.SaveActiveState();
             }
         }
 
@@ -550,6 +601,8 @@ namespace LootTracker
                 // (Re-)baseline once the inventory is readable, so items left in stash don't count as loss.
                 this.baseline = null;
                 this.baselinePending = true;
+                this.liveLegDelta.Clear(); // drop the previous map's leg so it can't leak before re-baseline
+                this.prevSnapshot = null; // re-establish pickup tracking; corpses-on-entry aren't pickups
 
                 // Drop stale per-monster bookkeeping. Counts already booked live on current.Kills, so this
                 // only ensures corpses present on (re)entry aren't mistaken for fresh kills.
@@ -568,6 +621,9 @@ namespace LootTracker
 
                 this.baselinePending = false; // not on a map now
             }
+
+            // Persist the session right after a transition: a just-completed/banked map is now crash-safe.
+            this.SaveActiveState();
         }
 
         // Bank the active run's still-running time into its total and pause the timer (idempotent:
@@ -633,8 +689,51 @@ namespace LootTracker
         private DateTime nextLiveSnapUtc = DateTime.MinValue;
         private Dictionary<string, long> liveLegDelta = new(StringComparer.Ordinal);
 
+        // Throttled snapshot of the live inventory (~2 Hz), driving BOTH the provisional run total
+        // (liveLegDelta = snapshot − baseline) and the pickup-toast detector (snapshot − prevSnapshot).
+        // Called once per frame from DrawUI so a single memory read serves both; the bar then just reads
+        // the cached liveLegDelta. No-op unless actively on a map (timer running, baseline taken).
+        private void UpdateLiveInventory()
+        {
+            if (this.current == null || this.runStartUtc == null || this.baseline == null)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            if (now < this.nextLiveSnapUtc)
+            {
+                return;
+            }
+
+            this.nextLiveSnapUtc = now.AddMilliseconds(500);
+            if (!this.TrySnapshotInventory(out var snap))
+            {
+                return;
+            }
+
+            this.liveLegDelta = Diff(snap, this.baseline);
+
+            // Pickup toasts: compare to the PREVIOUS snapshot (not the baseline) so each ~500ms tick's
+            // positive deltas are the items just picked up. prevSnapshot is null on the first tick after
+            // (re)entry — establish it then without firing (existing items aren't "pickups").
+            if (this.Settings.ShowPickupToasts)
+            {
+                if (this.prevSnapshot != null)
+                {
+                    this.DetectPickups(snap);
+                }
+
+                this.prevSnapshot = snap;
+            }
+            else
+            {
+                this.prevSnapshot = null;
+            }
+        }
+
         // The run's net gains shown live: folded legs (current.Gained) plus the in-progress leg
-        // (snapshot − baseline), recomputed at most ~2 Hz.
+        // (the cached liveLegDelta, refreshed by UpdateLiveInventory).
         private Dictionary<string, long> CurrentGainedLive()
         {
             if (this.current == null)
@@ -642,19 +741,10 @@ namespace LootTracker
                 return new Dictionary<string, long>(StringComparer.Ordinal);
             }
 
-            // Only while actively on the map (timer running) is there an un-folded leg to add.
+            // Only with a live baseline (timer running AND the map-entry snapshot taken) is liveLegDelta
+            // valid for this map; until then it may be stale from the previous map, so show folded-only.
             if (this.runStartUtc != null && this.baseline != null)
             {
-                var now = DateTime.UtcNow;
-                if (now >= this.nextLiveSnapUtc)
-                {
-                    this.nextLiveSnapUtc = now.AddMilliseconds(500);
-                    if (this.TrySnapshotInventory(out var snap))
-                    {
-                        this.liveLegDelta = Diff(snap, this.baseline);
-                    }
-                }
-
                 var combined = new Dictionary<string, long>(this.current.Gained, StringComparer.Ordinal);
                 MergeInto(combined, this.liveLegDelta);
                 return combined;

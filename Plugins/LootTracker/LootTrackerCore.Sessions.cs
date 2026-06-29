@@ -61,15 +61,114 @@ namespace LootTracker
         public double ToDivine(double ex) => this.DivineRate > 0 ? ex / this.DivineRate : 0;
     }
 
+    // The live (in-progress) session, autosaved separately from the archived history so a GH close or a
+    // game crash doesn't lose it. Holds the raw MapRun list (unpriced deltas) so pricing stays live on
+    // restore — unlike SessionRecord, which snapshots prices at archive time.
+    public sealed class ActiveSessionState
+    {
+        public DateTime StartUtc;
+        public List<MapRun> Completed = new();
+    }
+
     public sealed partial class LootTrackerCore
     {
         private string SessionsDir => Path.Join(this.DllDirectory, "config", "sessions");
+        private string ActiveSessionPathname => Path.Join(this.DllDirectory, "config", "active.json");
+        private DateTime nextAutoSaveUtc = DateTime.MinValue;
+
+        // Autosave the live session to active.json. Called on zone transitions, on a ~20s timer (to catch
+        // mid-map loot), and on disable. The currently-active run gets its un-folded live leg + running
+        // time baked into the saved copy, so a crash keeps progress up to the last autosave; the in-memory
+        // state is untouched (active.json is a mirror, never read back during normal play). Best-effort.
+        private void SaveActiveState()
+        {
+            try
+            {
+                if (this.completed.Count == 0)
+                {
+                    this.DeleteActiveState();
+                    return;
+                }
+
+                var state = new ActiveSessionState { StartUtc = this.sessionStartUtc };
+                foreach (var r in this.completed)
+                {
+                    bool isActive = ReferenceEquals(r, this.current) && this.runStartUtc != null;
+                    state.Completed.Add(new MapRun
+                    {
+                        Name = r.Name,
+                        Hash = r.Hash,
+                        AreaLevel = r.AreaLevel,
+                        ActiveTime = isActive ? this.CurrentLiveTime() : r.ActiveTime,
+                        Gained = new Dictionary<string, long>(isActive ? this.CurrentGainedLive() : r.Gained, StringComparer.Ordinal),
+                        Kills = (int[])r.Kills.Clone(),
+                    });
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(this.ActiveSessionPathname)!);
+                File.WriteAllText(this.ActiveSessionPathname, JsonConvert.SerializeObject(state, Formatting.Indented));
+            }
+            catch
+            {
+                // best-effort; a failed autosave just means this tick isn't crash-protected.
+            }
+        }
+
+        // Restore a live session from active.json (called on enable). Brings back the completed map list
+        // (loot/time/kills) with the timer paused; re-entering a map resumes its run by hash and keeps
+        // accumulating. No-op if there's nothing to restore.
+        private void LoadActiveState()
+        {
+            try
+            {
+                if (!File.Exists(this.ActiveSessionPathname))
+                {
+                    return;
+                }
+
+                var state = JsonConvert.DeserializeObject<ActiveSessionState>(File.ReadAllText(this.ActiveSessionPathname));
+                if (state?.Completed == null || state.Completed.Count == 0)
+                {
+                    return;
+                }
+
+                this.completed.Clear();
+                this.completed.AddRange(state.Completed);
+                this.sessionStartUtc = state.StartUtc == default ? DateTime.UtcNow : state.StartUtc;
+                this.current = null;
+                this.runStartUtc = null;
+                this.baseline = null;
+                this.baselinePending = false;
+                this.prevSnapshot = null;
+                this.lastProcessedZoneHash = string.Empty;
+            }
+            catch
+            {
+                // a corrupt autosave just means we start fresh.
+            }
+        }
+
+        private void DeleteActiveState()
+        {
+            try
+            {
+                if (File.Exists(this.ActiveSessionPathname))
+                {
+                    File.Delete(this.ActiveSessionPathname);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
 
         // History-window state (transient, not persisted).
         private bool showSessionHistory;
         private List<SessionRecord>? sessionCache;
         private SessionRecord? detailSession;
-        private SessionMap? lootMap;
+        private SessionMap? lootMap;        // history loot view (priced snapshot at archive time)
+        private MapRun? lootRun;            // active-session loot view (re-priced live each frame)
 
         // ── Persistence ──────────────────────────────────────────────────
         // Snapshot the session being ended (the completed runs, plus the in-progress one banked first)
@@ -99,23 +198,30 @@ namespace LootTracker
 
             foreach (var r in this.completed)
             {
-                var m = new SessionMap { Name = r.Name, ActiveSeconds = r.ActiveTime.TotalSeconds };
-                double profit = 0;
-                foreach (var kv in r.Gained)
-                {
-                    if (kv.Value == 0) continue;
-                    bool priced = this.TryPriceItem(kv.Key, out var unit, out var label);
-                    double ex = priced ? unit * kv.Value : 0;
-                    m.Loot.Add(new SessionLootLine { Label = label, Count = kv.Value, Ex = ex, Priced = priced });
-                    profit += ex;
-                }
-
-                m.Loot.Sort((a, b) => Math.Abs(b.Ex).CompareTo(Math.Abs(a.Ex)));
-                m.ProfitEx = profit;
-                rec.Maps.Add(m);
+                rec.Maps.Add(this.BuildSessionMap(r));
             }
 
             return rec;
+        }
+
+        // Price one run's net gains at the CURRENT rates into a SessionMap (loot lines sorted by value).
+        // Shared by session archiving and the live "Active session" loot view in settings.
+        private SessionMap BuildSessionMap(MapRun r)
+        {
+            var m = new SessionMap { Name = r.Name, ActiveSeconds = r.ActiveTime.TotalSeconds };
+            double profit = 0;
+            foreach (var kv in r.Gained)
+            {
+                if (kv.Value == 0) continue;
+                bool priced = this.TryPriceItem(kv.Key, out var unit, out var label);
+                double ex = priced ? unit * kv.Value : 0;
+                m.Loot.Add(new SessionLootLine { Label = label, Count = kv.Value, Ex = ex, Priced = priced });
+                profit += ex;
+            }
+
+            m.Loot.Sort((a, b) => Math.Abs(b.Ex).CompareTo(Math.Abs(a.Ex)));
+            m.ProfitEx = profit;
+            return m;
         }
 
         private void WriteSession(SessionRecord rec)
@@ -314,10 +420,14 @@ namespace LootTracker
                 string totalDiv = rec.DivineRate > 0 ? $"{rec.ToDivine(totalEx):0.0}" : "—";
                 string hourDiv = rec.DivineRate > 0 ? $"{rec.ToDivine(rec.PerHourEx()):0.0}" : "—";
 
+                // Divine-only display converts by the session's OWN saved rate (rec.DivineRate), never the
+                // live rate — a two-week-old session keeps the value it had then.
+                bool divHist = this.Settings.ShowPricesInDivineOnly && rec.DivineRate > 0;
+
                 ImGui.Text($"Duration: {FormatDuration(rec.EndUtc - rec.StartUtc)}");
                 ImGui.Text($"Maps completed: {maps}");
                 ImGui.Text($"AVG time in map: {FormatDuration(avgTime)}");
-                ImGui.Text($"AVG profit: {avgEx:0} Ex");
+                ImGui.Text(divHist ? $"AVG profit: {rec.ToDivine(avgEx):0.##} Div" : $"AVG profit: {avgEx:0} Ex");
                 ImGui.Text($"Total: {totalDiv} Divine");
                 ImGui.Text($"Per hour: {hourDiv} Divine / hour");
                 ImGui.Separator();
@@ -340,11 +450,14 @@ namespace LootTracker
                         ImGui.TableNextColumn();
                         ImGui.TextUnformatted(FormatDuration(TimeSpan.FromSeconds(m.ActiveSeconds)));
                         ImGui.TableNextColumn();
-                        ImGui.TextColored(m.ProfitEx >= 0 ? GreenCol : RedCol, $"{m.ProfitEx:+0.0;-0.0;0} ex");
+                        ImGui.TextColored(m.ProfitEx >= 0 ? GreenCol : RedCol, divHist
+                            ? $"{rec.ToDivine(m.ProfitEx):+0.##;-0.##;0} div"
+                            : $"{m.ProfitEx:+0.0;-0.0;0} ex");
                         ImGui.TableNextColumn();
                         if (ImGui.SmallButton($"Loot##m{i}"))
                         {
                             this.lootMap = m;
+                            this.lootRun = null; // history view takes over from any active-session view
                         }
                     }
 
@@ -360,20 +473,38 @@ namespace LootTracker
             }
         }
 
-        // What a single map dropped (priced lines, snapshotted at save time).
+        // What a single map dropped. Two sources share this window: a history map (priced snapshot,
+        // converted by the saved session rate) and a live active-session run (re-priced every frame at
+        // the current rate). lootRun takes priority when both happen to be set.
         private void DrawMapLootWindow()
         {
-            var m = this.lootMap;
+            SessionMap? m;
+            double rate;
+            if (this.lootRun != null)
+            {
+                m = this.BuildSessionMap(this.lootRun);
+                rate = this.priceCache.DivineToExaltedRate; // live run → current rate
+            }
+            else
+            {
+                m = this.lootMap;
+                rate = this.detailSession?.DivineRate ?? 0; // history → that session's saved rate
+            }
+
             if (m == null)
             {
                 return;
             }
 
+            bool divHist = this.Settings.ShowPricesInDivineOnly && rate > 0;
+
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(420, 360), ImGuiCond.FirstUseEver);
             bool open = true;
             if (ImGui.Begin($"Loot — {m.Name}###map_loot", ref open))
             {
-                ImGui.TextColored(m.ProfitEx >= 0 ? GreenCol : RedCol, $"{m.ProfitEx:+0.0;-0.0;0} ex");
+                ImGui.TextColored(m.ProfitEx >= 0 ? GreenCol : RedCol, divHist
+                    ? $"{m.ProfitEx / rate:+0.##;-0.##;0} div"
+                    : $"{m.ProfitEx:+0.0;-0.0;0} ex");
                 ImGui.SameLine();
                 ImGui.TextDisabled($"· {FormatDuration(TimeSpan.FromSeconds(m.ActiveSeconds))}");
                 ImGui.Separator();
@@ -394,7 +525,9 @@ namespace LootTracker
                         ImGui.TableNextColumn();
                         ImGui.TextColored(line.Count >= 0 ? GreenCol : RedCol, $"{line.Count:+0;-0}");
                         ImGui.TableNextColumn();
-                        ImGui.TextUnformatted(line.Priced ? $"{line.Ex:+0.0;-0.0;0} ex" : "—");
+                        ImGui.TextUnformatted(!line.Priced ? "—"
+                            : divHist ? $"{line.Ex / rate:+0.##;-0.##;0} div"
+                            : $"{line.Ex:+0.0;-0.0;0} ex");
                     }
 
                     ImGui.EndTable();
@@ -405,6 +538,61 @@ namespace LootTracker
             if (!open)
             {
                 this.lootMap = null;
+                this.lootRun = null;
+            }
+        }
+
+        // Compact-style table of the current session's maps (newest first) for the plugin settings, with
+        // a per-row Loot button that opens the same loot window history uses — re-priced live.
+        private void DrawActiveSessionTable()
+        {
+            if (this.completed.Count == 0)
+            {
+                ImGui.TextDisabled("No maps completed yet this session.");
+                return;
+            }
+
+            var rate = this.priceCache.DivineToExaltedRate;
+            bool div = this.Settings.ShowPricesInDivineOnly && rate > 0;
+
+            if (ImGui.BeginTable("active_runs_tbl", 4,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+                    new System.Numerics.Vector2(0f, 200f)))
+            {
+                ImGui.TableSetupColumn("Map");
+                ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 70);
+                ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.WidthFixed, 90);
+                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableHeadersRow();
+
+                MapRun? toOpen = null;
+                for (int i = this.completed.Count - 1; i >= 0; i--)
+                {
+                    var r = this.completed[i];
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(r.Name);
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(FormatDuration(r.ActiveTime));
+                    ImGui.TableNextColumn();
+                    double ex = this.ValueOf(r.Gained, out _, out _);
+                    ImGui.TextColored(ex >= 0 ? GreenCol : RedCol, div
+                        ? $"{ex / rate:+0.##;-0.##;0} div"
+                        : $"{ex:+0.0;-0.0;0} ex");
+                    ImGui.TableNextColumn();
+                    if (ImGui.SmallButton($"Loot##a{i}"))
+                    {
+                        toOpen = r;
+                    }
+                }
+
+                ImGui.EndTable();
+
+                if (toOpen != null)
+                {
+                    this.lootMap = null;
+                    this.lootRun = toOpen;
+                }
             }
         }
     }
