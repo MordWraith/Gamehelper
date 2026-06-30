@@ -18,8 +18,6 @@ namespace Launcher
 
     internal static class ChangelogHistoryService
     {
-        private static readonly HttpClient HttpClient = UpdateService.SharedHttpClient;
-
         internal static async Task<IReadOnlyList<ReleaseHistoryEntry>> LoadMergedAsync(string installDir)
         {
             var byVersion = new Dictionary<string, ReleaseHistoryEntry>(StringComparer.OrdinalIgnoreCase);
@@ -117,14 +115,27 @@ namespace Launcher
 
         private static async Task<IReadOnlyList<ReleaseHistoryEntry>> DownloadRemoteAsync()
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, UpdateConfig.ChangelogHistoryUrl);
-            using var response = await HttpClient.SendAsync(request).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                return Array.Empty<ReleaseHistoryEntry>();
+            foreach (var url in UpdateConfig.ChangelogHistoryUrls)
+            {
+                try
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    using var response = await UpdateService.SharedHttpClient.SendAsync(request).ConfigureAwait(false);
+                    if (!response.IsSuccessStatusCode)
+                        continue;
 
-            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var root = JObject.Parse(json);
-            return ParseReleasesArray(root["releases"] as JArray);
+                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var root = JObject.Parse(json);
+                    return ParseReleasesArray(root["releases"] as JArray);
+                }
+                catch (Exception ex)
+                {
+                    LauncherLog.Write(
+                        $"Changelog-History remote ({UpdateProxyOptions.DescribeSource(url)}): {ex.Message}");
+                }
+            }
+
+            return Array.Empty<ReleaseHistoryEntry>();
         }
 
         private static IReadOnlyList<ReleaseHistoryEntry> ParseReleasesArray(JArray? array)

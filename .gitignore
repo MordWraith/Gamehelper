@@ -18,6 +18,7 @@ runtime-backup/
 imgui.ini
 tempFileLocations.dat
 update.config.json
+update.proxy.json
 configs/
 Plugins/*/config/
 Plugins/*/price_cache.json

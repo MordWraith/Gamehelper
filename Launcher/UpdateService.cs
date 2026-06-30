@@ -5,6 +5,7 @@ namespace Launcher
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Net;
     using System.Net.Http;
     using System.Security.Cryptography;
     using System.Threading;
@@ -14,15 +15,51 @@ namespace Launcher
 
     internal static class UpdateService
     {
-        private static readonly HttpClient HttpClient = new();
+        private static HttpClient HttpClient = CreateClient(new UpdateProxyOptions());
+        private static UpdateProxyOptions proxyOptions = new();
+
         internal static HttpClient SharedHttpClient => HttpClient;
+
+        internal static UpdateProxyOptions ProxyOptions => proxyOptions;
+
         private static string? stagedVersion;
         private static string? stagedInstallDir;
 
-        static UpdateService()
+        internal static void ConfigureProxy(UpdateProxyOptions options)
         {
-            HttpClient.DefaultRequestHeaders.Add("User-Agent", "GameHelper-Updater/1.1");
-            HttpClient.Timeout = TimeSpan.FromMinutes(10);
+            HttpClient newClient;
+            try
+            {
+                newClient = CreateClient(options);
+            }
+            catch (Exception ex)
+            {
+                LauncherLog.Write($"Update proxy ignored: {ex.Message}");
+                options = new UpdateProxyOptions();
+                newClient = CreateClient(options);
+            }
+
+            proxyOptions = options;
+            var oldClient = HttpClient;
+            HttpClient = newClient;
+            oldClient.Dispose();
+            LauncherLog.Write($"Update proxy: {options.DisplayName()}");
+        }
+
+        private static HttpClient CreateClient(UpdateProxyOptions options)
+        {
+            var networkProxy = options.GetNetworkProxyUri();
+            var client = networkProxy == null
+                ? new HttpClient()
+                : new HttpClient(new HttpClientHandler
+                {
+                    Proxy = new WebProxy(networkProxy),
+                    UseProxy = true,
+                });
+
+            client.DefaultRequestHeaders.Add("User-Agent", "GameHelper-Updater/1.1");
+            client.Timeout = TimeSpan.FromMinutes(10);
+            return client;
         }
 
         internal static async Task<UpdateCheckResult> CheckForUpdateAsync(string appExePath, string installDir)
@@ -32,7 +69,12 @@ namespace Launcher
             if (latestManifest == null)
             {
                 LauncherLog.Write("Update check: manifest unavailable (download or signature verification failed).");
-                return new UpdateCheckResult();
+                return new UpdateCheckResult
+                {
+                    ErrorMessage = LauncherLocalization.L(
+                        "Update manifest could not be reached or verified. Configure Proxy and retry, or start without update.",
+                        "Update-Manifest konnte nicht erreicht oder geprueft werden. Proxy konfigurieren und erneut versuchen oder ohne Update starten."),
+                };
             }
 
             var currentVersion = GetCurrentVersion(appExePath);
@@ -241,25 +283,10 @@ namespace Launcher
 
         private static async Task<JObject?> DownloadManifestForVersionAsync(string version)
         {
-            var tag = version.StartsWith('v') ? version : $"v{version}";
-            var url =
-                $"{UpdateRepositoryConfig.GitHubHost}/{UpdateRepositoryConfig.Repository}/releases/download/{tag}/{UpdateRepositoryConfig.ManifestFileName}";
-            var content = await DownloadTextAsync(url);
-            if (content == null)
-            {
-                LauncherLog.Write($"Bridge manifest download failed: {url}");
-                return null;
-            }
-
-            var signatureUrl = UpdateConfig.ManifestSignatureUrlForVersion(version);
-            var signature = await DownloadTextAsync(signatureUrl);
-            if (!UpdateManifestVerifier.TryVerify(content, signature ?? string.Empty, out var verifyError))
-            {
-                LauncherLog.Write($"Bridge manifest signature rejected: {verifyError}");
-                return null;
-            }
-
-            return JObject.Parse(content);
+            return await DownloadVerifiedManifestAsync(
+                UpdateConfig.ManifestUrlsForVersion(version),
+                UpdateConfig.ManifestSignatureUrlsForVersion(version),
+                "Bridge manifest");
         }
 
         internal static async Task DownloadUpdateAsync(
@@ -290,10 +317,13 @@ namespace Launcher
                 });
 
                 var zipPath = Path.Combine(tempDir, zipPackage.Name);
-                var url = UpdateConfig.FileDownloadUrl(offer.RemoteVersion, zipPackage.Name);
                 LauncherLog.Write($"Download package: {zipPackage.Name}");
-                await DownloadFileAsync(url, zipPath, cancellationToken);
-                VerifyDownloadedHash(zipPath, zipPackage.Hash, zipPackage.Name);
+                await DownloadAndVerifyFileAsync(
+                    UpdateConfig.FileDownloadUrls(offer.RemoteVersion, zipPackage.Name),
+                    zipPath,
+                    zipPackage.Hash,
+                    zipPackage.Name,
+                    cancellationToken);
                 UpdateZipPackage.ExtractToDirectory(zipPath, tempDir);
 
                 try
@@ -342,10 +372,13 @@ namespace Launcher
                     Directory.CreateDirectory(destDir);
                 }
 
-                var url = UpdateConfig.FileDownloadUrl(offer.RemoteVersion, file.PackageName);
                 LauncherLog.Write($"Download: {file.PackageName}");
-                await DownloadFileAsync(url, destPath, cancellationToken);
-                VerifyDownloadedHash(destPath, file.ExpectedHash, file.RelativePath);
+                await DownloadAndVerifyFileAsync(
+                    UpdateConfig.FileDownloadUrls(offer.RemoteVersion, file.PackageName),
+                    destPath,
+                    file.ExpectedHash,
+                    file.RelativePath,
+                    cancellationToken);
                 completed++;
             }
 
@@ -491,33 +524,90 @@ namespace Launcher
 
         private static async Task<JObject?> DownloadManifestAsync()
         {
-            var content = await DownloadTextAsync(UpdateConfig.ManifestUrl);
-            if (content == null)
-            {
-                LauncherLog.Write($"Manifest download failed: {UpdateConfig.ManifestUrl}");
-                return null;
-            }
-
-            var signature = await DownloadTextAsync(UpdateConfig.ManifestSignatureUrl);
-            if (!UpdateManifestVerifier.TryVerify(content, signature ?? string.Empty, out var verifyError))
-            {
-                LauncherLog.Write($"Manifest signature rejected: {verifyError}");
-                return null;
-            }
-
-            return JObject.Parse(content);
+            return await DownloadVerifiedManifestAsync(
+                UpdateConfig.ManifestUrls,
+                UpdateConfig.ManifestSignatureUrls,
+                "Manifest");
         }
 
-        private static async Task<string?> DownloadTextAsync(string url)
+        private static async Task<JObject?> DownloadVerifiedManifestAsync(
+            IReadOnlyList<string> manifestUrls,
+            IReadOnlyList<string> signatureUrls,
+            string label)
+        {
+            var errors = new List<string>();
+            for (var index = 0; index < manifestUrls.Count; index++)
+            {
+                var manifestUrl = manifestUrls[index];
+                var signatureUrl = signatureUrls[Math.Min(index, signatureUrls.Count - 1)];
+                try
+                {
+                    var content = await DownloadTextAsync(manifestUrl);
+                    var signature = await DownloadTextAsync(signatureUrl);
+                    if (!UpdateManifestVerifier.TryVerify(content, signature, out var verifyError))
+                    {
+                        throw new InvalidOperationException(verifyError);
+                    }
+
+                    LauncherLog.Write($"{label}: using {UpdateProxyOptions.DescribeSource(manifestUrl)}");
+                    return JObject.Parse(content);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{UpdateProxyOptions.DescribeSource(manifestUrl)}: {ex.Message}");
+                }
+            }
+
+            LauncherLog.Write($"{label} download failed: {string.Join("; ", errors)}");
+            return null;
+        }
+
+        private static async Task<string> DownloadTextAsync(string url)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             using var response = await HttpClient.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                throw new HttpRequestException($"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
             }
 
             return await response.Content.ReadAsStringAsync();
+        }
+
+        private static async Task DownloadAndVerifyFileAsync(
+            IReadOnlyList<string> urls,
+            string destinationPath,
+            string expectedHash,
+            string label,
+            CancellationToken cancellationToken)
+        {
+            var errors = new List<string>();
+            foreach (var url in urls)
+            {
+                var source = UpdateProxyOptions.DescribeSource(url);
+                try
+                {
+                    LauncherLog.Write($"Download source: {source}");
+                    await DownloadFileAsync(url, destinationPath, cancellationToken);
+                    VerifyDownloadedHash(destinationPath, expectedHash, label);
+                    return;
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        File.Delete(destinationPath);
+                    }
+                    catch
+                    {
+                        // ignore cleanup errors
+                    }
+
+                    errors.Add($"{source}: {ex.Message}");
+                }
+            }
+
+            throw new InvalidOperationException($"{label}: {string.Join("; ", errors)}");
         }
 
         private static void VerifyDownloadedHash(string filePath, string expectedHash, string relativePath)

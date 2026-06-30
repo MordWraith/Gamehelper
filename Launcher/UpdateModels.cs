@@ -9,6 +9,8 @@ namespace Launcher
         public UpdateOffer? Offer { get; init; }
 
         public UpdateMigrationNotice.Info? MigrationNotice { get; init; }
+
+        public string? ErrorMessage { get; init; }
     }
 
     internal sealed class UpdateOffer

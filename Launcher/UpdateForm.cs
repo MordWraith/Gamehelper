@@ -96,6 +96,8 @@ namespace Launcher
 
         private readonly Button languageButton;
 
+        private readonly Button proxyButton;
+
 
 
         private UpdateOffer? currentOffer;
@@ -107,6 +109,8 @@ namespace Launcher
         private CancellationTokenSource? downloadCts;
 
         private UpdateFormPhase phase = UpdateFormPhase.Checking;
+
+        private UpdateProxyOptions proxyOptions = new();
 
 
 
@@ -121,6 +125,10 @@ namespace Launcher
             this.installDir = installDir;
 
             this.appExePath = appExePath;
+
+            this.proxyOptions = UpdateProxyOptions.Load(installDir);
+
+            UpdateService.ConfigureProxy(this.proxyOptions);
 
 
 
@@ -141,6 +149,16 @@ namespace Launcher
             this.ForeColor = TextMain;
 
             this.Font = new Font("Segoe UI", 10f);
+
+
+
+            this.proxyButton = CreateButton(
+                "Proxy",
+                Color.FromArgb(55, 58, 72),
+                new Point(424, 16),
+                new Size(88, 28));
+
+            this.proxyButton.Click += this.OnProxyClick;
 
 
 
@@ -413,6 +431,7 @@ namespace Launcher
 
 
             this.Controls.Add(this.languageButton);
+            this.Controls.Add(this.proxyButton);
 
             this.Controls.Add(this.titleLabel);
 
@@ -646,11 +665,50 @@ namespace Launcher
 
 
 
+        private async void OnProxyClick(object? sender, EventArgs e)
+
+        {
+
+            if (this.phase is UpdateFormPhase.Checking or UpdateFormPhase.Downloading)
+            {
+                return;
+            }
+
+            using var form = new ProxySettingsForm(this.proxyOptions);
+            if (form.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            this.proxyOptions = form.Options;
+            try
+            {
+                this.proxyOptions.Save(this.installDir);
+                UpdateService.ConfigureProxy(this.proxyOptions);
+            }
+            catch (Exception ex)
+            {
+                LauncherLog.Write($"Proxy config save: {ex}");
+                MessageBox.Show(this, ex.Message, "GameHelper", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (this.phase == UpdateFormPhase.Error)
+            {
+                await this.RunUpdateFlowAsync();
+            }
+
+        }
+
+
+
         private void RefreshLocalizedUi()
 
         {
 
             this.UpdateTabTitles();
+
+            this.proxyButton.Text = "Proxy";
 
 
 
@@ -755,6 +813,9 @@ namespace Launcher
 
             {
 
+                this.currentOffer = null;
+                this.currentMigration = null;
+
                 var current = UpdateService.GetCurrentVersion(this.appExePath);
 
                 this.subtitleLabel.Text = LauncherLocalization.L(
@@ -774,6 +835,12 @@ namespace Launcher
                 this.releaseHistory = await historyTask;
 
                 this.FillHistoryBox();
+
+                if (!string.IsNullOrWhiteSpace(checkResult.ErrorMessage))
+                {
+                    this.ShowError(checkResult.ErrorMessage);
+                    return;
+                }
 
 
 
@@ -860,6 +927,8 @@ namespace Launcher
 
             this.secondaryButton.Enabled = false;
 
+            this.proxyButton.Enabled = false;
+
         }
 
 
@@ -916,6 +985,7 @@ namespace Launcher
             this.secondaryButton.Text = LauncherLocalization.L("Open download page", "Download-Seite oeffnen");
             this.primaryButton.Enabled = true;
             this.secondaryButton.Enabled = true;
+            this.proxyButton.Enabled = true;
         }
 
         private void ShowPrompt(UpdateOffer offer)
@@ -968,6 +1038,8 @@ namespace Launcher
 
             this.secondaryButton.Enabled = true;
 
+            this.proxyButton.Enabled = true;
+
         }
 
 
@@ -1015,6 +1087,8 @@ namespace Launcher
             this.primaryButton.Enabled = false;
 
             this.secondaryButton.Enabled = false;
+
+            this.proxyButton.Enabled = false;
 
 
 
@@ -1121,6 +1195,8 @@ namespace Launcher
             this.primaryButton.Enabled = true;
 
             this.secondaryButton.Enabled = true;
+
+            this.proxyButton.Enabled = true;
 
         }
 
@@ -1247,6 +1323,8 @@ namespace Launcher
             this.primaryButton.Enabled = true;
 
             this.secondaryButton.Enabled = true;
+
+            this.proxyButton.Enabled = true;
 
         }
 
