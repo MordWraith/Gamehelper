@@ -21,9 +21,55 @@ namespace GameHelper.Localization
         English,
 
         /// <summary>
-        ///     Simplified Chinese UI text.
+        ///     Traditional Chinese UI text.
         /// </summary>
-        ChineseSimplified,
+        ChineseTraditional = 1,
+
+        /// <summary>
+        ///     French UI text.
+        /// </summary>
+        French,
+
+        /// <summary>
+        ///     German UI text.
+        /// </summary>
+        German,
+
+        /// <summary>
+        ///     Spanish (Spain) UI text.
+        /// </summary>
+        SpanishSpain,
+
+        /// <summary>
+        ///     Japanese UI text.
+        /// </summary>
+        Japanese,
+
+        /// <summary>
+        ///     Korean UI text.
+        /// </summary>
+        Korean,
+
+        /// <summary>
+        ///     Portuguese (Brazil) UI text.
+        /// </summary>
+        PortugueseBrazil,
+
+        /// <summary>
+        ///     Russian UI text.
+        /// </summary>
+        Russian,
+
+        /// <summary>
+        ///     Thai UI text.
+        /// </summary>
+        Thai,
+
+        /// <summary>
+        ///     Legacy setting value kept so older configs deserialize to Traditional Chinese.
+        /// </summary>
+        [Obsolete("Use ChineseTraditional for the international client.")]
+        ChineseSimplified = ChineseTraditional,
     }
 
     /// <summary>
@@ -40,7 +86,15 @@ namespace GameHelper.Localization
         public static readonly OverlayLanguage[] SupportedLanguages =
         {
             OverlayLanguage.English,
-            OverlayLanguage.ChineseSimplified,
+            OverlayLanguage.French,
+            OverlayLanguage.German,
+            OverlayLanguage.SpanishSpain,
+            OverlayLanguage.Japanese,
+            OverlayLanguage.Korean,
+            OverlayLanguage.PortugueseBrazil,
+            OverlayLanguage.Russian,
+            OverlayLanguage.Thai,
+            OverlayLanguage.ChineseTraditional,
         };
 
         /// <summary>
@@ -52,16 +106,16 @@ namespace GameHelper.Localization
         ///     Gets a value indicating whether the overlay language is German.
         ///     Kept for compatibility with plugins ported from older localized forks.
         /// </summary>
-        public static bool IsGerman => false;
+        public static bool IsGerman => CurrentLanguage == OverlayLanguage.German;
 
         /// <summary>
         ///     Returns the localized string for compatibility with older plugins.
         ///     The main UI should use keyed resources through <see cref="T"/>.
         /// </summary>
         /// <param name="english">The English string (always returned).</param>
-        /// <param name="german">The German string (ignored).</param>
-        /// <returns>The <paramref name="english"/> string.</returns>
-        public static string L(string english, string german) => english;
+        /// <param name="german">The German string.</param>
+        /// <returns>The localized legacy string.</returns>
+        public static string L(string english, string german) => IsGerman ? german : english;
 
         /// <summary>
         ///     Resolves a localized string by key, falling back to English and then
@@ -111,7 +165,15 @@ namespace GameHelper.Localization
         /// </summary>
         public static string DisplayName(OverlayLanguage language) => language switch
         {
-            OverlayLanguage.ChineseSimplified => T("ui.language.chinese_simplified", "Simplified Chinese"),
+            OverlayLanguage.ChineseTraditional => T("ui.language.chinese_traditional", "Traditional Chinese"),
+            OverlayLanguage.French => T("ui.language.french", "French"),
+            OverlayLanguage.German => T("ui.language.german", "German"),
+            OverlayLanguage.SpanishSpain => T("ui.language.spanish_spain", "Spanish (Spain)"),
+            OverlayLanguage.Japanese => T("ui.language.japanese", "Japanese"),
+            OverlayLanguage.Korean => T("ui.language.korean", "Korean"),
+            OverlayLanguage.PortugueseBrazil => T("ui.language.portuguese_brazil", "Portuguese (Brazil)"),
+            OverlayLanguage.Russian => T("ui.language.russian", "Russian"),
+            OverlayLanguage.Thai => T("ui.language.thai", "Thai"),
             _ => T("ui.language.english", "English"),
         };
 
@@ -167,7 +229,15 @@ namespace GameHelper.Localization
         /// </summary>
         public static string LanguageCode(OverlayLanguage language) => language switch
         {
-            OverlayLanguage.ChineseSimplified => "zh-CN",
+            OverlayLanguage.ChineseTraditional => "zh-TW",
+            OverlayLanguage.French => "fr-FR",
+            OverlayLanguage.German => "de-DE",
+            OverlayLanguage.SpanishSpain => "es-ES",
+            OverlayLanguage.Japanese => "ja-JP",
+            OverlayLanguage.Korean => "ko-KR",
+            OverlayLanguage.PortugueseBrazil => "pt-BR",
+            OverlayLanguage.Russian => "ru-RU",
+            OverlayLanguage.Thai => "th-TH",
             _ => "en-US",
         };
     }

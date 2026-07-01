@@ -1,7 +1,7 @@
 # Laedt die aktuelle GameHelper-Version von GitHub Releases in einen Zielordner.
 param(
     [string]$TargetDir = (Join-Path (Get-Location) "GameHelper"),
-    [string]$Repository = "MordWraith/Gamehelper",
+    [string]$Repository = "Pililink/Gamehelper",
     [switch]$Force
 )
 

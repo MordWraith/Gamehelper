@@ -88,9 +88,9 @@ namespace StashValue
         public override void DrawSettings()
         {
             var changed = false;
-            changed |= ImGui.Checkbox("Show stash item prices", ref this.Settings.ShowOverlay);
-            changed |= ImGui.Checkbox("Show inventory item prices", ref this.Settings.ShowInventoryOverlay);
-            changed |= ImGui.Checkbox("Hide price when hovering item", ref this.Settings.HidePriceOnHover);
+            changed |= ImGui.Checkbox(this.PluginText.Label("settings.show_stash_prices", "Show stash item prices", "StashValueShowStashPrices"), ref this.Settings.ShowOverlay);
+            changed |= ImGui.Checkbox(this.PluginText.Label("settings.show_inventory_prices", "Show inventory item prices", "StashValueShowInventoryPrices"), ref this.Settings.ShowInventoryOverlay);
+            changed |= ImGui.Checkbox(this.PluginText.Label("settings.hide_price_on_hover", "Hide price when hovering item", "StashValueHidePriceOnHover"), ref this.Settings.HidePriceOnHover);
 
             var maxThreshold = this.Settings.DisplayCurrency switch
             {
@@ -105,25 +105,25 @@ namespace StashValue
                 _ => "c"
             };
             this.Settings.MinValueEx = Math.Clamp(this.Settings.MinValueEx, 0.0f, maxThreshold);
-            changed |= ImGui.SliderFloat($"Min Price Threshold ({currencyLabel})##threshold", ref this.Settings.MinValueEx, 0.0f, maxThreshold, $"%.2f {currencyLabel}");
+            changed |= ImGui.SliderFloat($"{this.PluginText.F("settings.min_price_threshold", "Min Price Threshold ({0})", currencyLabel)}##threshold", ref this.Settings.MinValueEx, 0.0f, maxThreshold, $"%.2f {currencyLabel}");
 
-            changed |= ImGui.Checkbox("Show Debug Info (Draw Boxes & Diagnostics)", ref this.Settings.ShowDebugInfo);
-
-            ImGui.Separator();
-            ImGui.Text("Display Currency");
-            if (ImGui.RadioButton("Chaos", this.Settings.DisplayCurrency == 2)) { this.Settings.DisplayCurrency = 2; changed = true; }
-            ImGui.SameLine();
-            if (ImGui.RadioButton("Exalted", this.Settings.DisplayCurrency == 1)) { this.Settings.DisplayCurrency = 1; changed = true; }
-            ImGui.SameLine();
-            if (ImGui.RadioButton("Divine", this.Settings.DisplayCurrency == 0)) { this.Settings.DisplayCurrency = 0; changed = true; }
-
-            changed |= ImGui.SliderFloat("Font Scale", ref this.Settings.PriceFontScale, 0.5f, 2f, "%.2f");
-            changed |= ImGui.SliderFloat("Horizontal Offset", ref this.Settings.PriceOffsetX, -50f, 50f);
-            changed |= ImGui.SliderFloat("Vertical Offset", ref this.Settings.PriceOffsetY, -50f, 50f);
-            changed |= ImGui.ColorEdit4("Text Color", ref this.Settings.TextColor);
+            changed |= ImGui.Checkbox(this.PluginText.Label("settings.show_debug_info", "Show Debug Info (Draw Boxes & Diagnostics)", "StashValueShowDebugInfo"), ref this.Settings.ShowDebugInfo);
 
             ImGui.Separator();
-            ImGui.Text("Price Source");
+            ImGui.Text(this.PluginText.T("section.display_currency", "Display Currency"));
+            if (ImGui.RadioButton(this.PluginText.Label("currency.chaos", "Chaos", "StashValueCurrencyChaos"), this.Settings.DisplayCurrency == 2)) { this.Settings.DisplayCurrency = 2; changed = true; }
+            ImGui.SameLine();
+            if (ImGui.RadioButton(this.PluginText.Label("currency.exalted", "Exalted", "StashValueCurrencyExalted"), this.Settings.DisplayCurrency == 1)) { this.Settings.DisplayCurrency = 1; changed = true; }
+            ImGui.SameLine();
+            if (ImGui.RadioButton(this.PluginText.Label("currency.divine", "Divine", "StashValueCurrencyDivine"), this.Settings.DisplayCurrency == 0)) { this.Settings.DisplayCurrency = 0; changed = true; }
+
+            changed |= ImGui.SliderFloat(this.PluginText.Label("settings.font_scale", "Font Scale", "StashValueFontScale"), ref this.Settings.PriceFontScale, 0.5f, 2f, "%.2f");
+            changed |= ImGui.SliderFloat(this.PluginText.Label("settings.horizontal_offset", "Horizontal Offset", "StashValueHorizontalOffset"), ref this.Settings.PriceOffsetX, -50f, 50f);
+            changed |= ImGui.SliderFloat(this.PluginText.Label("settings.vertical_offset", "Vertical Offset", "StashValueVerticalOffset"), ref this.Settings.PriceOffsetY, -50f, 50f);
+            changed |= ImGui.ColorEdit4(this.PluginText.Label("settings.text_color", "Text Color", "StashValueTextColor"), ref this.Settings.TextColor);
+
+            ImGui.Separator();
+            ImGui.Text(this.PluginText.T("section.price_source", "Price Source"));
             if (ImGui.RadioButton("poe2scout", this.Settings.PriceSource == PoeNinjaPriceFetcher.SourcePoe2Scout))
             {
                 this.Settings.PriceSource = PoeNinjaPriceFetcher.SourcePoe2Scout;
@@ -136,15 +136,15 @@ namespace StashValue
                 changed = true;
             }
 
-            changed |= ImGui.InputText("League", ref this.Settings.League, 64);
-            changed |= ImGui.SliderInt("Refresh interval (min)", ref this.Settings.RefreshIntervalMin, 1, 120);
+            changed |= ImGui.InputText(this.PluginText.Label("settings.league", "League", "StashValueLeague"), ref this.Settings.League, 64);
+            changed |= ImGui.SliderInt(this.PluginText.Label("settings.refresh_interval", "Refresh interval (min)", "StashValueRefreshInterval"), ref this.Settings.RefreshIntervalMin, 1, 120);
 
             if (changed)
             {
                 this.SaveSettings();
             }
 
-            if (ImGui.Button("Refresh prices now"))
+            if (ImGui.Button(this.PluginText.Label("button.refresh_prices_now", "Refresh prices now", "StashValueRefreshPricesNow")))
             {
                 PoeNinjaPriceFetcher.Configure(this.Settings.PriceSource, this.Settings.League ?? string.Empty, this.Settings.RefreshIntervalMin);
                 PoeNinjaPriceFetcher.ForceRefresh(this.DllDirectory, ignoreCooldown: true);
@@ -153,27 +153,27 @@ namespace StashValue
             ImGui.SameLine();
             if (PoeNinjaPriceFetcher.IsFetching)
             {
-                ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.2f, 1f), "Loading...");
+                ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.2f, 1f), this.PluginText.T("status.loading", "Loading..."));
             }
             else if (PoeNinjaPriceFetcher.LastFetchUtc > DateTime.MinValue)
             {
                 var mins = Math.Max(0, (int)(DateTime.UtcNow - PoeNinjaPriceFetcher.LastFetchUtc).TotalMinutes);
-                ImGui.TextColored(new Vector4(0.5f, 0.8f, 0.5f, 1f), $"{PoeNinjaPriceFetcher.LoadedItemCount} items | {mins} min ago");
+                ImGui.TextColored(new Vector4(0.5f, 0.8f, 0.5f, 1f), this.PluginText.F("status.loaded_items", "{0} items | {1} min ago", PoeNinjaPriceFetcher.LoadedItemCount, mins));
             }
         }
 
         private void DrawDebugWindow()
         {
-            ImGui.Begin("StashValue Debugger");
+            ImGui.Begin(this.PluginText.Title("debug.window_title", "StashValue Debugger", "StashValueDebugger"));
             var gameUi = Core.States.InGameStateObject.GameUi;
             if (gameUi != null)
             {
-                ImGui.Text($"LeftPanel: {gameUi.LeftPanel.Address.ToString("X")} | Visible: {gameUi.LeftPanel.IsVisible}");
-                ImGui.Text($"RightPanel: {gameUi.RightPanel.Address.ToString("X")} | Visible: {gameUi.RightPanel.IsVisible}");
+                ImGui.Text(this.PluginText.F("debug.left_panel", "LeftPanel: {0} | Visible: {1}", gameUi.LeftPanel.Address.ToString("X"), gameUi.LeftPanel.IsVisible));
+                ImGui.Text(this.PluginText.F("debug.right_panel", "RightPanel: {0} | Visible: {1}", gameUi.RightPanel.Address.ToString("X"), gameUi.RightPanel.IsVisible));
             }
             else
             {
-                ImGui.Text("GameUi is NULL");
+                ImGui.Text(this.PluginText.T("debug.game_ui_null", "GameUi is NULL"));
             }
 
             var serverData = Core.States.InGameStateObject.CurrentAreaInstance.ServerDataObject;
@@ -181,23 +181,23 @@ namespace StashValue
             {
                 var propInfo = typeof(ServerData).GetProperty("PlayerInventories", BindingFlags.Instance | BindingFlags.NonPublic);
                 var playerInventories = propInfo?.GetValue(serverData) as Dictionary<InventoryName, IntPtr>;
-                ImGui.Text($"PlayerInventories: {(playerInventories != null ? "Found" : "Not Found")}");
+                ImGui.Text(this.PluginText.F("debug.player_inventories", "PlayerInventories: {0}", playerInventories != null ? this.PluginText.T("debug.found", "Found") : this.PluginText.T("debug.not_found", "Not Found")));
                 if (playerInventories != null)
                 {
                     foreach (var kvp in playerInventories)
                     {
-                        ImGui.Text($"Inv {kvp.Key} ({(int)kvp.Key}): {kvp.Value.ToString("X")}");
+                        ImGui.Text(this.PluginText.F("debug.inventory", "Inv {0} ({1}): {2}", kvp.Key, (int)kvp.Key, kvp.Value.ToString("X")));
                     }
                     if (this.stashInventory != null)
                     {
-                        ImGui.Text($"Stash Inventory Address: {this.stashInventory.Address.ToString("X")}");
-                        ImGui.Text($"Stash Inventory Items: {this.stashInventory.Items.Count}");
+                        ImGui.Text(this.PluginText.F("debug.stash_inventory_address", "Stash Inventory Address: {0}", this.stashInventory.Address.ToString("X")));
+                        ImGui.Text(this.PluginText.F("debug.stash_inventory_items", "Stash Inventory Items: {0}", this.stashInventory.Items.Count));
                     }
                 }
             }
             else
             {
-                ImGui.Text("ServerData is NULL");
+                ImGui.Text(this.PluginText.T("debug.server_data_null", "ServerData is NULL"));
             }
             ImGui.End();
         }

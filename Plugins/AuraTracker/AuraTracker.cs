@@ -72,7 +72,7 @@ namespace AuraTracker
 
         public override void DrawSettings()
         {
-            this.settingsRenderer.Draw(this.Settings);
+            this.settingsRenderer.Draw(this.Settings, this.PluginText);
         }
 
         public override void DrawUI()

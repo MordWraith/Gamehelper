@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ExpectedVersion,
-    [string]$Repository = "MordWraith/Gamehelper",
+    [string]$Repository = "Pililink/Gamehelper",
     [string]$Branch = "main"
 )
 

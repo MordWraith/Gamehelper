@@ -4,6 +4,8 @@
 
 namespace GameHelper.Plugin
 {
+    using GameHelper.Localization;
+
     /// <summary>
     ///     Interface for creating plugins.
     /// </summary>
@@ -20,6 +22,13 @@ namespace GameHelper.Plugin
         ///     Gets or sets the plugin settings.
         /// </summary>
         public TSettings Settings = new();
+
+        private PluginLocalization? pluginText;
+
+        /// <summary>
+        ///     Gets localized text from the plugin-owned Localization directory.
+        /// </summary>
+        protected PluginLocalization PluginText => this.pluginText ??= new PluginLocalization(this.DllDirectory);
 
         /// <inheritdoc />
         public abstract void OnDisable();

@@ -329,24 +329,28 @@ namespace LootTracker
 
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(760, 380), ImGuiCond.FirstUseEver);
             bool open = true;
-            if (ImGui.Begin("Session history", ref open))
+            if (ImGui.Begin(this.PluginText.Title("window.session_history", "Session history", "session_history"), ref open))
             {
-                if (ImGui.Button("Refresh"))
+                if (ImGui.Button(this.PluginText.Label("button.refresh", "Refresh", "RefreshSessions")))
                 {
                     this.LoadSessions();
                 }
 
                 ImGui.SameLine();
-                ImGui.TextDisabled($"{this.sessionCache?.Count ?? 0} saved · keeping last {this.Settings.MaxSessions}");
+                ImGui.TextDisabled(this.PluginText.F(
+                    "sessions.saved_summary",
+                    "{0} saved - keeping last {1}",
+                    this.sessionCache?.Count ?? 0,
+                    this.Settings.MaxSessions));
 
                 if (ImGui.BeginTable("sessions_tbl", 6,
                         ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
                 {
-                    ImGui.TableSetupColumn("Date");
-                    ImGui.TableSetupColumn("Length", ImGuiTableColumnFlags.WidthFixed, 70);
-                    ImGui.TableSetupColumn("Maps", ImGuiTableColumnFlags.WidthFixed, 50);
-                    ImGui.TableSetupColumn("Total div", ImGuiTableColumnFlags.WidthFixed, 80);
-                    ImGui.TableSetupColumn("Div/h", ImGuiTableColumnFlags.WidthFixed, 70);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.date", "Date"));
+                    ImGui.TableSetupColumn(this.PluginText.T("table.length", "Length"), ImGuiTableColumnFlags.WidthFixed, 70);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.maps", "Maps"), ImGuiTableColumnFlags.WidthFixed, 50);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.total_div", "Total div"), ImGuiTableColumnFlags.WidthFixed, 80);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.div_per_hour", "Div/h"), ImGuiTableColumnFlags.WidthFixed, 70);
                     ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 150);
                     ImGui.TableHeadersRow();
 
@@ -369,14 +373,14 @@ namespace LootTracker
                             ImGui.TableNextColumn();
                             ImGui.TextUnformatted(rec.DivineRate > 0 ? $"{rec.ToDivine(rec.PerHourEx()):0.0}" : "—");
                             ImGui.TableNextColumn();
-                            if (ImGui.SmallButton($"Details##s{i}"))
+                            if (ImGui.SmallButton($"{this.PluginText.T("button.details", "Details")}##s{i}"))
                             {
                                 this.detailSession = rec;
                                 this.lootMap = null;
                             }
 
                             ImGui.SameLine();
-                            if (ImGui.SmallButton($"Delete##s{i}"))
+                            if (ImGui.SmallButton($"{this.PluginText.T("button.delete", "Delete")}##s{i}"))
                             {
                                 toDelete = rec;
                             }
@@ -410,7 +414,7 @@ namespace LootTracker
 
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(620, 420), ImGuiCond.FirstUseEver);
             bool open = true;
-            if (ImGui.Begin($"Session {rec.StartUtc.ToLocalTime():yyyy-MM-dd HH:mm}###session_detail", ref open))
+            if (ImGui.Begin($"{this.PluginText.T("window.session", "Session")} {rec.StartUtc.ToLocalTime():yyyy-MM-dd HH:mm}###session_detail", ref open))
             {
                 int maps = rec.Maps.Count;
                 double totalEx = rec.TotalEx();
@@ -424,20 +428,22 @@ namespace LootTracker
                 // live rate — a two-week-old session keeps the value it had then.
                 bool divHist = this.Settings.ShowPricesInDivineOnly && rec.DivineRate > 0;
 
-                ImGui.Text($"Duration: {FormatDuration(rec.EndUtc - rec.StartUtc)}");
-                ImGui.Text($"Maps completed: {maps}");
-                ImGui.Text($"AVG time in map: {FormatDuration(avgTime)}");
-                ImGui.Text(divHist ? $"AVG profit: {rec.ToDivine(avgEx):0.##} Div" : $"AVG profit: {avgEx:0} Ex");
-                ImGui.Text($"Total: {totalDiv} Divine");
-                ImGui.Text($"Per hour: {hourDiv} Divine / hour");
+                ImGui.Text(this.PluginText.F("session.duration", "Duration: {0}", FormatDuration(rec.EndUtc - rec.StartUtc)));
+                ImGui.Text(this.PluginText.F("session.maps_completed", "Maps completed: {0}", maps));
+                ImGui.Text(this.PluginText.F("session.avg_time", "AVG time in map: {0}", FormatDuration(avgTime)));
+                ImGui.Text(divHist
+                    ? this.PluginText.F("session.avg_profit_div", "AVG profit: {0:0.##} Div", rec.ToDivine(avgEx))
+                    : this.PluginText.F("session.avg_profit_ex", "AVG profit: {0:0} Ex", avgEx));
+                ImGui.Text(this.PluginText.F("session.total_divine", "Total: {0} Divine", totalDiv));
+                ImGui.Text(this.PluginText.F("session.per_hour", "Per hour: {0} Divine / hour", hourDiv));
                 ImGui.Separator();
 
                 if (ImGui.BeginTable("detail_maps_tbl", 4,
                         ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
                 {
-                    ImGui.TableSetupColumn("Map");
-                    ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 70);
-                    ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.WidthFixed, 90);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.map", "Map"));
+                    ImGui.TableSetupColumn(this.PluginText.T("table.time", "Time"), ImGuiTableColumnFlags.WidthFixed, 70);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.profit", "Profit"), ImGuiTableColumnFlags.WidthFixed, 90);
                     ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 70);
                     ImGui.TableHeadersRow();
 
@@ -454,7 +460,7 @@ namespace LootTracker
                             ? $"{rec.ToDivine(m.ProfitEx):+0.##;-0.##;0} div"
                             : $"{m.ProfitEx:+0.0;-0.0;0} ex");
                         ImGui.TableNextColumn();
-                        if (ImGui.SmallButton($"Loot##m{i}"))
+                        if (ImGui.SmallButton($"{this.PluginText.T("button.loot", "Loot")}##m{i}"))
                         {
                             this.lootMap = m;
                             this.lootRun = null; // history view takes over from any active-session view
@@ -500,7 +506,7 @@ namespace LootTracker
 
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(420, 360), ImGuiCond.FirstUseEver);
             bool open = true;
-            if (ImGui.Begin($"Loot — {m.Name}###map_loot", ref open))
+            if (ImGui.Begin($"{this.PluginText.F("window.loot", "Loot - {0}", m.Name)}###map_loot", ref open))
             {
                 ImGui.TextColored(m.ProfitEx >= 0 ? GreenCol : RedCol, divHist
                     ? $"{m.ProfitEx / rate:+0.##;-0.##;0} div"
@@ -512,9 +518,9 @@ namespace LootTracker
                 if (ImGui.BeginTable("map_loot_tbl", 3,
                         ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
                 {
-                    ImGui.TableSetupColumn("Item");
-                    ImGui.TableSetupColumn("Count", ImGuiTableColumnFlags.WidthFixed, 60);
-                    ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthFixed, 90);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.item", "Item"));
+                    ImGui.TableSetupColumn(this.PluginText.T("table.count", "Count"), ImGuiTableColumnFlags.WidthFixed, 60);
+                    ImGui.TableSetupColumn(this.PluginText.T("table.value", "Value"), ImGuiTableColumnFlags.WidthFixed, 90);
                     ImGui.TableHeadersRow();
 
                     foreach (var line in m.Loot)
@@ -548,7 +554,7 @@ namespace LootTracker
         {
             if (this.completed.Count == 0)
             {
-                ImGui.TextDisabled("No maps completed yet this session.");
+                ImGui.TextDisabled(this.PluginText.T("session.no_maps", "No maps completed yet this session."));
                 return;
             }
 
@@ -559,9 +565,9 @@ namespace LootTracker
                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
                     new System.Numerics.Vector2(0f, 200f)))
             {
-                ImGui.TableSetupColumn("Map");
-                ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 70);
-                ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.WidthFixed, 90);
+                ImGui.TableSetupColumn(this.PluginText.T("table.map", "Map"));
+                ImGui.TableSetupColumn(this.PluginText.T("table.time", "Time"), ImGuiTableColumnFlags.WidthFixed, 70);
+                ImGui.TableSetupColumn(this.PluginText.T("table.profit", "Profit"), ImGuiTableColumnFlags.WidthFixed, 90);
                 ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 60);
                 ImGui.TableHeadersRow();
 
@@ -580,7 +586,7 @@ namespace LootTracker
                         ? $"{ex / rate:+0.##;-0.##;0} div"
                         : $"{ex:+0.0;-0.0;0} ex");
                     ImGui.TableNextColumn();
-                    if (ImGui.SmallButton($"Loot##a{i}"))
+                    if (ImGui.SmallButton($"{this.PluginText.T("button.loot", "Loot")}##a{i}"))
                     {
                         toOpen = r;
                     }

@@ -124,7 +124,7 @@
                          "version":  "1.3.0",
                          "published":  "2026-06-12T12:07:52.6181669Z",
                          "changelog":  [
-                                           "[New] Full source code is on GitHub (main branch) — build, audit, or skip auto-update anytime: https://github.com/MordWraith/Gamehelper || [Neu] Vollständiger Quellcode auf GitHub (main) — bauen, prüfen oder Auto-Update umgehen: https://github.com/MordWraith/Gamehelper",
+                                           "[New] Full source code is on GitHub (main branch) — build, audit, or skip auto-update anytime: https://github.com/Pililink/Gamehelper || [Neu] Vollständiger Quellcode auf GitHub (main) — bauen, prüfen oder Auto-Update umgehen: https://github.com/Pililink/Gamehelper",
                                            "[New] Trust docs: signed ZIP updates, your configs/plugin settings are never overwritten — see SECURITY.md on GitHub || [Neu] Vertrauen: signierte ZIP-Updates, configs/Plugin-Einstellungen werden nie überschrieben — siehe SECURITY.md auf GitHub",
                                            "[Fix] PlayerBuffBar: custom buff watchlist no longer resets to defaults on every startup || [Fix] PlayerBuffBar: eigene Buff-Watchlist wird beim Start nicht mehr auf Standard zurückgesetzt",
                                            "[Plugin] PlayerBuffBar: Power / Frenzy / Endurance charges use in-game icons (poe2db) instead of P/E/F letters || [Plugin] PlayerBuffBar: Power-/Frenzy-/Endurance-Charges nutzen Ingame-Icons (poe2db) statt P/E/F",

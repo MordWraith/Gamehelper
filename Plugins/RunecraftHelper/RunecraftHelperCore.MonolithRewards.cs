@@ -219,7 +219,7 @@ namespace RunecraftHelper
             // as recipe tables are expanded/collapsed. The constraint keeps width sane and caps height so a
             // long list can't run off-screen (it scrolls past the cap instead).
             ImGui.SetNextWindowSizeConstraints(new Vector2(260, 0), new Vector2(640, 900));
-            if (ImGui.Begin("Monolith Rewards", ImGuiWindowFlags.AlwaysAutoResize))
+            if (ImGui.Begin(this.PluginText.Title("window.monolith_rewards", "Monolith Rewards", "RunecraftMonolithRewards"), ImGuiWindowFlags.AlwaysAutoResize))
             {
                 float min = this.Settings.MonolithRewardsMinExalted;
 
@@ -263,13 +263,13 @@ namespace RunecraftHelper
                     string panelMark = v.PanelOpen ? "▶ " : string.Empty;
                     if (v.IsRerolled && v.Candidates.Count > 0)
                         // Sealed: recipe locked — show the one reward + its value, not "best of N".
-                        hdr = $"{panelMark}[locked] {v.Candidates[0].Reward}  ·  {v.Distance:F0}  ·  {best:F0} ex###m{v.EntityId}";
+                        hdr = this.PluginText.F("monolith.header.locked", "{0}[locked] {1} - {2:F0} - {3:F0} ex", panelMark, v.Candidates[0].Reward, v.Distance, best) + $"###m{v.EntityId}";
                     else if (v.IsUnique)
-                        hdr = $"{panelMark}Unique Monolith  ·  {v.HoleCount} holes  ·  {v.Distance:F0}  ·  best {best:F0} ex###m{v.EntityId}";
+                        hdr = this.PluginText.F("monolith.header.unique", "{0}Unique Monolith - {1} holes - {2:F0} - best {3:F0} ex", panelMark, v.HoleCount, v.Distance, best) + $"###m{v.EntityId}";
                     else if (v.AnchorIdx >= 0)
-                        hdr = $"{panelMark}{v.AnchorName}  ·  hole {v.AnchorPos + 1}/{v.HoleCount}  ·  {v.Distance:F0}  ·  best {best:F0} ex###m{v.EntityId}";
+                        hdr = this.PluginText.F("monolith.header.anchored", "{0}{1} - hole {2}/{3} - {4:F0} - best {5:F0} ex", panelMark, v.AnchorName, v.AnchorPos + 1, v.HoleCount, v.Distance, best) + $"###m{v.EntityId}";
                     else
-                        hdr = $"{panelMark}(anchor ?)  ·  {v.HoleCount} holes  ·  {v.Distance:F0}###m{v.EntityId}";
+                        hdr = this.PluginText.F("monolith.header.no_anchor", "{0}(anchor ?) - {1} holes - {2:F0}", panelMark, v.HoleCount, v.Distance) + $"###m{v.EntityId}";
 
                     // Header tint via the shared helper so it matches the map-overlay label exactly.
                     uint hdrColor = this.MonolithValueColor(best, maxBest, out bool colorHdr);
@@ -281,7 +281,7 @@ namespace RunecraftHelper
 
                     if (v.AnchorIdx < 0 && !v.IsUnique && !(v.IsRerolled && v.Candidates.Count > 0))
                     {
-                        ImGui.TextDisabled("  anchor not resolved (station unavailable)");
+                        ImGui.TextDisabled(this.PluginText.T("monolith.anchor_unresolved", "  anchor not resolved (station unavailable)"));
                         continue;
                     }
 
@@ -291,10 +291,10 @@ namespace RunecraftHelper
                             ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp,
                             new Vector2(430f, 0f)))
                     {
-                        ImGui.TableSetupColumn("Reward", ImGuiTableColumnFlags.WidthStretch);
+                        ImGui.TableSetupColumn(this.PluginText.T("table.reward", "Reward"), ImGuiTableColumnFlags.WidthStretch);
                         ImGui.TableSetupColumn("x", ImGuiTableColumnFlags.WidthFixed, 26f);
-                        ImGui.TableSetupColumn("Unit", ImGuiTableColumnFlags.WidthFixed, 58f);
-                        ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 62f);
+                        ImGui.TableSetupColumn(this.PluginText.T("table.unit", "Unit"), ImGuiTableColumnFlags.WidthFixed, 58f);
+                        ImGui.TableSetupColumn(this.PluginText.T("table.total", "Total"), ImGuiTableColumnFlags.WidthFixed, 62f);
                         ImGui.TableHeadersRow();
 
                         int shown = 0;
@@ -330,7 +330,7 @@ namespace RunecraftHelper
                         {
                             ImGui.TableNextRow();
                             ImGui.TableSetColumnIndex(0);
-                            ImGui.TextDisabled("(nothing above threshold)");
+                            ImGui.TextDisabled(this.PluginText.T("monolith.nothing_above_threshold", "(nothing above threshold)"));
                         }
 
                         ImGui.EndTable();
@@ -350,7 +350,7 @@ namespace RunecraftHelper
         private void DrawMonolithDebugWindow()
         {
             ImGui.SetNextWindowSize(new Vector2(680, 460), ImGuiCond.FirstUseEver);
-            if (!ImGui.Begin("Monolith Debug###RunecraftMonolithDebug"))
+            if (!ImGui.Begin(this.PluginText.Title("window.monolith_debug", "Monolith Debug", "RunecraftMonolithDebug")))
             {
                 ImGui.End();
                 return;
@@ -358,7 +358,7 @@ namespace RunecraftHelper
 
             if (this.monolithViews.Count == 0)
             {
-                ImGui.TextDisabled("No monoliths detected in this area.");
+                ImGui.TextDisabled(this.PluginText.T("debug.no_monoliths", "No monoliths detected in this area."));
                 ImGui.End();
                 return;
             }
@@ -368,14 +368,14 @@ namespace RunecraftHelper
             {
                 var mv = this.monolithViews[i];
                 labels[i] = mv.IsUnique
-                    ? $"Unique  {mv.HoleCount}h  ({mv.Distance:F0})"
+                    ? this.PluginText.F("debug.label.unique", "Unique  {0}h  ({1:F0})", mv.HoleCount, mv.Distance)
                     : mv.AnchorIdx >= 0
-                        ? $"{mv.AnchorName}  hole {mv.AnchorPos + 1}/{mv.HoleCount}  ({mv.Distance:F0})"
-                        : $"(anchor ?)  {mv.HoleCount}h  ({mv.Distance:F0})";
+                        ? this.PluginText.F("debug.label.anchored", "{0}  hole {1}/{2}  ({3:F0})", mv.AnchorName, mv.AnchorPos + 1, mv.HoleCount, mv.Distance)
+                        : this.PluginText.F("debug.label.no_anchor", "(anchor ?)  {0}h  ({1:F0})", mv.HoleCount, mv.Distance);
             }
             if (this.monolithDebugSel < 0 || this.monolithDebugSel >= labels.Length) this.monolithDebugSel = 0;
             ImGui.SetNextItemWidth(420f);
-            ImGui.Combo("Monolith", ref this.monolithDebugSel, labels, labels.Length);
+            ImGui.Combo(this.PluginText.Label("debug.monolith", "Monolith", "RunecraftMonolithDebugSelector"), ref this.monolithDebugSel, labels, labels.Length);
 
             var v = this.monolithViews[this.monolithDebugSel];
             var red = new Vector4(1f, 0.45f, 0.45f, 1f);
@@ -383,45 +383,45 @@ namespace RunecraftHelper
 
             ImGui.Separator();
             if (v.IsUnique)
-                ImGui.Text($"Unique monolith (no anchor) — offers all recipes with size <= N ({v.HoleCount}).");
+                ImGui.Text(this.PluginText.F("debug.unique_summary", "Unique monolith (no anchor) - offers all recipes with size <= N ({0}).", v.HoleCount));
             else if (v.AnchorIdx < 0)
             {
-                ImGui.TextColored(red, "Anchor not resolved — no recipes.");
+                ImGui.TextColored(red, this.PluginText.T("debug.anchor_not_resolved", "Anchor not resolved - no recipes."));
                 if (!string.IsNullOrEmpty(v.StationDiag))
-                    ImGui.TextColored(red, $"  why: {v.StationDiag}");
+                    ImGui.TextColored(red, this.PluginText.F("debug.why", "  why: {0}", v.StationDiag));
             }
             else
-                ImGui.Text($"Anchor: {v.AnchorName} (idx {v.AnchorIdx})    p={v.AnchorPos}  (hole {v.AnchorPos + 1})");
+                ImGui.Text(this.PluginText.F("debug.anchor_summary", "Anchor: {0} (idx {1})    p={2}  (hole {3})", v.AnchorName, v.AnchorIdx, v.AnchorPos, v.AnchorPos + 1));
 
             // N: station +0x38 vs StateMachine "sockets" — flag the under-read case.
             if (v.SocketsState >= 0 && v.SocketsState != v.HoleCount)
-                ImGui.TextColored(red, $"N = {v.HoleCount}  (station +0x38)    sockets state = {v.SocketsState}   <- differ");
+                ImGui.TextColored(red, this.PluginText.F("debug.n_differs", "N = {0}  (station +0x38)    sockets state = {1}   <- differ", v.HoleCount, v.SocketsState));
             else
-                ImGui.Text($"N = {v.HoleCount}    sockets state = {v.SocketsState}");
+                ImGui.Text(this.PluginText.F("debug.n_summary", "N = {0}    sockets state = {1}", v.HoleCount, v.SocketsState));
 
-            ImGui.Text($"Area level: {v.AreaLevel}");
+            ImGui.Text(this.PluginText.F("debug.area_level", "Area level: {0}", v.AreaLevel));
             ImGui.TextColored(grey, $"device 0x{v.EntityId:X}   station 0x{v.StationAddr:X}   +0x40={FmtI(v.Field40)}  +0x44={FmtI(v.Field44)}");
             if (!string.IsNullOrEmpty(v.SmStates))
-                ImGui.TextColored(grey, $"SM states: {v.SmStates}");
+                ImGui.TextColored(grey, this.PluginText.F("debug.sm_states", "SM states: {0}", v.SmStates));
 
-            if (ImGui.Button("Copy report"))
+            if (ImGui.Button(this.PluginText.Label("button.copy_report", "Copy report", "RunecraftCopyReport")))
                 ImGui.SetClipboardText(BuildDebugReport(v));
             ImGui.SameLine();
-            ImGui.TextDisabled($"{v.Candidates.Count} recipe(s) offered");
+            ImGui.TextDisabled(this.PluginText.F("debug.recipes_offered", "{0} recipe(s) offered", v.Candidates.Count));
 
             ImGui.Separator();
             if (ImGui.BeginTable("mdbg", 8,
                     ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY |
                     ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Resizable))
             {
-                ImGui.TableSetupColumn("row", ImGuiTableColumnFlags.WidthFixed, 44f);
-                ImGui.TableSetupColumn("sz", ImGuiTableColumnFlags.WidthFixed, 26f);
-                ImGui.TableSetupColumn("gate", ImGuiTableColumnFlags.WidthFixed, 40f);
-                ImGui.TableSetupColumn("cat", ImGuiTableColumnFlags.WidthFixed, 28f);
-                ImGui.TableSetupColumn("reward", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.row", "row"), ImGuiTableColumnFlags.WidthFixed, 44f);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.size", "sz"), ImGuiTableColumnFlags.WidthFixed, 26f);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.gate", "gate"), ImGuiTableColumnFlags.WidthFixed, 40f);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.category", "cat"), ImGuiTableColumnFlags.WidthFixed, 28f);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.reward", "reward"), ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableSetupColumn("FK / Id", ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn("lvl", ImGuiTableColumnFlags.WidthFixed, 56f);
-                ImGui.TableSetupColumn("holes (anchor in [])", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.level", "lvl"), ImGuiTableColumnFlags.WidthFixed, 56f);
+                ImGui.TableSetupColumn(this.PluginText.T("debug.table.holes", "holes (anchor in [])"), ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
 
@@ -442,7 +442,7 @@ namespace RunecraftHelper
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(4);
-                    ImGui.TextDisabled("(no recipes)");
+                    ImGui.TextDisabled(this.PluginText.T("debug.no_recipes", "(no recipes)"));
                 }
 
                 ImGui.EndTable();

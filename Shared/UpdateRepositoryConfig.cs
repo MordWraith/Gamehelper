@@ -9,7 +9,7 @@ namespace Shared.UpdateSecurity
     /// </summary>
     public static class UpdateRepositoryConfig
     {
-        public const string DefaultRepository = "MordWraith/Gamehelper";
+        public const string DefaultRepository = "Pililink/Gamehelper";
         public const string GitHubHost = "https://github.com";
         public const string ManifestFileName = "manifest.json";
         public const string ManifestSignatureFileName = "manifest.sig";

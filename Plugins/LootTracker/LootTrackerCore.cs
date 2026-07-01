@@ -307,91 +307,109 @@ namespace LootTracker
         public override void DrawSettings()
         {
             // Collapsed-by-default group for the HUD layout knobs (no DefaultOpen flag = starts closed).
-            if (ImGui.CollapsingHeader("Settings"))
+            if (ImGui.CollapsingHeader(this.PluginText.T("section.settings", "Settings")))
             {
-                ImGui.SeparatorText("Compact bar (hideout)");
-                ImGui.SliderFloat("Compact bar height (px)", ref this.Settings.CompactHeight, 70f, 200f, "%.0f");
-                ImGui.SliderFloat("Compact bar width (px)", ref this.Settings.CompactWidth, 200f, 1920f, "%.0f");
-                ImGui.TextDisabled("Requested width of the compact bar. Capped to the experience-bar width, so it\n" +
-                    "never extends past the XP bar regardless of this value.");
-                ImGui.SliderInt("History size", ref this.Settings.HistorySize, 5, 200);
-                ImGui.TextDisabled("Completed-map rows kept in the session history (table + memory); oldest dropped past this.");
+                ImGui.SeparatorText(this.PluginText.T("section.compact_bar", "Compact bar (hideout)"));
+                ImGui.SliderFloat(this.PluginText.Label("settings.compact_height", "Compact bar height (px)", "CompactHeight"), ref this.Settings.CompactHeight, 70f, 200f, "%.0f");
+                ImGui.SliderFloat(this.PluginText.Label("settings.compact_width", "Compact bar width (px)", "CompactWidth"), ref this.Settings.CompactWidth, 200f, 1920f, "%.0f");
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.compact_width.help",
+                    "Requested width of the compact bar. Capped to the experience-bar width, so it\n" +
+                    "never extends past the XP bar regardless of this value."));
+                ImGui.SliderInt(this.PluginText.Label("settings.history_size", "History size", "HistorySize"), ref this.Settings.HistorySize, 5, 200);
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.history_size.help",
+                    "Completed-map rows kept in the session history (table + memory); oldest dropped past this."));
 
                 ImGui.Spacing();
-                ImGui.SeparatorText("Bars (map strip + compact)");
-                ImGui.Checkbox("Anchor to right side", ref this.Settings.BarOnRight);
-                ImGui.SliderFloat("Offset from bottom (px)", ref this.Settings.BarBottomOffset, 0f, 300f, "%.0f");
-                ImGui.TextDisabled("Distance the bars sit up from the bottom of the game window. Raise it until\n" +
-                    "they clear the experience bar / skill bar at your resolution and UI scale.");
-                ImGui.SliderFloat("Bar opacity", ref this.Settings.BarOpacity, 0f, 1f, "%.2f");
-                ImGui.SliderFloat("UI scale", ref this.Settings.UiScale, 0.5f, 2f, "%.2f");
-                ImGui.TextDisabled("Manual multiplier on top of the automatic game-UI scale (window height / 1600).\n" +
-                    "Font and fixed widths scale with it, so the bars match the HUD across resolutions.");
-                ImGui.Checkbox("Show kill counts", ref this.Settings.ShowKills);
-                ImGui.TextDisabled("Per-rarity monsters slain this run (Normal · Magic · Rare · Unique).");
+                ImGui.SeparatorText(this.PluginText.T("section.bars", "Bars (map strip + compact)"));
+                ImGui.Checkbox(this.PluginText.Label("settings.anchor_right", "Anchor to right side", "BarOnRight"), ref this.Settings.BarOnRight);
+                ImGui.SliderFloat(this.PluginText.Label("settings.offset_bottom", "Offset from bottom (px)", "BarBottomOffset"), ref this.Settings.BarBottomOffset, 0f, 300f, "%.0f");
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.offset_bottom.help",
+                    "Distance the bars sit up from the bottom of the game window. Raise it until\n" +
+                    "they clear the experience bar / skill bar at your resolution and UI scale."));
+                ImGui.SliderFloat(this.PluginText.Label("settings.bar_opacity", "Bar opacity", "BarOpacity"), ref this.Settings.BarOpacity, 0f, 1f, "%.2f");
+                ImGui.SliderFloat(this.PluginText.Label("settings.ui_scale", "UI scale", "UiScale"), ref this.Settings.UiScale, 0.5f, 2f, "%.2f");
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.ui_scale.help",
+                    "Manual multiplier on top of the automatic game-UI scale (window height / 1600).\n" +
+                    "Font and fixed widths scale with it, so the bars match the HUD across resolutions."));
+                ImGui.Checkbox(this.PluginText.Label("settings.show_kill_counts", "Show kill counts", "ShowKills"), ref this.Settings.ShowKills);
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.show_kill_counts.help",
+                    "Per-rarity monsters slain this run (Normal - Magic - Rare - Unique)."));
 
                 ImGui.Spacing();
-                ImGui.SeparatorText("Pickup notifications");
-                ImGui.Checkbox("Show pickup toasts", ref this.Settings.ShowPickupToasts);
-                ImGui.TextDisabled("A brief toast (item name + value) above the map strip when you pick an item up.\n" +
-                    "Up to 3 at once; same-item pickups merge. Only while actively on a map.");
+                ImGui.SeparatorText(this.PluginText.T("section.pickup_notifications", "Pickup notifications"));
+                ImGui.Checkbox(this.PluginText.Label("settings.show_pickup_toasts", "Show pickup toasts", "ShowPickupToasts"), ref this.Settings.ShowPickupToasts);
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.show_pickup_toasts.help",
+                    "A brief toast (item name + value) above the map strip when you pick an item up.\n" +
+                    "Up to 3 at once; same-item pickups merge. Only while actively on a map."));
                 ImGui.BeginDisabled(!this.Settings.ShowPickupToasts);
-                ImGui.SliderFloat("Min value to notify (ex)", ref this.Settings.NotifyMinEx, 20f, 200f, "%.0f");
-                ImGui.TextDisabled("Only pickups worth at least this many Exalted toast. Unpriced items never toast.");
-                ImGui.SliderFloat("Toast duration (s)", ref this.Settings.NotifyDurationSec, 1f, 6f, "%.1f");
+                ImGui.SliderFloat(this.PluginText.Label("settings.notify_min_ex", "Min value to notify (ex)", "NotifyMinEx"), ref this.Settings.NotifyMinEx, 20f, 200f, "%.0f");
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.notify_min_ex.help",
+                    "Only pickups worth at least this many Exalted toast. Unpriced items never toast."));
+                ImGui.SliderFloat(this.PluginText.Label("settings.toast_duration", "Toast duration (s)", "NotifyDurationSec"), ref this.Settings.NotifyDurationSec, 1f, 6f, "%.1f");
                 ImGui.EndDisabled();
 
                 ImGui.Spacing();
-                ImGui.SeparatorText("Display");
-                ImGui.Checkbox("Show prices only in Divine", ref this.Settings.ShowPricesInDivineOnly);
-                ImGui.TextDisabled("Hide the Exalted figures everywhere on the overlay and show Divine instead\n" +
-                    "(including fractions, e.g. 0.5 div). Falls back to Exalted until the rate is known.");
+                ImGui.SeparatorText(this.PluginText.T("section.display", "Display"));
+                ImGui.Checkbox(this.PluginText.Label("settings.divine_only", "Show prices only in Divine", "ShowPricesInDivineOnly"), ref this.Settings.ShowPricesInDivineOnly);
+                ImGui.TextDisabled(this.PluginText.T(
+                    "settings.divine_only.help",
+                    "Hide the Exalted figures everywhere on the overlay and show Divine instead\n" +
+                    "(including fractions, e.g. 0.5 div). Falls back to Exalted until the rate is known."));
             }
 
             ImGui.Spacing();
-            if (ImGui.Button("New session"))
+            if (ImGui.Button(this.PluginText.Label("button.new_session", "New session", "NewSession")))
             {
                 this.ResetSession();
             }
 
             ImGui.SameLine(0f, 20f);
-            if (ImGui.Button("View session history"))
+            if (ImGui.Button(this.PluginText.Label("button.view_session_history", "View session history", "ViewSessionHistory")))
             {
                 this.LoadSessions();
                 this.showSessionHistory = true;
             }
 
-            ImGui.SliderInt("Sessions to keep", ref this.Settings.MaxSessions, 1, 200);
-            ImGui.TextDisabled("Older sessions are deleted once this many are stored. A session is saved on \"New session\".");
+            ImGui.SliderInt(this.PluginText.Label("settings.sessions_to_keep", "Sessions to keep", "MaxSessions"), ref this.Settings.MaxSessions, 1, 200);
+            ImGui.TextDisabled(this.PluginText.T(
+                "settings.sessions_to_keep.help",
+                "Older sessions are deleted once this many are stored. A session is saved on \"New session\"."));
 
             ImGui.Spacing();
-            ImGui.SeparatorText("Active session");
+            ImGui.SeparatorText(this.PluginText.T("section.active_session", "Active session"));
             this.DrawActiveSessionTable();
 
             ImGui.Spacing();
             ImGui.Separator();
 
-            ImGui.SeparatorText("Pricing");
-            ImGui.InputText("League", ref this.Settings.League, 64);
-            ImGui.SliderInt("Refresh interval (min)", ref this.Settings.CacheTtlMinutes, 5, 60);
+            ImGui.SeparatorText(this.PluginText.T("section.pricing", "Pricing"));
+            ImGui.InputText(this.PluginText.Label("settings.league", "League", "League"), ref this.Settings.League, 64);
+            ImGui.SliderInt(this.PluginText.Label("settings.refresh_interval", "Refresh interval (min)", "CacheTtlMinutes"), ref this.Settings.CacheTtlMinutes, 5, 60);
 
             var status = this.priceCache.Status;
             string statusText = status switch
             {
-                PriceSyncStatus.Syncing => "syncing…",
+                PriceSyncStatus.Syncing => this.PluginText.T("status.syncing", "syncing..."),
                 PriceSyncStatus.Ready => this.priceCache.LastSyncUtc == DateTime.MinValue
-                    ? "ready (no data yet)"
-                    : $"updated {FormatRelative(this.priceCache.LastSyncUtc)} ago",
-                PriceSyncStatus.Error => $"error: {this.priceCache.LastError}",
-                _ => "idle",
+                    ? this.PluginText.T("status.ready_no_data", "ready (no data yet)")
+                    : this.PluginText.F("status.updated_ago", "updated {0} ago", FormatRelative(this.priceCache.LastSyncUtc)),
+                PriceSyncStatus.Error => this.PluginText.F("status.error", "error: {0}", this.priceCache.LastError),
+                _ => this.PluginText.T("status.idle", "idle"),
             };
-            ImGui.Text($"Status: {statusText}");
-            ImGui.Text($"Items cached: {this.priceCache.PriceCount}");
+            ImGui.Text(this.PluginText.F("status.status", "Status: {0}", statusText));
+            ImGui.Text(this.PluginText.F("status.items_cached", "Items cached: {0}", this.priceCache.PriceCount));
             if (this.priceCache.DivineToExaltedRate > 0)
-                ImGui.Text($"1 Divine = {this.priceCache.DivineToExaltedRate:F2} Exalted");
+                ImGui.Text(this.PluginText.F("status.divine_rate", "1 Divine = {0:F2} Exalted", this.priceCache.DivineToExaltedRate));
 
             ImGui.BeginDisabled(status == PriceSyncStatus.Syncing);
-            if (ImGui.Button("Refresh now"))
+            if (ImGui.Button(this.PluginText.Label("button.refresh_now", "Refresh now", "RefreshNow")))
                 this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
             ImGui.EndDisabled();
         }

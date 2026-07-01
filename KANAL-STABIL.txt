@@ -2,7 +2,7 @@ Kanal: STABIL
 
 Quellcode:  D:\ZusatzProgramme\Gamehelper
 Lokaler Build: publish\  (rebuild-and-publish.bat / rebuild-test.bat)
-GitHub:       MordWraith/Gamehelper
+GitHub:       Pililink/Gamehelper
 
 Experimental-Quellcode liegt getrennt unter:
   D:\ZusatzProgramme\Gamehelper-Experimental-Src  (Deploy: publish\ dort)

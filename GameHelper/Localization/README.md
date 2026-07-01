@@ -5,8 +5,9 @@ The main overlay UI uses keyed JSON resources loaded by `OverlayLocalization`.
 ## Files
 
 - `en-US.json` is the English baseline and fallback.
-- `zh-CN.json` contains Simplified Chinese translations.
-- Every resource file must contain the same key set.
+- `zh-TW.json` contains Traditional Chinese translations for the international client.
+- Other Path of Exile 2 international client language files may contain partial translations;
+  missing keys fall back to `en-US.json`.
 
 ## Key naming
 
@@ -32,7 +33,7 @@ Plugin UI should keep its current text until explicitly migrated.
 Plugins own their translations. A plugin that opts into localization should keep files under:
 
 - `Plugins/<PluginName>/Localization/en-US.json`
-- `Plugins/<PluginName>/Localization/zh-CN.json`
+- `Plugins/<PluginName>/Localization/zh-TW.json`
 
 Use `new PluginLocalization(this.DllDirectory)` from the plugin, and copy the plugin's
 `Localization/*.json` files to the deployed plugin directory in that plugin's `.csproj`.
