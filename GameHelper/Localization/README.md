@@ -26,3 +26,14 @@ Do not use translated text as the only ImGui ID. Use the helpers:
 - `OverlayLocalization.Title(key, fallback, id)` for windows, tabs, and headers with `###id`.
 
 Plugin UI should keep its current text until explicitly migrated.
+
+## Plugin resources
+
+Plugins own their translations. A plugin that opts into localization should keep files under:
+
+- `Plugins/<PluginName>/Localization/en-US.json`
+- `Plugins/<PluginName>/Localization/zh-CN.json`
+
+Use `new PluginLocalization(this.DllDirectory)` from the plugin, and copy the plugin's
+`Localization/*.json` files to the deployed plugin directory in that plugin's `.csproj`.
+Do not put plugin UI keys in the main `GameHelper/Localization/*.json` files.

@@ -43,7 +43,10 @@ namespace GameHelper.Localization
             OverlayLanguage.ChineseSimplified,
         };
 
-        private static OverlayLanguage CurrentLanguage => Core.GHSettings.UiLanguage;
+        /// <summary>
+        ///     Gets the language currently selected for overlay UI text.
+        /// </summary>
+        public static OverlayLanguage CurrentLanguage => Core.GHSettings.UiLanguage;
 
         /// <summary>
         ///     Gets a value indicating whether the overlay language is German.
@@ -159,7 +162,10 @@ namespace GameHelper.Localization
             return new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
-        private static string LanguageCode(OverlayLanguage language) => language switch
+        /// <summary>
+        ///     Gets the resource file language code for a supported overlay language.
+        /// </summary>
+        public static string LanguageCode(OverlayLanguage language) => language switch
         {
             OverlayLanguage.ChineseSimplified => "zh-CN",
             _ => "en-US",
