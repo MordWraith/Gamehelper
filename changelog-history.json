@@ -2,12 +2,12 @@
     "releases":  [
                      {
                          "version":  "1.4.3",
-                         "published":  "2026-06-28T12:16:15.0521088Z",
+                         "published":  "2026-06-29T16:36:39.1970826Z",
                          "changelog":  [
-                                           "SekhemaHelper: Trial Overlay Update: Chests, Crystals \u0026 Hazards (yokkenUA)",
                                            "Atlas: Sea node content detection fixed; Overlapping routes stay readable",
                                            "Controller support for Autopot (NicoFasho)",
-                                           "New Offsets by Immo"
+                                           "New Offsets by Immo",
+                                           "New:  LootTracker: Big quality-of-life drop for LootTracker (yokkenUA)"
                                        ]
                      },
                      {

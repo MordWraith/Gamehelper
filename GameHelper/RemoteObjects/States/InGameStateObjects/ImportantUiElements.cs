@@ -40,6 +40,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly int[] Act4PanelChildPath = { 22, 0, 3 };
         private static readonly int[] InterludePanelChildPath = { 22, 0, 5 };
         private static readonly int[] AtlasPanelChildPath = { 22, 0, 6 };
+        private static readonly int[] AtlasSkillsPanelChildPath = { 25, 0 };
         private const int AtlasMapCacheRefreshFrames = 20;
         private const int AtlasNodeBiomeIdOffset = 0x2CE;
         private const int AtlasNodeStatusByteOffset = 0x2CF;
@@ -108,6 +109,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Act4 = new(IntPtr.Zero, this.rootCache);
             this.Interlude = new(IntPtr.Zero, this.rootCache);
             this.Atlas = new(IntPtr.Zero, this.rootCache);
+            this.AtlasSkillsPanel = new(IntPtr.Zero, this.rootCache);
             this.LeftPanel = new(IntPtr.Zero, this.rootCache);
             this.RightPanel = new(IntPtr.Zero, this.rootCache);
             this.ChatParent = new(IntPtr.Zero, this.rootCache);
@@ -175,6 +177,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public UiElementBase Atlas { get; }
 
         /// <summary>
+        ///     Gets the Atlas Skills panel UiElement.
+        ///     It is only <see cref="UiElementBase.IsVisible" /> while that panel is open.
+        ///     GameUi -> child 25 -> child 0 (child 25 itself is always visible).
+        /// </summary>
+        public UiElementBase AtlasSkillsPanel { get; }
+
+        /// <summary>
         ///     Gets the current Atlas map nodes exposed for plugins.
         /// </summary>
         public IReadOnlyList<AtlasMapNode> AtlasMaps => this.atlasMaps;
@@ -211,6 +220,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.LeftPanel.IsVisible ||
             this.RightPanel.IsVisible ||
             this.WorldMapPanel.IsVisible ||
+            this.AtlasSkillsPanel.IsVisible ||
             this.SekhemasTrialMapPanel.IsVisible ||
             this.IsPassiveSkillTreeOpen;
 
@@ -352,6 +362,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Act4.Address = IntPtr.Zero;
             this.Interlude.Address = IntPtr.Zero;
             this.Atlas.Address = IntPtr.Zero;
+            this.AtlasSkillsPanel.Address = IntPtr.Zero;
             this.LeftPanel.Address = IntPtr.Zero;
             this.RightPanel.Address = IntPtr.Zero;
             this.ChatParent.Address = IntPtr.Zero;
@@ -415,6 +426,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Act4.Address = ResolveChildAddress(this.Address, Act4PanelChildPath);
             this.Interlude.Address = ResolveChildAddress(this.Address, InterludePanelChildPath);
             this.Atlas.Address = ResolveChildAddress(this.Address, AtlasPanelChildPath);
+            this.AtlasSkillsPanel.Address = ResolveChildAddress(this.Address, AtlasSkillsPanelChildPath);
         }
 
         private void UpdateAtlasMapData()

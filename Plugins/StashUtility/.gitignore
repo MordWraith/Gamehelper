@@ -1,0 +1,7 @@
+bin/
+obj/
+*.zip
+*.user
+.vs/
+*.suo
+*.userossc

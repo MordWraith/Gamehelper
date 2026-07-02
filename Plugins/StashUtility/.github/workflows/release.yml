@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GameHelper
+        uses: actions/checkout@v4
+        with:
+          repository: AlexanderHel/GameHelper2
+          path: GameHelper2
+
+      - name: Checkout StashUtility
+        uses: actions/checkout@v4
+        with:
+          path: GameHelper2/Plugins/StashUtility
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build StashUtility
+        run: |
+          dotnet build GameHelper2/Plugins/StashUtility/StashUtility.csproj -c Release
+
+      - name: Package Release
+        run: |
+          mkdir -p release/StashUtility
+          cp GameHelper2/Plugins/StashUtility/bin/Release/net10.0-windows/win-x64/StashUtility.dll release/StashUtility/
+          cp GameHelper2/Plugins/StashUtility/bin/Release/net10.0-windows/win-x64/StashUtility.pdb release/StashUtility/
+          cd release
+          zip -r ../StashUtility.zip StashUtility
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: StashUtility.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
