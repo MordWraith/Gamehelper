@@ -80,7 +80,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.BadModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -95,7 +95,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.GoodModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -127,13 +127,46 @@ namespace StashUtility
             }
         }
 
+        private void DrawMinMaxFilterTableRow(string label, string id, int maxSliderVal, ref bool filterMin, ref int minVal, ref bool filterMax, ref int maxVal)
+        {
+            ImGui.PushID(id);
+            ImGui.TableNextRow();
+
+            // Column 1: Label
+            ImGui.TableNextColumn();
+            ImGui.AlignTextToFramePadding();
+            ImGui.Text(label);
+
+            // Column 2: Min
+            ImGui.TableNextColumn();
+            ImGui.Checkbox(this.PluginText.Label("filter.min", "Min", "Min"), ref filterMin);
+            if (filterMin)
+            {
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(120f);
+                ImGui.SliderInt("##minval", ref minVal, 0, maxSliderVal);
+            }
+
+            // Column 3: Max
+            ImGui.TableNextColumn();
+            ImGui.Checkbox(this.PluginText.Label("filter.max", "Max", "Max"), ref filterMax);
+            if (filterMax)
+            {
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(120f);
+                ImGui.SliderInt("##maxval", ref maxVal, 0, maxSliderVal);
+            }
+
+            ImGui.PopID();
+        }
+
         public override void DrawSettings()
         {
-            ImGui.Checkbox("Show Overlay When Game in Background", ref Settings.ShowOverlayInBackground);
-            ImGuiHelper.ToolTip("If checked, the waystone highlights will remain visible even when the game window is in the background.");
+            ImGui.Checkbox(this.PluginText.Label("settings.show_overlay_background", "Show Overlay When Game in Background", "StashUtilityShowOverlayBackground"), ref Settings.ShowOverlayInBackground);
+            ImGuiHelper.ToolTip(this.PluginText.T("settings.show_overlay_background_help", "If checked, the waystone highlights will remain visible even when the game window is in the background."));
 
-            ImGui.Checkbox("Enable Debug Settings", ref Settings.EnableDebugProbe);
-            ImGuiHelper.ToolTip("Enables advanced debugging options, interactive explorer, and hovered item inspector.");
+            ImGui.Checkbox(this.PluginText.Label("settings.enable_debug", "Enable Debug Settings", "StashUtilityEnableDebug"), ref Settings.EnableDebugProbe);
+            ImGuiHelper.ToolTip(this.PluginText.T("settings.enable_debug_help", "Enables advanced debugging options, interactive explorer, and hovered item inspector."));
 
             if (Settings.EnableDebugProbe)
             {
@@ -141,9 +174,9 @@ namespace StashUtility
                 debugHoveredAllChildren = false;
                 debugHoveredChildIndex = -1;
 
-                if (ImGui.CollapsingHeader("UI Path Offsets (Debug Explorer)"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.ui_path_debug", "UI Path Offsets (Debug Explorer)", "StashUtilityUiPathDebug")))
                 {
-                    ImGui.SeparatorText("Path Navigation");
+                    ImGui.SeparatorText(this.PluginText.T("section.path_navigation", "Path Navigation"));
 
                     // Sync currentDebugPath with Settings.PathString
                     string expectedPathStr = string.Join(",", currentDebugPath);
@@ -169,15 +202,15 @@ namespace StashUtility
                         }
                     }
 
-                    ImGui.InputText("Path Indices", ref Settings.PathString, 128);
-                    ImGuiHelper.ToolTip("Comma-separated indices starting from the LeftPanel root. Edit manually or click through the explorer.");
+                    ImGui.InputText(this.PluginText.Label("settings.path_indices", "Path Indices", "StashUtilityPathIndices"), ref Settings.PathString, 128);
+                    ImGuiHelper.ToolTip(this.PluginText.T("settings.path_indices_help", "Comma-separated indices starting from the LeftPanel root. Edit manually or click through the explorer."));
 
-                    if (ImGui.Button("Reset Path to Default"))
+                    if (ImGui.Button(this.PluginText.Label("button.reset_path", "Reset Path to Default", "StashUtilityResetPath")))
                     {
                         Settings.PathString = "2,0,0,0,1,1,45,0,1";
                     }
                     ImGui.SameLine();
-                    if (ImGui.Button("Dump UI Tree to File"))
+                    if (ImGui.Button(this.PluginText.Label("button.dump_ui_tree", "Dump UI Tree to File", "StashUtilityDumpUiTree")))
                     {
                         var gameUi = Core.States.InGameStateObject.GameUi;
                         if (gameUi != null && gameUi.Address != IntPtr.Zero)
@@ -207,14 +240,14 @@ namespace StashUtility
                         }
                     }
 
-                    ImGui.SeparatorText("Interactive Explorer");
+                    ImGui.SeparatorText(this.PluginText.T("section.interactive_explorer", "Interactive Explorer"));
 
-                    ImGui.InputText("Custom Root Address (Hex)", ref explorerRootAddressStr, 64);
-                    ImGuiHelper.ToolTip("Leave empty to use gameUi.LeftPanel.Address as root.");
+                    ImGui.InputText(this.PluginText.Label("settings.custom_root", "Custom Root Address (Hex)", "StashUtilityCustomRoot"), ref explorerRootAddressStr, 64);
+                    ImGuiHelper.ToolTip(this.PluginText.T("settings.custom_root_help", "Leave empty to use gameUi.LeftPanel.Address as root."));
 
-                    ImGui.Text("Breadcrumbs:");
+                    ImGui.Text(this.PluginText.T("debug.breadcrumbs", "Breadcrumbs:"));
                     ImGui.SameLine();
-                    if (ImGui.Button("Root"))
+                    if (ImGui.Button(this.PluginText.Label("button.root", "Root", "StashUtilityRoot")))
                     {
                         currentDebugPath.Clear();
                         Settings.PathString = string.Join(",", currentDebugPath);
@@ -262,11 +295,11 @@ namespace StashUtility
 
                     if (root == IntPtr.Zero)
                     {
-                        ImGui.TextColored(new Vector4(1, 0, 0, 1), "Root address is null. (Game UI not loaded?)");
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), this.PluginText.T("debug.root_null", "Root address is null. (Game UI not loaded?)"));
                     }
                     else if (!pathValid)
                     {
-                        ImGui.TextColored(new Vector4(1, 0, 0, 1), $"Path resolution failed at index step {failedIndex}.");
+                        ImGui.TextColored(new Vector4(1, 0, 0, 1), this.PluginText.F("debug.path_failed", "Path resolution failed at index step {0}.", failedIndex));
                     }
                     else if (current != IntPtr.Zero)
                     {
@@ -274,21 +307,21 @@ namespace StashUtility
                         var stringId = ReadStdWString(off.StringIdPtr);
                         var isVis = UiElementBaseFuncs.IsVisibleChecker(off.Flags);
 
-                        ImGui.TextColored(new Vector4(0, 1, 0, 1), "Path resolved successfully!");
+                        ImGui.TextColored(new Vector4(0, 1, 0, 1), this.PluginText.T("debug.path_resolved", "Path resolved successfully!"));
                         ImGui.SameLine();
-                        ImGui.SmallButton("Hover me to highlight active node in game");
+                        ImGui.SmallButton(this.PluginText.Label("button.hover_active_node", "Hover me to highlight active node in game", "StashUtilityHoverActiveNode"));
                         if (ImGui.IsItemHovered())
                         {
                             debugHoveredCurrentElement = true;
                         }
 
-                        ImGuiHelper.IntPtrToImGui("Active Node Addr", current);
-                        ImGui.Text($"String ID: {stringId}  |  Visible: {isVis}");
+                        ImGuiHelper.IntPtrToImGui(this.PluginText.T("debug.active_node_addr", "Active Node Addr"), current);
+                        ImGui.Text(this.PluginText.F("debug.string_id_visible", "String ID: {0}  |  Visible: {1}", stringId, isVis));
 
                         var kids = ReadStdVector<IntPtr>(off.ChildrensPtr);
-                        ImGui.SeparatorText($"Children ({kids.Length})");
+                        ImGui.SeparatorText(this.PluginText.F("debug.children_count", "Children ({0})", kids.Length));
 
-                        ImGui.SmallButton("Hover me to highlight all children bounds");
+                        ImGui.SmallButton(this.PluginText.Label("button.hover_children", "Hover me to highlight all children bounds", "StashUtilityHoverChildren"));
                         if (ImGui.IsItemHovered())
                         {
                             debugHoveredAllChildren = true;
@@ -303,7 +336,7 @@ namespace StashUtility
                                 debugChildrenAddresses.Add(childAddr);
                                 if (childAddr == IntPtr.Zero)
                                 {
-                                    ImGui.Text($"[{j}] Null Pointer");
+                                    ImGui.Text(this.PluginText.F("debug.null_pointer", "[{0}] Null Pointer", j));
                                     continue;
                                 }
 
@@ -337,32 +370,32 @@ namespace StashUtility
                     }
                 }
 
-                if (ImGui.CollapsingHeader("Hovered Waystone Inspector (Debug)"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.hovered_waystone_debug", "Hovered Waystone Inspector (Debug)", "StashUtilityHoveredWaystoneDebug")))
                 {
-                    ImGui.Checkbox("Freeze Hovered Waystone", ref freezeHoveredWaystone);
+                    ImGui.Checkbox(this.PluginText.Label("settings.freeze_hovered_waystone", "Freeze Hovered Waystone", "StashUtilityFreezeHoveredWaystone"), ref freezeHoveredWaystone);
                     ImGui.SameLine();
-                    if (ImGui.Button("Clear"))
+                    if (ImGui.Button(this.PluginText.Label("button.clear", "Clear", "StashUtilityClear")))
                     {
                         lastHoveredWaystone = null;
                     }
 
                     if (lastHoveredWaystone != null)
                     {
-                        ImGui.SeparatorText("Item Details");
-                        ImGuiHelper.IntPtrToImGui("Entity Address", lastHoveredWaystone.Address);
-                        ImGuiHelper.DisplayTextAndCopyOnClick($"Path: {lastHoveredWaystone.Path}", lastHoveredWaystone.Path);
+                        ImGui.SeparatorText(this.PluginText.T("section.item_details", "Item Details"));
+                        ImGuiHelper.IntPtrToImGui(this.PluginText.T("debug.entity_address", "Entity Address"), lastHoveredWaystone.Address);
+                        ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.path", "Path: {0}", lastHoveredWaystone.Path), lastHoveredWaystone.Path);
 
                         if (lastHoveredWaystone.TryGetComponent<Base>(out var baseComp))
                         {
-                            ImGuiHelper.DisplayTextAndCopyOnClick($"Base Name: {baseComp.BaseItemName}", baseComp.BaseItemName);
-                            ImGuiHelper.DisplayTextAndCopyOnClick($"Internal Name: {baseComp.InternalName}", baseComp.InternalName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.base_name", "Base Name: {0}", baseComp.BaseItemName), baseComp.BaseItemName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.internal_name", "Internal Name: {0}", baseComp.InternalName), baseComp.InternalName);
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsComp))
                         {
-                            ImGui.Text($"Rarity: {modsComp.Rarity}");
+                            ImGui.Text(this.PluginText.F("debug.rarity", "Rarity: {0}", modsComp.Rarity));
 
-                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode("Implicit Mods"))
+                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.implicit_mods", "Implicit Mods", "StashUtilityImplicitMods")))
                             {
                                 foreach (var mod in modsComp.ImplicitMods)
                                 {
@@ -370,7 +403,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode("Explicit Mods"))
+                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.explicit_mods", "Explicit Mods", "StashUtilityExplicitMods")))
                             {
                                 foreach (var mod in modsComp.ExplicitMods)
                                 {
@@ -378,7 +411,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode("Enchant Mods"))
+                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.enchant_mods", "Enchant Mods", "StashUtilityEnchantMods")))
                             {
                                 foreach (var mod in modsComp.EnchantMods)
                                 {
@@ -389,7 +422,7 @@ namespace StashUtility
                             var statsFromMods = GetStatsFromMods(modsComp);
                             if (statsFromMods.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(statsFromMods, "Stats From Mods");
+                                ImGuiHelper.StatsWidget(statsFromMods, this.PluginText.T("debug.stats_from_mods", "Stats From Mods"));
                             }
                         }
 
@@ -397,25 +430,25 @@ namespace StashUtility
                         {
                             if (omp.ModStats.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(omp.ModStats, "Stats From Magic Properties");
+                                ImGuiHelper.StatsWidget(omp.ModStats, this.PluginText.T("debug.stats_from_magic_properties", "Stats From Magic Properties"));
                             }
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsCompForDebug))
                         {
                             var allRawMods = modsCompForDebug.ImplicitMods.Concat(modsCompForDebug.ExplicitMods).Concat(modsCompForDebug.EnchantMods).ToList();
-                            if (allRawMods.Count > 0 && ImGui.TreeNode("Raw Game Memory Mods (For Matching)"))
+                            if (allRawMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.raw_memory_mods", "Raw Game Memory Mods (For Matching)", "StashUtilityRawMemoryMods")))
                             {
                                 foreach (var mod in allRawMods)
                                 {
-                                    ImGui.Text($"Raw ID: {mod.name}");
+                                    ImGui.Text(this.PluginText.F("debug.raw_id", "Raw ID: {0}", mod.name));
                                 }
                                 ImGui.TreePop();
                             }
                         }
 
-                        ImGui.SeparatorText("Advanced");
-                        if (ImGui.Button("Dump Full Memory To File"))
+                        ImGui.SeparatorText(this.PluginText.T("section.advanced", "Advanced"));
+                        if (ImGui.Button(this.PluginText.Label("button.dump_full_memory", "Dump Full Memory To File", "StashUtilityDumpFullMemory")))
                         {
                             DumpAllWaystonesMemory(lastHoveredWaystone);
                         }
@@ -425,7 +458,7 @@ namespace StashUtility
                         {
                             if (field.GetValue(lastHoveredWaystone) is System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> dict)
                             {
-                                if (ImGui.TreeNode("All Components (Raw Addresses)"))
+                                if (ImGui.TreeNode(this.PluginText.Label("debug.all_components", "All Components (Raw Addresses)", "StashUtilityAllComponents")))
                                 {
                                     foreach (var kv in dict)
                                     {
@@ -438,85 +471,55 @@ namespace StashUtility
                     }
                     else
                     {
-                        ImGui.TextColored(new Vector4(1, 1, 0, 1), "Hover over a waystone in your Stash Tab to inspect it.");
+                        ImGui.TextColored(new Vector4(1, 1, 0, 1), this.PluginText.T("debug.hover_waystone_hint", "Hover over a waystone in your Stash Tab to inspect it."));
                     }
                 }
             }
 
-            ImGui.Checkbox("Enable Waystone Manager", ref Settings.EnableWaystoneManager);
-            ImGuiHelper.ToolTip("Enables or disables highlighting of waystones.");
+            ImGui.Checkbox(this.PluginText.Label("settings.enable_waystone_manager", "Enable Waystone Manager", "StashUtilityEnableWaystoneManager"), ref Settings.EnableWaystoneManager);
+            ImGuiHelper.ToolTip(this.PluginText.T("settings.enable_waystone_manager_help", "Enables or disables highlighting of waystones."));
 
             if (Settings.EnableWaystoneManager)
             {
                 ImGui.Indent();
-                if (ImGui.CollapsingHeader("Waystone Highlight Criteria (Normal)"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.waystone_criteria", "Waystone Highlight Criteria (Normal)", "StashUtilityWaystoneCriteria")))
                 {
-                    ImGui.SliderInt("Min Tier", ref Settings.MinTier, 1, 16);
-                    ImGuiHelper.ToolTip("Minimum Waystone Tier to highlight (Normal rarity is always ignored if Hide Normal Waystones is checked).");
+                    ImGui.SliderInt(this.PluginText.Label("settings.min_tier", "Min Tier", "StashUtilityMinTier"), ref Settings.MinTier, 1, 16);
+                    ImGuiHelper.ToolTip(this.PluginText.T("settings.min_tier_help", "Minimum Waystone Tier to highlight (Normal rarity is always ignored if Hide Normal Waystones is checked)."));
 
-                    ImGui.Checkbox("Filter Revives", ref Settings.FilterMaxRevives);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_revives", "Filter Revives", "StashUtilityFilterRevives"), ref Settings.FilterMaxRevives);
                     if (Settings.FilterMaxRevives)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Max Revives Allowed##val", ref Settings.MaxRevivesAvailable, 0, 6);
+                        ImGui.SliderInt(this.PluginText.Label("settings.max_revives_allowed", "Max Revives Allowed", "StashUtilityMaxRevivesAllowed"), ref Settings.MaxRevivesAvailable, 0, 5);
                     }
 
-                    ImGui.Checkbox("Filter Item Rarity", ref Settings.FilterMinItemRarity);
-                    if (Settings.FilterMinItemRarity)
+                    if (ImGui.BeginTable("FiltersTable", 3, ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.PadOuterX))
                     {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Item Rarity (%)##val", ref Settings.MinItemRarity, 0, 200);
-                    }
+                        ImGui.TableSetupColumn(this.PluginText.T("table.criteria", "Criteria"), ImGuiTableColumnFlags.WidthFixed, 180f);
+                        ImGui.TableSetupColumn(this.PluginText.T("table.minimum_limit", "Minimum Limit"), ImGuiTableColumnFlags.WidthFixed, 190f);
+                        ImGui.TableSetupColumn(this.PluginText.T("table.maximum_limit", "Maximum Limit"), ImGuiTableColumnFlags.WidthFixed, 190f);
 
-                    ImGui.Checkbox("Filter Pack Size", ref Settings.FilterMinPackSize);
-                    if (Settings.FilterMinPackSize)
-                    {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Pack Size (%)##val", ref Settings.MinPackSize, 0, 100);
-                    }
+                        DrawMinMaxFilterTableRow(this.PluginText.T("criteria.item_rarity", "Item Rarity"), "ItemRarity", 200, ref Settings.FilterMinItemRarity, ref Settings.MinItemRarity, ref Settings.FilterMaxItemRarity, ref Settings.MaxItemRarity);
+                        DrawMinMaxFilterTableRow(this.PluginText.T("criteria.pack_size", "Pack Size"), "PackSize", 100, ref Settings.FilterMinPackSize, ref Settings.MinPackSize, ref Settings.FilterMaxPackSize, ref Settings.MaxPackSize);
+                        DrawMinMaxFilterTableRow(this.PluginText.T("criteria.monster_rarity", "Monster Rarity"), "MonsterRarity", 100, ref Settings.FilterMinMonsterRarity, ref Settings.MinMonsterRarity, ref Settings.FilterMaxMonsterRarity, ref Settings.MaxMonsterRarity);
+                        DrawMinMaxFilterTableRow(this.PluginText.T("criteria.monster_effectiveness", "Monster Effectiveness"), "MonsterEffectiveness", 100, ref Settings.FilterMinMonsterEffectiveness, ref Settings.MinMonsterEffectiveness, ref Settings.FilterMaxMonsterEffectiveness, ref Settings.MaxMonsterEffectiveness);
+                        DrawMinMaxFilterTableRow(this.PluginText.T("criteria.waystone_drop_chance", "Waystone Drop Chance"), "DropChance", 300, ref Settings.FilterMinWaystoneDropChance, ref Settings.MinWaystoneDropChance, ref Settings.FilterMaxWaystoneDropChance, ref Settings.MaxWaystoneDropChance);
 
-                    ImGui.Checkbox("Filter Monster Rarity", ref Settings.FilterMinMonsterRarity);
-                    if (Settings.FilterMinMonsterRarity)
-                    {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Monster Rarity (%)##val", ref Settings.MinMonsterRarity, 0, 100);
-                    }
-
-                    ImGui.Checkbox("Filter Monster Effectiveness", ref Settings.FilterMinMonsterEffectiveness);
-                    if (Settings.FilterMinMonsterEffectiveness)
-                    {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Monster Effectiveness (%)##val", ref Settings.MinMonsterEffectiveness, 0, 100);
-                    }
-
-                    ImGui.Checkbox("Filter Waystone Drop Chance", ref Settings.FilterMinWaystoneDropChance);
-                    if (Settings.FilterMinWaystoneDropChance)
-                    {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Waystone Drop Chance (%)##val", ref Settings.MinWaystoneDropChance, 0, 300);
+                        ImGui.EndTable();
                     }
                 }
 
-                if (ImGui.CollapsingHeader("Waystone Mod Filter Manager"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.waystone_mod_filter", "Waystone Mod Filter Manager", "StashUtilityWaystoneModFilter")))
                 {
-                    ImGui.Checkbox("Only Filter Bad Mods on Criteria-Meeting Waystones", ref Settings.FilterBadModsOnlyOnHighlighted);
-                    ImGuiHelper.ToolTip("When checked, bad mod filtering is only applied to waystones that already meet the Tier and other active numerical criteria.");
+                    ImGui.Checkbox(this.PluginText.Label("settings.bad_mods_only_on_criteria", "Only Filter Bad Mods on Criteria-Meeting Waystones", "StashUtilityBadModsOnlyOnCriteria"), ref Settings.FilterBadModsOnlyOnHighlighted);
+                    ImGuiHelper.ToolTip(this.PluginText.T("settings.bad_mods_only_on_criteria_help", "When checked, bad mod filtering is only applied to waystones that already meet the Tier and other active numerical criteria."));
 
-                    if (ImGui.BeginCombo("Add Waystone Mod", "Select from database..."))
+                    if (ImGui.BeginCombo(this.PluginText.Label("settings.add_waystone_mod", "Add Waystone Mod", "StashUtilityAddWaystoneMod"), this.PluginText.T("combo.select_database", "Select from database...")))
                     {
-                        ImGui.InputTextWithHint("##searchWaystone", "Search database...", ref waystoneSearchTerm, 64);
+                        ImGui.InputTextWithHint("##searchWaystone", this.PluginText.T("placeholder.search_database", "Search database..."), ref waystoneSearchTerm, 64);
                         var filtered = Data.ModDatabase.AllWaystoneMods
                             .Where(m => m.Name.Contains(waystoneSearchTerm, StringComparison.OrdinalIgnoreCase) ||
                                         m.Id.Contains(waystoneSearchTerm, StringComparison.OrdinalIgnoreCase))
@@ -536,88 +539,88 @@ namespace StashUtility
                         ImGui.EndCombo();
                     }
 
-                    DrawModListUI("BAD WAYSTONE MODS (RED HIGHLIGHT)", Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
-                    DrawModListUI("GOOD WAYSTONE MODS (GREEN HIGHLIGHT)", Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
+                    DrawModListUI(this.PluginText.T("list.bad_waystone_mods", "BAD WAYSTONE MODS (RED HIGHLIGHT)"), "bad_waystone_mods", Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
+                    DrawModListUI(this.PluginText.T("list.good_waystone_mods", "GOOD WAYSTONE MODS (GREEN HIGHLIGHT)"), "good_waystone_mods", Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
                 }
 
-                if (ImGui.CollapsingHeader("Waystone GREAT Highlight Conditions"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.waystone_great", "Waystone GREAT Highlight Conditions", "StashUtilityWaystoneGreat")))
                 {
-                    ImGui.Checkbox("Filter Great Item Rarity", ref Settings.FilterGreatRarity);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_great_item_rarity", "Filter Great Item Rarity", "StashUtilityFilterGreatItemRarity"), ref Settings.FilterGreatRarity);
                     if (Settings.FilterGreatRarity)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Great Rarity (%)", ref Settings.MinGreatRarity, 0, 200);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_great_rarity", "Min Great Rarity (%)", "StashUtilityMinGreatRarity"), ref Settings.MinGreatRarity, 0, 200);
                     }
 
-                    ImGui.Checkbox("Filter Great Pack Size", ref Settings.FilterGreatPackSize);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_great_pack_size", "Filter Great Pack Size", "StashUtilityFilterGreatPackSize"), ref Settings.FilterGreatPackSize);
                     if (Settings.FilterGreatPackSize)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Great Pack Size (%)", ref Settings.MinGreatPackSize, 0, 100);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_great_pack_size", "Min Great Pack Size (%)", "StashUtilityMinGreatPackSize"), ref Settings.MinGreatPackSize, 0, 100);
                     }
 
-                    ImGui.Checkbox("Filter Great Monster Rarity", ref Settings.FilterGreatMonstRarity);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_great_monster_rarity", "Filter Great Monster Rarity", "StashUtilityFilterGreatMonsterRarity"), ref Settings.FilterGreatMonstRarity);
                     if (Settings.FilterGreatMonstRarity)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Great Monster Rarity (%)", ref Settings.MinGreatMonstRarity, 0, 100);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_great_monster_rarity", "Min Great Monster Rarity (%)", "StashUtilityMinGreatMonsterRarity"), ref Settings.MinGreatMonstRarity, 0, 100);
                     }
 
-                    ImGui.Checkbox("Filter Great Monster Effectiveness", ref Settings.FilterGreatEffect);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_great_effectiveness", "Filter Great Monster Effectiveness", "StashUtilityFilterGreatEffectiveness"), ref Settings.FilterGreatEffect);
                     if (Settings.FilterGreatEffect)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Great Effectiveness (%)", ref Settings.MinGreatEffect, 0, 100);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_great_effectiveness", "Min Great Effectiveness (%)", "StashUtilityMinGreatEffectiveness"), ref Settings.MinGreatEffect, 0, 100);
                     }
 
-                    ImGui.Checkbox("Filter Great Waystone Drop Chance", ref Settings.FilterGreatDropChance);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_great_drop_chance", "Filter Great Waystone Drop Chance", "StashUtilityFilterGreatDropChance"), ref Settings.FilterGreatDropChance);
                     if (Settings.FilterGreatDropChance)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Great Drop Chance (%)", ref Settings.MinGreatDropChance, 0, 300);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_great_drop_chance", "Min Great Drop Chance (%)", "StashUtilityMinGreatDropChance"), ref Settings.MinGreatDropChance, 0, 300);
                     }
                 }
                 ImGui.Unindent();
             }
 
-            ImGui.Checkbox("Enable Tablet Manager", ref Settings.EnableTabletManager);
-            ImGuiHelper.ToolTip("Enables or disables highlighting of precursor/breach tablets.");
+            ImGui.Checkbox(this.PluginText.Label("settings.enable_tablet_manager", "Enable Tablet Manager", "StashUtilityEnableTabletManager"), ref Settings.EnableTabletManager);
+            ImGuiHelper.ToolTip(this.PluginText.T("settings.enable_tablet_manager_help", "Enables or disables highlighting of precursor/breach tablets."));
 
             if (Settings.EnableTabletManager)
             {
                 ImGui.Indent();
-                if (ImGui.CollapsingHeader("Tablet Mod Filter Manager"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.tablet_mod_filter", "Tablet Mod Filter Manager", "StashUtilityTabletModFilter")))
                 {
                     if (ImGui.BeginTabBar("TabletMechanicsTabs"))
                     {
-                        var categories = new Dictionary<string, Func<Models.TabletMod, bool>>
+                        var categories = new Dictionary<string, (string Label, Func<Models.TabletMod, bool> Filter)>
                         {
-                            { "Breach", m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) },
-                            { "Expedition", m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) },
-                            { "Delirium", m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) },
-                            { "Abyss", m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) },
-                            { "Incursion", m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) },
-                            { "Ritual", m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) },
-                            { "General", m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) }
+                            { "Breach", (this.PluginText.T("tablet.category.breach", "Breach"), m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase)) },
+                            { "Expedition", (this.PluginText.T("tablet.category.expedition", "Expedition"), m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase)) },
+                            { "Delirium", (this.PluginText.T("tablet.category.delirium", "Delirium"), m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase)) },
+                            { "Abyss", (this.PluginText.T("tablet.category.abyss", "Abyss"), m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase)) },
+                            { "Incursion", (this.PluginText.T("tablet.category.incursion", "Incursion"), m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase)) },
+                            { "Ritual", (this.PluginText.T("tablet.category.ritual", "Ritual"), m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) },
+                            { "General", (this.PluginText.T("tablet.category.general", "General"), m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) }
                         };
 
                         foreach (var kvp in categories)
                         {
-                            if (ImGui.BeginTabItem(kvp.Key))
+                            if (ImGui.BeginTabItem($"{kvp.Value.Label}##StashUtilityTablet{kvp.Key}"))
                             {
-                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value).ToList();
-                                
-                                ImGui.InputTextWithHint($"##search{kvp.Key}", $"Search {kvp.Key} Mods...", ref tabletSearchTerm, 64);
+                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value.Filter).ToList();
+
+                                ImGui.InputTextWithHint($"##search{kvp.Key}", this.PluginText.F("placeholder.search_tablet_mods", "Search {0} Mods...", kvp.Value.Label), ref tabletSearchTerm, 64);
                                 var filtered = tabMods.Where(m => m.Name.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
 
                                 if (ImGui.BeginChild($"Child{kvp.Key}", new Vector2(0, 250), ImGuiChildFlags.Borders))
@@ -630,21 +633,21 @@ namespace StashUtility
 
                                         ImGui.TextWrapped(mod.Name.Replace("%", "%%"));
 
-                                        if (ImGui.Checkbox($"Good##g_{mod.Id}", ref isGood))
+                                        if (ImGui.Checkbox($"{this.PluginText.T("tag.good", "Good")}##g_{mod.Id}", ref isGood))
                                         {
                                             if (isGood) { Settings.TabletGoodModPatterns.Add(mod.Id); Settings.TabletBadModPatterns.Remove(mod.Id); Settings.TabletGodModPatterns.Remove(mod.Id); }
                                             else { Settings.TabletGoodModPatterns.Remove(mod.Id); }
                                             SaveSettings();
                                         }
                                         ImGui.SameLine(100f);
-                                        if (ImGui.Checkbox($"Bad##b_{mod.Id}", ref isBad))
+                                        if (ImGui.Checkbox($"{this.PluginText.T("tag.bad", "Bad")}##b_{mod.Id}", ref isBad))
                                         {
                                             if (isBad) { Settings.TabletBadModPatterns.Add(mod.Id); Settings.TabletGoodModPatterns.Remove(mod.Id); Settings.TabletGodModPatterns.Remove(mod.Id); }
                                             else { Settings.TabletBadModPatterns.Remove(mod.Id); }
                                             SaveSettings();
                                         }
                                         ImGui.SameLine(190f);
-                                        if (ImGui.Checkbox($"God##god_{mod.Id}", ref isGod))
+                                        if (ImGui.Checkbox($"{this.PluginText.T("tag.god", "God")}##god_{mod.Id}", ref isGod))
                                         {
                                             if (isGod) { Settings.TabletGodModPatterns.Add(mod.Id); Settings.TabletGoodModPatterns.Remove(mod.Id); Settings.TabletBadModPatterns.Remove(mod.Id); }
                                             else { Settings.TabletGodModPatterns.Remove(mod.Id); }
@@ -652,8 +655,8 @@ namespace StashUtility
                                         }
                                         ImGui.Separator();
                                     }
-                                    ImGui.EndChild();
                                 }
+                                ImGui.EndChild();
                                 ImGui.EndTabItem();
                             }
                         }
@@ -661,52 +664,63 @@ namespace StashUtility
                     }
                 }
 
-                if (ImGui.CollapsingHeader("Tablet GREAT Highlight Conditions"))
+                if (ImGui.CollapsingHeader(this.PluginText.Title("section.tablet_great", "Tablet GREAT Highlight Conditions", "StashUtilityTabletGreat")))
                 {
-                    ImGui.Checkbox("Filter Tablet Great Status", ref Settings.FilterTabletGreat);
+                    ImGui.Checkbox(this.PluginText.Label("settings.filter_tablet_great", "Filter Tablet Great Status", "StashUtilityFilterTabletGreat"), ref Settings.FilterTabletGreat);
                     if (Settings.FilterTabletGreat)
                     {
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(300f);
                         ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt("Min Good Tablet Mods Count", ref Settings.MinTabletGoodMods, 1, 5);
+                        ImGui.SliderInt(this.PluginText.Label("settings.min_good_tablet_mods", "Min Good Tablet Mods Count", "StashUtilityMinGoodTabletMods"), ref Settings.MinTabletGoodMods, 1, 5);
                     }
                     ImGui.SetNextItemWidth(150f);
-                    ImGui.SliderInt("Min Good Mods To Ignore Bad", ref Settings.MinGoodModsToIgnoreBad, 1, 6);
-                    ImGuiHelper.ToolTip("If a tablet has this many good mods, it will ignore any bad mods and still be highlighted as Good/Great.");
+                    ImGui.SliderInt(this.PluginText.Label("settings.min_good_ignore_bad", "Min Good Mods To Ignore Bad", "StashUtilityMinGoodIgnoreBad"), ref Settings.MinGoodModsToIgnoreBad, 1, 6);
+                    ImGuiHelper.ToolTip(this.PluginText.T("settings.min_good_ignore_bad_help", "If a tablet has this many good mods, it will ignore any bad mods and still be highlighted as Good/Great."));
                 }
                 ImGui.Unindent();
             }
 
-            if (ImGui.CollapsingHeader("Overlay Visual Settings"))
+            if (ImGui.CollapsingHeader(this.PluginText.Title("section.overlay_visual", "Overlay Visual Settings", "StashUtilityOverlayVisual")))
             {
-                ImGui.Checkbox("Show Mod Highlight Border", ref Settings.ShowModBorder);
-                ImGui.Checkbox("Show Rarity Corner Indicator", ref Settings.ShowRarityBorder);
+                ImGui.Checkbox(this.PluginText.Label("settings.show_mod_border", "Show Mod Highlight Border", "StashUtilityShowModBorder"), ref Settings.ShowModBorder);
+                ImGui.Checkbox(this.PluginText.Label("settings.show_rarity_indicator", "Show Rarity Corner Indicator", "StashUtilityShowRarityIndicator"), ref Settings.ShowRarityBorder);
                 if (Settings.ShowRarityBorder)
                 {
                     ImGui.SameLine();
                     ImGui.SetNextItemWidth(150f);
-                    ImGui.SliderFloat("Indicator Size##size", ref Settings.RarityIndicatorSize, 5f, 30f);
+                    ImGui.SliderFloat(this.PluginText.Label("settings.indicator_size", "Indicator Size", "StashUtilityIndicatorSize"), ref Settings.RarityIndicatorSize, 5f, 30f);
                 }
-                ImGui.Checkbox("Hide Normal (White) Waystones", ref Settings.HideNormalWaystones);
-                ImGui.SliderFloat("Border Thickness", ref Settings.BorderThickness, 1f, 10f);
-                ImGui.SliderFloat("Border Margin", ref Settings.BorderMargin, 0f, 10f);
+                ImGui.Checkbox(this.PluginText.Label("settings.hide_normal_waystones", "Hide Normal (White) Waystones", "StashUtilityHideNormalWaystones"), ref Settings.HideNormalWaystones);
+                ImGui.SliderFloat(this.PluginText.Label("settings.border_thickness", "Border Thickness", "StashUtilityBorderThickness"), ref Settings.BorderThickness, 1f, 10f);
+                ImGui.SliderFloat(this.PluginText.Label("settings.border_margin", "Border Margin", "StashUtilityBorderMargin"), ref Settings.BorderMargin, 0f, 10f);
 
-                string[] borderStyles = { "Solid", "Dashed", "Dotted" };
-                ImGui.Combo("Bad Highlight Border Style", ref Settings.FrameStyleBad, borderStyles, borderStyles.Length);
-                ImGui.Combo("Good Highlight Border Style", ref Settings.FrameStyleGood, borderStyles, borderStyles.Length);
+                string[] borderStyles =
+                {
+                    this.PluginText.T("style.solid", "Solid"),
+                    this.PluginText.T("style.dashed", "Dashed"),
+                    this.PluginText.T("style.dotted", "Dotted")
+                };
+                ImGui.Combo(this.PluginText.Label("settings.bad_border_style", "Bad Highlight Border Style", "StashUtilityBadBorderStyle"), ref Settings.FrameStyleBad, borderStyles, borderStyles.Length);
+                ImGui.Combo(this.PluginText.Label("settings.good_border_style", "Good Highlight Border Style", "StashUtilityGoodBorderStyle"), ref Settings.FrameStyleGood, borderStyles, borderStyles.Length);
 
-                string[] arrowPositions = { "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right" };
-                ImGui.Combo("GREAT Arrow Position", ref Settings.GreatIndicatorPosition, arrowPositions, arrowPositions.Length);
-                ImGui.SliderFloat("GREAT Arrow Size", ref Settings.GreatIndicatorSize, 5f, 40f);
+                string[] arrowPositions =
+                {
+                    this.PluginText.T("position.top_left", "Top-Left"),
+                    this.PluginText.T("position.top_right", "Top-Right"),
+                    this.PluginText.T("position.bottom_left", "Bottom-Left"),
+                    this.PluginText.T("position.bottom_right", "Bottom-Right")
+                };
+                ImGui.Combo(this.PluginText.Label("settings.great_arrow_position", "GREAT Arrow Position", "StashUtilityGreatArrowPosition"), ref Settings.GreatIndicatorPosition, arrowPositions, arrowPositions.Length);
+                ImGui.SliderFloat(this.PluginText.Label("settings.great_arrow_size", "GREAT Arrow Size", "StashUtilityGreatArrowSize"), ref Settings.GreatIndicatorSize, 5f, 40f);
 
-                ImGui.SeparatorText("Colors");
-                ImGui.ColorEdit4("Good Highlight Color", ref Settings.GoodColor);
-                ImGui.ColorEdit4("Bad Highlight Color", ref Settings.BadColor);
-                ImGui.ColorEdit4("GREAT Arrow Color", ref Settings.ColorGreat);
-                ImGui.ColorEdit4("Rare Rarity Color", ref Settings.RareRarityColor);
-                ImGui.ColorEdit4("Magic Rarity Color", ref Settings.MagicRarityColor);
-                ImGui.ColorEdit4("Normal Rarity Color", ref Settings.NormalRarityColor);
+                ImGui.SeparatorText(this.PluginText.T("section.colors", "Colors"));
+                ImGui.ColorEdit4(this.PluginText.Label("settings.good_color", "Good Highlight Color", "StashUtilityGoodColor"), ref Settings.GoodColor);
+                ImGui.ColorEdit4(this.PluginText.Label("settings.bad_color", "Bad Highlight Color", "StashUtilityBadColor"), ref Settings.BadColor);
+                ImGui.ColorEdit4(this.PluginText.Label("settings.great_arrow_color", "GREAT Arrow Color", "StashUtilityGreatArrowColor"), ref Settings.ColorGreat);
+                ImGui.ColorEdit4(this.PluginText.Label("settings.rare_rarity_color", "Rare Rarity Color", "StashUtilityRareRarityColor"), ref Settings.RareRarityColor);
+                ImGui.ColorEdit4(this.PluginText.Label("settings.magic_rarity_color", "Magic Rarity Color", "StashUtilityMagicRarityColor"), ref Settings.MagicRarityColor);
+                ImGui.ColorEdit4(this.PluginText.Label("settings.normal_rarity_color", "Normal Rarity Color", "StashUtilityNormalRarityColor"), ref Settings.NormalRarityColor);
             }
         }
 
@@ -756,6 +770,8 @@ namespace StashUtility
 
         public override void DrawUI()
         {
+            if (Core.States.GameCurrentState != GameStateTypes.InGameState) return;
+
             if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableDebugProbe) return;
 
             if (!Settings.ShowOverlayInBackground && !Core.Process.Foreground)
@@ -811,8 +827,8 @@ namespace StashUtility
             else
             {
                 // Fallback / default behavior
-                stashTabsContainerPath = pathIndices.Length >= 6 
-                    ? pathIndices.Take(6).ToArray() 
+                stashTabsContainerPath = pathIndices.Length >= 6
+                    ? pathIndices.Take(6).ToArray()
                     : new int[] { 2, 0, 0, 0, 1, 1 };
             }
 
@@ -1150,12 +1166,13 @@ namespace StashUtility
             int sumMonstRarity = 0;
             int sumEffect = 0;
             int sumDropChance = 0;
-            int revives = 0;
+            int revives = 5;
 
             int tabletGoodCount = 0;
 
             if (modsComponent != null)
             {
+                revives = Math.Max(0, Math.Min(5, 6 - modsComponent.ExplicitMods.Count));
                 var statsFromMods = GetStatsFromMods(modsComponent);
                 bool hasMemoryStats = statsFromMods.Count > 0;
                 if (statsFromMods.TryGetValue((GameStats)8210, out var rawDropChance)) sumDropChance = rawDropChance;
@@ -1284,10 +1301,15 @@ namespace StashUtility
             {
                 if (Settings.FilterMaxRevives && revives > Settings.MaxRevivesAvailable) passesNumericalFilters = false;
                 if (Settings.FilterMinItemRarity && sumRarity < Settings.MinItemRarity) passesNumericalFilters = false;
+                if (Settings.FilterMaxItemRarity && sumRarity > Settings.MaxItemRarity) passesNumericalFilters = false;
                 if (Settings.FilterMinPackSize && sumPackSize < Settings.MinPackSize) passesNumericalFilters = false;
+                if (Settings.FilterMaxPackSize && sumPackSize > Settings.MaxPackSize) passesNumericalFilters = false;
                 if (Settings.FilterMinMonsterRarity && sumMonstRarity < Settings.MinMonsterRarity) passesNumericalFilters = false;
+                if (Settings.FilterMaxMonsterRarity && sumMonstRarity > Settings.MaxMonsterRarity) passesNumericalFilters = false;
                 if (Settings.FilterMinMonsterEffectiveness && sumEffect < Settings.MinMonsterEffectiveness) passesNumericalFilters = false;
+                if (Settings.FilterMaxMonsterEffectiveness && sumEffect > Settings.MaxMonsterEffectiveness) passesNumericalFilters = false;
                 if (Settings.FilterMinWaystoneDropChance && sumDropChance < Settings.MinWaystoneDropChance) passesNumericalFilters = false;
+                if (Settings.FilterMaxWaystoneDropChance && sumDropChance > Settings.MaxWaystoneDropChance) passesNumericalFilters = false;
             }
 
             if (isTablet && !isBad && !isGood) return;
@@ -1388,10 +1410,10 @@ namespace StashUtility
             }
         }
 
-        private void DrawModListUI(string title, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
+        private void DrawModListUI(string title, string idPrefix, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
         {
             ImGui.TextColored(color, title);
-            if (currentList.Count == 0) ImGui.TextDisabled("   (List empty)");
+            if (currentList.Count == 0) ImGui.TextDisabled(this.PluginText.T("list.empty", "   (List empty)"));
 
             for (int i = 0; i < currentList.Count; i++)
             {
@@ -1400,8 +1422,8 @@ namespace StashUtility
                 var defT = Data.ModDatabase.AllTabletMods.FirstOrDefault(m => m.Id == id);
                 string name = defW?.Name ?? defT?.Name ?? id;
 
-                ImGui.PushID(title + id);
-                if (ImGui.Button("X"))
+                ImGui.PushID(idPrefix + id);
+                if (ImGui.Button(this.PluginText.Label("button.remove_short", "X", "RemoveMod")))
                 {
                     currentList.RemoveAt(i);
                     SaveSettings();
@@ -1412,7 +1434,9 @@ namespace StashUtility
                 ImGui.TextUnformatted(name);
                 ImGui.SameLine();
 
-                string moveLabel = isCurrentlyBad ? "Set GOOD" : "Set BAD";
+                string moveLabel = isCurrentlyBad
+                    ? this.PluginText.Label("button.set_good", "Set GOOD", "SetGood")
+                    : this.PluginText.Label("button.set_bad", "Set BAD", "SetBad");
                 if (ImGui.SmallButton(moveLabel))
                 {
                     targetList.Add(id);
@@ -1778,7 +1802,7 @@ namespace StashUtility
                     list[i] = val;
                 }
                 ImGui.SameLine();
-                if (ImGui.Button("Remove"))
+                if (ImGui.Button(this.PluginText.Label("button.remove", "Remove", "RemoveString")))
                 {
                     toRemove = i;
                 }
@@ -1801,7 +1825,7 @@ namespace StashUtility
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"UI Tree Dump from root: 0x{address.ToInt64():X}");
             DumpUiTreeRecursive(address, "", 0, sb);
-            
+
             try
             {
                 var dir = Path.Combine(DllDirectory, "config");
@@ -1822,7 +1846,7 @@ namespace StashUtility
 
             var off = ReadMemory<UiElementBaseOffset>(address);
             var kids = ReadStdVector<IntPtr>(off.ChildrensPtr);
-            
+
             sb.AppendLine($"{prefix}Addr: 0x{address.ToInt64():X}, Vis: {UiElementBaseFuncs.IsVisibleChecker(off.Flags)}, Kids: {kids.Length}, Size: <{off.UnscaledSize.X},{off.UnscaledSize.Y}>");
 
             // Look for any string starting with "Metadata/" by dereferencing pointers
@@ -1902,6 +1926,20 @@ namespace StashUtility
                                 TryReadMemory<int>(mapAddr + offset, out var val32_1);
                                 TryReadMemory<int>(mapAddr + offset + 4, out var val32_2);
                                 lines.Add($"  +0x{offset:X2}: {val64:X16} | int32: {val32_1}, {val32_2}");
+                            }
+
+                            TryReadMemory<IntPtr>(mapAddr + 0x10, out var detailsAddr);
+                            lines.Add($"Map Component Details Pointer: 0x{detailsAddr.ToInt64():X}");
+                            if (detailsAddr != IntPtr.Zero)
+                            {
+                                lines.Add("Map Component Details Hex Dump (0x80 bytes):");
+                                for (int offset = 0; offset < 0x80; offset += 8)
+                                {
+                                    TryReadMemory<long>(detailsAddr + offset, out var val64);
+                                    TryReadMemory<int>(detailsAddr + offset, out var val32_1);
+                                    TryReadMemory<int>(detailsAddr + offset + 4, out var val32_2);
+                                    lines.Add($"  Details +0x{offset:X2}: {val64:X16} | int32: {val32_1}, {val32_2}");
+                                }
                             }
                         }
 
@@ -2001,34 +2039,34 @@ namespace StashUtility
             return rawName;
         }
 
-        private static readonly System.Text.RegularExpressions.Regex RangeRegex = 
+        private static readonly System.Text.RegularExpressions.Regex RangeRegex =
             new System.Text.RegularExpressions.Regex(@"\([^)]*\)", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex DigitsRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex DigitsRegex =
             new System.Text.RegularExpressions.Regex(@"\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex CleanRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex CleanRegex =
             new System.Text.RegularExpressions.Regex(@"[^a-zA-Z%\s]", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex SpacesRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex SpacesRegex =
             new System.Text.RegularExpressions.Regex(@"\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private string NormalizeForMatching(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
-            
+
             // Remove ranges in parentheses like (36-40) or (-8--6)
             var result = RangeRegex.Replace(input, "");
-            
+
             // Remove digits
             result = DigitsRegex.Replace(result, "");
-            
+
             // Remove everything except letters, % and whitespace
             result = CleanRegex.Replace(result, "");
-            
+
             // Normalize spaces to single spaces and lowercase
             result = SpacesRegex.Replace(result, " ").Trim().ToLowerInvariant();
-            
+
             return result;
         }
     }
