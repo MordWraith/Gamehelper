@@ -2,3 +2,5 @@ bin/
 obj/
 *.json
 !item_names.json
+!Localization/
+!Localization/*.json

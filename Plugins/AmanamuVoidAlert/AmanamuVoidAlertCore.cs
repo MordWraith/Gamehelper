@@ -73,40 +73,40 @@ namespace AmanamuVoidAlert
 
         public override void DrawSettings()
         {
-            ImGui.Checkbox("Enable overlay", ref this.Settings.EnableOverlay);
-            ImGui.Checkbox("Show debug window", ref this.Settings.ShowDebugWindow);
-            ImGui.Checkbox("Draw on-screen labels", ref this.Settings.DrawOnScreenLabels);
-            ImGui.Checkbox("Draw off-screen / edge arrows", ref this.Settings.DrawOffscreenArrows);
+            ImGui.Checkbox(this.PluginText.Label("settings.enable_overlay", "Enable overlay", "AmanamuEnableOverlay"), ref this.Settings.EnableOverlay);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_debug_window", "Show debug window", "AmanamuShowDebugWindow"), ref this.Settings.ShowDebugWindow);
+            ImGui.Checkbox(this.PluginText.Label("settings.draw_on_screen_labels", "Draw on-screen labels", "AmanamuDrawOnScreenLabels"), ref this.Settings.DrawOnScreenLabels);
+            ImGui.Checkbox(this.PluginText.Label("settings.draw_offscreen_arrows", "Draw off-screen / edge arrows", "AmanamuDrawOffscreenArrows"), ref this.Settings.DrawOffscreenArrows);
             ImGui.Checkbox(
-                "Draw edge arrow even when monster is on screen",
+                this.PluginText.Label("settings.draw_edge_arrow_on_screen", "Draw edge arrow even when monster is on screen", "AmanamuDrawEdgeArrowOnScreen"),
                 ref this.Settings.DrawEdgeArrowForOnScreenMonsters);
-            ImGui.Checkbox("Draw circle around monster", ref this.Settings.DrawCircle);
-            ImGui.Checkbox("Only rare / unique monsters", ref this.Settings.OnlyRareOrUnique);
-            ImGui.Checkbox("Log newly detected monsters", ref this.Settings.LogNewDetections);
+            ImGui.Checkbox(this.PluginText.Label("settings.draw_circle", "Draw circle around monster", "AmanamuDrawCircle"), ref this.Settings.DrawCircle);
+            ImGui.Checkbox(this.PluginText.Label("settings.only_rare_unique", "Only rare / unique monsters", "AmanamuOnlyRareUnique"), ref this.Settings.OnlyRareOrUnique);
+            ImGui.Checkbox(this.PluginText.Label("settings.log_new_detections", "Log newly detected monsters", "AmanamuLogNewDetections"), ref this.Settings.LogNewDetections);
 
             ImGui.Separator();
-            ImGui.SliderFloat("Max tracking distance", ref this.Settings.MaxDistance, 500f, 8000f, "%.0f");
-            ImGui.SliderFloat("Forget after seconds", ref this.Settings.ForgetAfterSeconds, 1f, 30f, "%.1f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.max_tracking_distance", "Max tracking distance", "AmanamuMaxTrackingDistance"), ref this.Settings.MaxDistance, 500f, 8000f, "%.0f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.forget_after_seconds", "Forget after seconds", "AmanamuForgetAfterSeconds"), ref this.Settings.ForgetAfterSeconds, 1f, 30f, "%.1f");
             ImGui.SliderFloat(
-                "Forget missing live entity after seconds",
+                this.PluginText.Label("settings.forget_missing_entity_after_seconds", "Forget missing live entity after seconds", "AmanamuForgetMissingEntityAfterSeconds"),
                 ref this.Settings.MissingEntityForgetSeconds,
                 0.2f,
                 5f,
                 "%.2f");
-            ImGui.SliderFloat("Label Y offset", ref this.Settings.LabelYOffset, 20f, 140f, "%.0f");
-            ImGui.SliderFloat("Circle radius", ref this.Settings.CircleRadius, 12f, 80f, "%.0f");
-            ImGui.SliderFloat("Arrow edge margin", ref this.Settings.ArrowEdgeMargin, 30f, 160f, "%.0f");
-            ImGui.SliderFloat("Proxy distance", ref this.Settings.ProxyDistance, 200f, 2000f, "%.0f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.label_y_offset", "Label Y offset", "AmanamuLabelYOffset"), ref this.Settings.LabelYOffset, 20f, 140f, "%.0f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.circle_radius", "Circle radius", "AmanamuCircleRadius"), ref this.Settings.CircleRadius, 12f, 80f, "%.0f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.arrow_edge_margin", "Arrow edge margin", "AmanamuArrowEdgeMargin"), ref this.Settings.ArrowEdgeMargin, 30f, 160f, "%.0f");
+            ImGui.SliderFloat(this.PluginText.Label("settings.proxy_distance", "Proxy distance", "AmanamuProxyDistance"), ref this.Settings.ProxyDistance, 200f, 2000f, "%.0f");
 
             ImGui.Separator();
             ImGui.TextWrapped(
-                $"Primary detection: MonsterMod {ExpectedMonsterModId} or path contains LightlessWells.");
+                this.PluginText.F("settings.primary_detection", "Primary detection: MonsterMod {0} or path contains LightlessWells.", ExpectedMonsterModId));
             ImGui.TextWrapped(
-                $"Inside cloud: buff contains '{BuffInsideCloud}'.");
+                this.PluginText.F("settings.inside_cloud_detection", "Inside cloud: buff contains '{0}'.", BuffInsideCloud));
             ImGui.TextWrapped(
-                $"Fallback: any buff containing '{BuffPrefixAbyssLightlessWell}'.");
+                this.PluginText.F("settings.fallback_detection", "Fallback: any buff containing '{0}'.", BuffPrefixAbyssLightlessWell));
 
-            if (ImGui.Button("Clear tracked monsters"))
+            if (ImGui.Button(this.PluginText.Label("button.clear_tracked_monsters", "Clear tracked monsters", "AmanamuClearTrackedMonsters")))
             {
                 this.tracked.Clear();
             }
@@ -370,9 +370,9 @@ namespace AmanamuVoidAlert
                     if (this.Settings.DrawOnScreenLabels)
                     {
                         var state = tracked.InsideCloud
-                            ? "INSIDE CLOUD"
-                            : "OUTSIDE CLOUD";
-                        var label = $"AMANAMU VOID\n{state}\n{tracked.Distance:0}";
+                            ? this.PluginText.T("overlay.inside_cloud", "INSIDE CLOUD")
+                            : this.PluginText.T("overlay.outside_cloud", "OUTSIDE CLOUD");
+                        var label = this.PluginText.F("overlay.label", "AMANAMU VOID\n{0}\n{1:0}", state, tracked.Distance);
                         var textSize = ImGui.CalcTextSize(label);
                         var textPos = new Vector2(
                             screenPos.X - textSize.X * 0.5f,
@@ -404,8 +404,8 @@ namespace AmanamuVoidAlert
                     DrawArrow(fgDraw, arrowPos, dir, color);
 
                     var edgeText = tracked.InsideCloud
-                        ? $"VOID {tracked.Distance:0} IN"
-                        : $"VOID {tracked.Distance:0} OUT";
+                        ? this.PluginText.F("overlay.edge_inside", "VOID {0:0} IN", tracked.Distance)
+                        : this.PluginText.F("overlay.edge_outside", "VOID {0:0} OUT", tracked.Distance);
                     var edgeTextSize = ImGui.CalcTextSize(edgeText);
                     var edgeTextPos = new Vector2(arrowPos.X - edgeTextSize.X * 0.5f, arrowPos.Y + 22f);
                     fgDraw.AddText(edgeTextPos + Vector2.One, TextShadowColor, edgeText);
@@ -424,27 +424,27 @@ namespace AmanamuVoidAlert
         private void DrawDebugWindow(AreaInstance area)
         {
             ImGui.SetNextWindowSize(new Vector2(820f, 460f), ImGuiCond.FirstUseEver);
-            if (!ImGui.Begin("Amanamu Void Alert Debug###AmanamuVoidAlertDebug", ref this.Settings.ShowDebugWindow))
+            if (!ImGui.Begin(this.PluginText.Title("debug.window_title", "Amanamu Void Alert Debug", "AmanamuVoidAlertDebug"), ref this.Settings.ShowDebugWindow))
             {
                 ImGui.End();
                 return;
             }
 
             var areaName = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.Name;
-            ImGui.Text($"Area: {areaName}");
-            ImGui.Text($"Tracked monsters: {this.tracked.Count}");
-            ImGui.Text($"MonsterMod: {ExpectedMonsterModId}");
-            ImGui.Text($"Metadata: {ExpectedMonsterModMetadata}");
-            ImGui.Text($"Inside-cloud buff: {BuffInsideCloud}");
+            ImGui.Text(this.PluginText.F("debug.area", "Area: {0}", areaName));
+            ImGui.Text(this.PluginText.F("debug.tracked_monsters", "Tracked monsters: {0}", this.tracked.Count));
+            ImGui.Text(this.PluginText.F("debug.monster_mod", "MonsterMod: {0}", ExpectedMonsterModId));
+            ImGui.Text(this.PluginText.F("debug.metadata", "Metadata: {0}", ExpectedMonsterModMetadata));
+            ImGui.Text(this.PluginText.F("debug.inside_cloud_buff", "Inside-cloud buff: {0}", BuffInsideCloud));
 
             ImGui.Separator();
-            if (ImGui.Button("Clear tracked"))
+            if (ImGui.Button(this.PluginText.Label("button.clear_tracked", "Clear tracked", "AmanamuDebugClearTracked")))
             {
                 this.tracked.Clear();
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Save settings"))
+            if (ImGui.Button(this.PluginText.Label("button.save_settings", "Save settings", "AmanamuDebugSaveSettings")))
             {
                 this.SaveSettings();
             }
@@ -452,12 +452,12 @@ namespace AmanamuVoidAlert
             ImGui.Separator();
             if (ImGui.BeginTable("##tracked_amanamu", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0f, 300f)))
             {
-                ImGui.TableSetupColumn("ID");
-                ImGui.TableSetupColumn("Path");
-                ImGui.TableSetupColumn("Dist");
-                ImGui.TableSetupColumn("Cloud");
-                ImGui.TableSetupColumn("Mod");
-                ImGui.TableSetupColumn("Buffs");
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.id", "ID"));
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.path", "Path"));
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.dist", "Dist"));
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.cloud", "Cloud"));
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.mod", "Mod"));
+                ImGui.TableSetupColumn(this.PluginText.T("debug.column.buffs", "Buffs"));
                 ImGui.TableHeadersRow();
 
                 foreach (var tracked in this.tracked.Values.OrderBy(t => t.Distance))
@@ -470,9 +470,9 @@ namespace AmanamuVoidAlert
                     ImGui.TableNextColumn();
                     ImGui.Text($"{tracked.Distance:0}");
                     ImGui.TableNextColumn();
-                    ImGui.Text(tracked.InsideCloud ? "IN" : "OUT");
+                    ImGui.Text(tracked.InsideCloud ? this.PluginText.T("debug.cloud.in", "IN") : this.PluginText.T("debug.cloud.out", "OUT"));
                     ImGui.TableNextColumn();
-                    ImGui.Text(tracked.HasAmanamuMonsterMod ? "yes" : "no");
+                    ImGui.Text(tracked.HasAmanamuMonsterMod ? this.PluginText.T("debug.yes", "yes") : this.PluginText.T("debug.no", "no"));
                     ImGui.TableNextColumn();
                     ImGui.TextWrapped(string.Join(", ", tracked.LastBuffs.Take(4)));
                 }

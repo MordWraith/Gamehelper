@@ -1,6 +1,7 @@
 namespace SekhemaHelper
 {
     using GameHelper;
+    using GameHelper.Localization;
     using GameHelper.RemoteObjects.Components;
     using GameHelper.RemoteObjects.States.InGameStateObjects;
     using GameHelper.Utils;
@@ -41,15 +42,15 @@ namespace SekhemaHelper
         private const float LargeMapScaleBaseline = 0.187812f;
         private static readonly double CameraAngle = 38.7 * Math.PI / 180;
 
-        public static void Draw(SekhemaHelperSettings settings)
+        public static void Draw(SekhemaHelperSettings settings, PluginLocalization text)
         {
             if (settings == null || (!settings.ShowPortals && !settings.ShowLevers))
                 return;
-            try { DrawInner(settings); }
+            try { DrawInner(settings, text); }
             catch { /* never bubble a draw exception into the host */ }
         }
 
-        private static void DrawInner(SekhemaHelperSettings settings)
+        private static void DrawInner(SekhemaHelperSettings settings, PluginLocalization text)
         {
             var gameUi = Core.States.InGameStateObject.GameUi;
             var largeMap = gameUi?.LargeMap;
@@ -128,12 +129,12 @@ namespace SekhemaHelper
                 dl.AddCircleFilled(screen, radius, isPortal ? portalColor : leverColor, 18);
                 dl.AddCircle(screen, radius, labelFg, 18, 1.5f);
 
-                string text = isPortal ? "Portal" : "Lever";
-                var ts = ImGui.CalcTextSize(text);
+                string label = isPortal ? text.T("map.portal", "Portal") : text.T("map.lever", "Lever");
+                var ts = ImGui.CalcTextSize(label);
                 var at = new Vector2(screen.X - (ts.X * 0.5f), screen.Y - radius - ts.Y - 3f);
                 var pad = new Vector2(3f, 1f);
                 dl.AddRectFilled(at - pad, at + ts + pad, labelBg, 2f);
-                dl.AddText(font, fontPx, at, labelFg, text);
+                dl.AddText(font, fontPx, at, labelFg, label);
             }
         }
     }

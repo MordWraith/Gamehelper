@@ -198,18 +198,18 @@ namespace LootTracker
             // plugin settings, so the bar is a pure read-out and the left band is freed for the table.
             ImGui.BeginGroup();
             if (this.DrawInlineIcon("Map")) ImGui.SameLine(0f, 5f);
-            ImGui.Text($"Maps: {maps}");
+            ImGui.Text(this.PluginText.F("compact.maps", "Maps: {0}", maps));
             if (this.DrawInlineIcon("Time")) ImGui.SameLine(0f, 5f);
-            ImGui.Text($"AVG Time: {FormatDuration(avgTime)}");
+            ImGui.Text(this.PluginText.F("compact.avg_time", "AVG Time: {0}", FormatDuration(avgTime)));
             if (this.DivineOnly)
             {
                 if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 5f);
-                ImGui.Text($"AVG Profit: {avgProfit / rate:0.##} Div");
+                ImGui.Text(this.PluginText.F("compact.avg_profit_div", "AVG Profit: {0:0.##} Div", avgProfit / rate));
             }
             else
             {
                 if (this.DrawInlineIcon("Exalt")) ImGui.SameLine(0f, 5f);
-                ImGui.Text($"AVG Profit: {avgProfit:0} Ex");
+                ImGui.Text(this.PluginText.F("compact.avg_profit_ex", "AVG Profit: {0:0} Ex", avgProfit));
             }
 
             ImGui.EndGroup();
@@ -223,18 +223,18 @@ namespace LootTracker
             string hourDiv = rate > 0 ? $"{perHour / rate:0.0}" : "—";
 
             // Total [div] <n>
-            ImGui.TextColored(totalCol, "Total");
+            ImGui.TextColored(totalCol, this.PluginText.T("compact.total", "Total"));
             ImGui.SameLine(0f, 5f);
             if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 4f);
             ImGui.TextColored(totalCol, totalDiv);
 
             // [div] <n> / hour
             if (this.DrawInlineIcon("Divine")) ImGui.SameLine(0f, 4f);
-            ImGui.TextColored(hourCol, $"{hourDiv} / hour");
+            ImGui.TextColored(hourCol, this.PluginText.F("compact.per_hour", "{0} / hour", hourDiv));
 
             // Session: <timer> (moved here from the old controls column so each band is 3 rows).
             if (this.DrawInlineIcon("Time")) ImGui.SameLine(0f, 5f);
-            ImGui.Text($"Session: {FormatDuration(DateTime.UtcNow - this.sessionStartUtc)}");
+            ImGui.Text(this.PluginText.F("compact.session", "Session: {0}", FormatDuration(DateTime.UtcNow - this.sessionStartUtc)));
             ImGui.EndGroup();
 
             // Column 3 — completed-map table (newest first), filling the remaining width/height.
@@ -244,9 +244,9 @@ namespace LootTracker
                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
                     new System.Numerics.Vector2(0f, h - (24f * s))))
             {
-                ImGui.TableSetupColumn("Map");
-                ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 60f * s);
-                ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.WidthFixed, 90f * s);
+                ImGui.TableSetupColumn(this.PluginText.T("table.map", "Map"));
+                ImGui.TableSetupColumn(this.PluginText.T("table.time", "Time"), ImGuiTableColumnFlags.WidthFixed, 60f * s);
+                ImGui.TableSetupColumn(this.PluginText.T("table.profit", "Profit"), ImGuiTableColumnFlags.WidthFixed, 90f * s);
                 ImGui.TableHeadersRow();
                 for (int i = this.completed.Count - 1; i >= 0; i--)
                 {

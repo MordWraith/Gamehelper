@@ -28,8 +28,21 @@
     </ProjectReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Localization\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="CopyFiles" AfterTargets="Build">
+    <ItemGroup>
+      <_StashUtilityLocalization Include="$(OutDir)Localization\*.json" />
+    </ItemGroup>
     <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_StashUtilityLocalization)"
+          DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\Localization"
+          SkipUnchangedFiles="true"
+          Condition="'@(_StashUtilityLocalization)' != ''" />
   </Target>
 
 </Project>
