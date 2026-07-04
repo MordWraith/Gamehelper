@@ -80,7 +80,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.BadModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -95,7 +95,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.GoodModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -387,15 +387,15 @@ namespace StashUtility
 
                         if (lastHoveredWaystone.TryGetComponent<Base>(out var baseComp))
                         {
-                            ImGuiHelper.DisplayTextAndCopyOnClick($"Base Name: {baseComp.BaseItemName}", baseComp.BaseItemName);
-                            ImGuiHelper.DisplayTextAndCopyOnClick($"Internal Name: {baseComp.InternalName}", baseComp.InternalName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.base_name", "Base Name: {0}", baseComp.BaseItemName), baseComp.BaseItemName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.internal_name", "Internal Name: {0}", baseComp.InternalName), baseComp.InternalName);
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsComp))
                         {
-                            ImGui.Text($"Rarity: {modsComp.Rarity}");
+                            ImGui.Text(this.PluginText.F("debug.rarity", "Rarity: {0}", modsComp.Rarity));
 
-                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode("Implicit Mods"))
+                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.implicit_mods", "Implicit Mods", "StashUtilityImplicitMods")))
                             {
                                 foreach (var mod in modsComp.ImplicitMods)
                                 {
@@ -403,7 +403,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode("Explicit Mods"))
+                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.explicit_mods", "Explicit Mods", "StashUtilityExplicitMods")))
                             {
                                 foreach (var mod in modsComp.ExplicitMods)
                                 {
@@ -411,7 +411,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode("Enchant Mods"))
+                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.enchant_mods", "Enchant Mods", "StashUtilityEnchantMods")))
                             {
                                 foreach (var mod in modsComp.EnchantMods)
                                 {
@@ -422,7 +422,7 @@ namespace StashUtility
                             var statsFromMods = GetStatsFromMods(modsComp);
                             if (statsFromMods.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(statsFromMods, "Stats From Mods");
+                                ImGuiHelper.StatsWidget(statsFromMods, this.PluginText.T("debug.stats_from_mods", "Stats From Mods"));
                             }
                         }
 
@@ -430,18 +430,18 @@ namespace StashUtility
                         {
                             if (omp.ModStats.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(omp.ModStats, "Stats From Magic Properties");
+                                ImGuiHelper.StatsWidget(omp.ModStats, this.PluginText.T("debug.stats_from_magic_properties", "Stats From Magic Properties"));
                             }
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsCompForDebug))
                         {
                             var allRawMods = modsCompForDebug.ImplicitMods.Concat(modsCompForDebug.ExplicitMods).Concat(modsCompForDebug.EnchantMods).ToList();
-                            if (allRawMods.Count > 0 && ImGui.TreeNode("Raw Game Memory Mods (For Matching)"))
+                            if (allRawMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.raw_memory_mods", "Raw Game Memory Mods (For Matching)", "StashUtilityRawMemoryMods")))
                             {
                                 foreach (var mod in allRawMods)
                                 {
-                                    ImGui.Text($"Raw ID: {mod.name}");
+                                    ImGui.Text(this.PluginText.F("debug.raw_id", "Raw ID: {0}", mod.name));
                                 }
                                 ImGui.TreePop();
                             }
@@ -458,7 +458,7 @@ namespace StashUtility
                         {
                             if (field.GetValue(lastHoveredWaystone) is System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> dict)
                             {
-                                if (ImGui.TreeNode("All Components (Raw Addresses)"))
+                                if (ImGui.TreeNode(this.PluginText.Label("debug.all_components", "All Components (Raw Addresses)", "StashUtilityAllComponents")))
                                 {
                                     foreach (var kv in dict)
                                     {
@@ -603,15 +603,15 @@ namespace StashUtility
                 {
                     if (ImGui.BeginTabBar("TabletMechanicsTabs"))
                     {
-                        var categories = new Dictionary<string, Func<Models.TabletMod, bool>>
+                        var categories = new Dictionary<string, (string Label, Func<Models.TabletMod, bool> Filter)>
                         {
-                            { "Breach", m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) },
-                            { "Expedition", m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) },
-                            { "Delirium", m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) },
-                            { "Abyss", m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) },
-                            { "Incursion", m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) },
-                            { "Ritual", m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) },
-                            { "General", m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) }
+                            { "Breach", (this.PluginText.T("tablet.category.breach", "Breach"), m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase)) },
+                            { "Expedition", (this.PluginText.T("tablet.category.expedition", "Expedition"), m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase)) },
+                            { "Delirium", (this.PluginText.T("tablet.category.delirium", "Delirium"), m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase)) },
+                            { "Abyss", (this.PluginText.T("tablet.category.abyss", "Abyss"), m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase)) },
+                            { "Incursion", (this.PluginText.T("tablet.category.incursion", "Incursion"), m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase)) },
+                            { "Ritual", (this.PluginText.T("tablet.category.ritual", "Ritual"), m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) },
+                            { "General", (this.PluginText.T("tablet.category.general", "General"), m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) }
                         };
 
                         foreach (var kvp in categories)
@@ -655,8 +655,8 @@ namespace StashUtility
                                         }
                                         ImGui.Separator();
                                     }
-                                    ImGui.EndChild();
                                 }
+                                ImGui.EndChild();
                                 ImGui.EndTabItem();
                             }
                         }
@@ -768,6 +768,8 @@ namespace StashUtility
 
         public override void DrawUI()
         {
+            if (Core.States.GameCurrentState != GameStateTypes.InGameState) return;
+
             if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableDebugProbe) return;
 
             if (!Settings.ShowOverlayInBackground && !Core.Process.Foreground)
@@ -823,8 +825,8 @@ namespace StashUtility
             else
             {
                 // Fallback / default behavior
-                stashTabsContainerPath = pathIndices.Length >= 6 
-                    ? pathIndices.Take(6).ToArray() 
+                stashTabsContainerPath = pathIndices.Length >= 6
+                    ? pathIndices.Take(6).ToArray()
                     : new int[] { 2, 0, 0, 0, 1, 1 };
             }
 
@@ -1406,7 +1408,7 @@ namespace StashUtility
             }
         }
 
-        private void DrawModListUI(string title, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
+        private void DrawModListUI(string title, string idPrefix, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
         {
             ImGui.TextColored(color, title);
             if (currentList.Count == 0) ImGui.TextDisabled(PluginText.T("stashutility.list_empty", "   (List empty)"));
@@ -1418,8 +1420,8 @@ namespace StashUtility
                 var defT = Data.ModDatabase.AllTabletMods.FirstOrDefault(m => m.Id == id);
                 string name = defW?.Name ?? defT?.Name ?? id;
 
-                ImGui.PushID(title + id);
-                if (ImGui.Button("X"))
+                ImGui.PushID(idPrefix + id);
+                if (ImGui.Button(this.PluginText.Label("button.remove_short", "X", "RemoveMod")))
                 {
                     currentList.RemoveAt(i);
                     SaveSettings();
@@ -1798,7 +1800,7 @@ namespace StashUtility
                     list[i] = val;
                 }
                 ImGui.SameLine();
-                if (ImGui.Button("Remove"))
+                if (ImGui.Button(this.PluginText.Label("button.remove", "Remove", "RemoveString")))
                 {
                     toRemove = i;
                 }
@@ -1821,7 +1823,7 @@ namespace StashUtility
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"UI Tree Dump from root: 0x{address.ToInt64():X}");
             DumpUiTreeRecursive(address, "", 0, sb);
-            
+
             try
             {
                 var dir = Path.Combine(DllDirectory, "config");
@@ -1842,7 +1844,7 @@ namespace StashUtility
 
             var off = ReadMemory<UiElementBaseOffset>(address);
             var kids = ReadStdVector<IntPtr>(off.ChildrensPtr);
-            
+
             sb.AppendLine($"{prefix}Addr: 0x{address.ToInt64():X}, Vis: {UiElementBaseFuncs.IsVisibleChecker(off.Flags)}, Kids: {kids.Length}, Size: <{off.UnscaledSize.X},{off.UnscaledSize.Y}>");
 
             // Look for any string starting with "Metadata/" by dereferencing pointers
@@ -2035,34 +2037,34 @@ namespace StashUtility
             return rawName;
         }
 
-        private static readonly System.Text.RegularExpressions.Regex RangeRegex = 
+        private static readonly System.Text.RegularExpressions.Regex RangeRegex =
             new System.Text.RegularExpressions.Regex(@"\([^)]*\)", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex DigitsRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex DigitsRegex =
             new System.Text.RegularExpressions.Regex(@"\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex CleanRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex CleanRegex =
             new System.Text.RegularExpressions.Regex(@"[^a-zA-Z%\s]", System.Text.RegularExpressions.RegexOptions.Compiled);
-        
-        private static readonly System.Text.RegularExpressions.Regex SpacesRegex = 
+
+        private static readonly System.Text.RegularExpressions.Regex SpacesRegex =
             new System.Text.RegularExpressions.Regex(@"\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private string NormalizeForMatching(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
-            
+
             // Remove ranges in parentheses like (36-40) or (-8--6)
             var result = RangeRegex.Replace(input, "");
-            
+
             // Remove digits
             result = DigitsRegex.Replace(result, "");
-            
+
             // Remove everything except letters, % and whitespace
             result = CleanRegex.Replace(result, "");
-            
+
             // Normalize spaces to single spaces and lowercase
             result = SpacesRegex.Replace(result, " ").Trim().ToLowerInvariant();
-            
+
             return result;
         }
     }

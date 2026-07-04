@@ -78,6 +78,7 @@
             this.DrawGeneralSettings();
 
             if (this.DrawSettingsSection(
+                "section.resource_bar",
                 "Resource bar (charges / rage)",
                 "resource",
                 ref this.Settings.SettingsResourceBarSectionOpen))
@@ -86,6 +87,7 @@
             }
 
             if (this.DrawSettingsSection(
+                "section.buff_bars",
                 "Buff bars (up to 4)",
                 "buffbars",
                 ref this.Settings.SettingsBuffBarsSectionOpen))
@@ -94,6 +96,7 @@
             }
 
             if (this.DrawSettingsSection(
+                "section.buff_display",
                 "Buff display",
                 "buffdisplay",
                 ref this.Settings.SettingsBuffDisplaySectionOpen))
@@ -102,6 +105,7 @@
             }
 
             if (this.DrawSettingsSection(
+                "section.icons_tools",
                 "Icons & tools",
                 "icons",
                 ref this.Settings.SettingsIconsToolsSectionOpen))
@@ -114,42 +118,42 @@
         {
             var fieldWidth = ImGui.GetContentRegionAvail().X;
 
-            ImGui.Checkbox("Show charges (P/F/E)", ref this.Settings.ShowCharges);
-            ImGui.Checkbox("Show rage", ref this.Settings.ShowRage);
-            ImGui.Checkbox("Hide empty charges / rage", ref this.Settings.HideEmptyResources);
-            ImGui.Checkbox("Anchor resource bar to health bar", ref this.Settings.ResourceAnchorToHealthBar);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_charges", "Show charges (P/F/E)", "PlayerBuffBarShowCharges"), ref this.Settings.ShowCharges);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_rage", "Show rage", "PlayerBuffBarShowRage"), ref this.Settings.ShowRage);
+            ImGui.Checkbox(this.PluginText.Label("settings.hide_empty_resources", "Hide empty charges / rage", "PlayerBuffBarHideEmptyResources"), ref this.Settings.HideEmptyResources);
+            ImGui.Checkbox(this.PluginText.Label("settings.anchor_resource_bar", "Anchor resource bar to health bar", "PlayerBuffBarAnchorResourceBar"), ref this.Settings.ResourceAnchorToHealthBar);
             if (!this.Settings.ResourceAnchorToHealthBar)
             {
-                ImGui.Checkbox("Show position dummy (drag, then disable)", ref this.Settings.ResourceShowPositionDummy);
+                ImGui.Checkbox(this.PluginText.Label("settings.show_position_dummy", "Show position dummy (drag, then disable)", "PlayerBuffBarResourcePositionDummy"), ref this.Settings.ResourceShowPositionDummy);
             }
             else
             {
                 this.Settings.ResourceShowPositionDummy = false;
             }
 
-            ImGui.Text("Resource icon size");
+            ImGui.Text(this.PluginText.T("settings.resource_icon_size", "Resource icon size"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat("##resource_icon_size", ref this.Settings.ResourceIconSize, 1f, 16f, 72f, "%.0f");
 
-            ImGui.Text("Resource icon spacing");
+            ImGui.Text(this.PluginText.T("settings.resource_icon_spacing", "Resource icon spacing"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat("##resource_icon_spacing", ref this.Settings.ResourceIconSpacing, 0.5f, 0f, 24f, "%.1f");
 
-            ImGui.Text("Resource offset X / Y");
+            ImGui.Text(this.PluginText.T("settings.resource_offset", "Resource offset X / Y"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat2("##resource_screen_offset", ref this.Settings.ResourceScreenOffset, 1f, -400f, 400f, "%.0f");
 
-            ImGui.Text("Resource fixed position");
+            ImGui.Text(this.PluginText.T("settings.resource_fixed_position", "Resource fixed position"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat2("##resource_fixed_position", ref this.Settings.ResourceFixedPosition, 1f, 0f, 4000f, "%.0f");
 
             ImGui.Separator();
-            ImGui.TextUnformatted("Colors");
-            ImGui.ColorEdit4("Charge text color", ref this.Settings.ChargeTextColor);
-            ImGui.ColorEdit4("Rage text color", ref this.Settings.RageTextColor);
+            ImGui.TextUnformatted(this.PluginText.T("section.colors", "Colors"));
+            ImGui.ColorEdit4(this.PluginText.Label("settings.charge_text_color", "Charge text color", "PlayerBuffBarChargeTextColor"), ref this.Settings.ChargeTextColor);
+            ImGui.ColorEdit4(this.PluginText.Label("settings.rage_text_color", "Rage text color", "PlayerBuffBarRageTextColor"), ref this.Settings.RageTextColor);
 
             ImGui.TextDisabled(
-                "P/F/E charge icons load from poe2db. Rage stays numeric. Do not add charges/rage to the watchlist.");
+                this.PluginText.T("settings.resource_help", "P/F/E charge icons load from poe2db. Rage stays numeric. Do not add charges/rage to the watchlist."));
 
             ImGui.Spacing();
         }
@@ -158,17 +162,17 @@
         {
             this.Settings.EnsureBuffBarSlots();
             ImGui.TextWrapped(
-                "Each bar has its own watchlist and position. Resource charges/rage stay on the resource bar.");
+                this.PluginText.T("settings.buff_bars_help", "Each bar has its own watchlist and position. Resource charges/rage stay on the resource bar."));
 
             if (ImGui.BeginTabBar("##PlayerBuffBarTabs"))
             {
                 for (var i = 0; i < PlayerBuffBarSettings.MaxBuffBars; i++)
                 {
                     var bar = this.Settings.BuffBars[i];
-                    var tabLabel = $"Bar {i + 1}";
+                    var tabLabel = this.PluginText.F("tab.bar", "Bar {0}", i + 1);
                     if (!bar.Enabled)
                     {
-                        tabLabel += " (off)";
+                        tabLabel += this.PluginText.T("tab.off_suffix", " (off)");
                     }
 
                     if (ImGui.BeginTabItem($"{tabLabel}##buff_bar_tab_{i}"))
@@ -189,38 +193,38 @@
         {
             var fieldWidth = ImGui.GetContentRegionAvail().X;
 
-            ImGui.Checkbox("Enable this bar", ref bar.Enabled);
-            ImGui.Checkbox("Anchor to health bar", ref bar.AnchorToHealthBar);
+            ImGui.Checkbox(this.PluginText.Label("settings.enable_this_bar", "Enable this bar", $"PlayerBuffBarEnable_{barIndex}"), ref bar.Enabled);
+            ImGui.Checkbox(this.PluginText.Label("settings.anchor_to_health_bar", "Anchor to health bar", $"PlayerBuffBarAnchor_{barIndex}"), ref bar.AnchorToHealthBar);
             if (!bar.AnchorToHealthBar)
             {
-                ImGui.Checkbox("Show position dummy (drag, then disable)", ref bar.ShowPositionDummy);
+                ImGui.Checkbox(this.PluginText.Label("settings.show_position_dummy", "Show position dummy (drag, then disable)", $"PlayerBuffBarPositionDummy_{barIndex}"), ref bar.ShowPositionDummy);
             }
             else
             {
                 bar.ShowPositionDummy = false;
             }
 
-            ImGui.Text("Icon size");
+            ImGui.Text(this.PluginText.T("settings.icon_size", "Icon size"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat($"##buff_bar_{barIndex}_icon_size", ref bar.IconSize, 1f, 16f, 72f, "%.0f");
 
-            ImGui.Text("Icon spacing");
+            ImGui.Text(this.PluginText.T("settings.icon_spacing", "Icon spacing"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat($"##buff_bar_{barIndex}_icon_spacing", ref bar.IconSpacing, 0.5f, 0f, 24f, "%.1f");
 
-            ImGui.Text("Offset X / Y");
+            ImGui.Text(this.PluginText.T("settings.offset", "Offset X / Y"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat2($"##buff_bar_{barIndex}_screen_offset", ref bar.ScreenOffset, 1f, -400f, 400f, "%.0f");
-            ImGui.TextDisabled("Positive Y = below character, negative Y = above.");
+            ImGui.TextDisabled(this.PluginText.T("settings.offset_help", "Positive Y = below character, negative Y = above."));
 
-            ImGui.Text("Fixed position");
+            ImGui.Text(this.PluginText.T("settings.fixed_position", "Fixed position"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat2($"##buff_bar_{barIndex}_fixed_position", ref bar.FixedPosition, 1f, 0f, 4000f, "%.0f");
 
             ImGui.Separator();
-            ImGui.TextUnformatted("Watchlist");
+            ImGui.TextUnformatted(this.PluginText.T("section.watchlist", "Watchlist"));
             ImGui.TextWrapped(
-                "One buff id substring per line. Not for charges/rage. Examples: puppet_master, refutation, archon_undeath.");
+                this.PluginText.T("settings.watchlist_help", "One buff id substring per line. Not for charges/rage. Examples: puppet_master, refutation, archon_undeath."));
 
             if (!this.watchlistEditorDirtyPerBar[barIndex])
             {
@@ -243,7 +247,7 @@
                 this.watchlistEditorDirtyPerBar[barIndex] = true;
             }
 
-            if (ImGui.Button($"Apply watchlist##bar_{barIndex}"))
+            if (ImGui.Button(this.PluginText.Label("button.apply_watchlist", "Apply watchlist", $"bar_{barIndex}")))
             {
                 this.ApplyWatchlistBuffer(barIndex);
                 this.watchlistEditorDirtyPerBar[barIndex] = false;
@@ -253,7 +257,7 @@
             if (barIndex == 0)
             {
                 ImGui.SameLine();
-                if (ImGui.Button("Reset defaults"))
+                if (ImGui.Button(this.PluginText.Label("button.reset_defaults", "Reset defaults", "PlayerBuffBarResetDefaults")))
                 {
                     this.Settings = new PlayerBuffBarSettings();
                     Array.Clear(this.watchlistEditorDirtyPerBar);
@@ -267,49 +271,49 @@
         {
             var fieldWidth = ImGui.GetContentRegionAvail().X;
 
-            ImGui.Text("Inactive icon alpha");
+            ImGui.Text(this.PluginText.T("settings.inactive_icon_alpha", "Inactive icon alpha"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat("##inactive_icon_alpha", ref this.Settings.InactiveIconAlpha, 0.02f, 0.05f, 1f, "%.2f");
 
-            ImGui.Text("Font scale");
+            ImGui.Text(this.PluginText.T("settings.font_scale", "Font scale"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat("##font_scale", ref this.Settings.FontScale, 0.02f, 0.7f, 1.6f, "%.2f");
 
-            ImGui.Text("Max bar width");
+            ImGui.Text(this.PluginText.T("settings.max_bar_width", "Max bar width"));
             ImGui.SetNextItemWidth(fieldWidth);
             ImGui.DragFloat("##max_bar_width", ref this.Settings.MaxBarWidth, 2f, 120f, 480f, "%.0f");
 
             ImGui.Separator();
-            ImGui.TextUnformatted("Colors");
-            ImGui.ColorEdit4("Active buff color", ref this.Settings.ActiveColor);
-            ImGui.ColorEdit4("Inactive buff color", ref this.Settings.InactiveColor);
-            ImGui.ColorEdit4("Buff text color", ref this.Settings.BuffTextColor);
+            ImGui.TextUnformatted(this.PluginText.T("section.colors", "Colors"));
+            ImGui.ColorEdit4(this.PluginText.Label("settings.active_buff_color", "Active buff color", "PlayerBuffBarActiveBuffColor"), ref this.Settings.ActiveColor);
+            ImGui.ColorEdit4(this.PluginText.Label("settings.inactive_buff_color", "Inactive buff color", "PlayerBuffBarInactiveBuffColor"), ref this.Settings.InactiveColor);
+            ImGui.ColorEdit4(this.PluginText.Label("settings.buff_text_color", "Buff text color", "PlayerBuffBarBuffTextColor"), ref this.Settings.BuffTextColor);
 
             ImGui.Spacing();
         }
 
         private void DrawIconsToolsSettings()
         {
-            if (ImGui.Button("Dump my buffs"))
+            if (ImGui.Button(this.PluginText.Label("button.dump_buffs", "Dump my buffs", "PlayerBuffBarDumpBuffs")))
             {
                 this.DumpPlayerBuffs();
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Download missing icons"))
+            if (ImGui.Button(this.PluginText.Label("button.download_missing_icons", "Download missing icons", "PlayerBuffBarDownloadMissingIcons")))
             {
                 this.QueueIconDownloads(force: true);
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Reload icons"))
+            if (ImGui.Button(this.PluginText.Label("button.reload_icons", "Reload icons", "PlayerBuffBarReloadIcons")))
             {
                 this.iconLoader.ReloadIconMap(this.DllDirectory);
                 this.iconLoader.ReloadTextures();
                 this.QueueIconDownloads(force: false);
             }
 
-            ImGui.TextDisabled($"Cached icons: {this.iconLoader.CachedIconCount}");
+            ImGui.TextDisabled(this.PluginText.F("status.cached_icons", "Cached icons: {0}", this.iconLoader.CachedIconCount));
             if (!string.IsNullOrEmpty(this.iconLoader.LastLogLine))
             {
                 ImGui.TextDisabled(this.iconLoader.LastLogLine);
@@ -321,7 +325,7 @@
             }
 
             ImGui.TextDisabled(
-                "Icons load from poe2db.tw (PoE2). Cache: Plugins/PlayerBuffBar/icons/.");
+                this.PluginText.T("settings.icons_help", "Icons load from poe2db.tw (PoE2). Cache: Plugins/PlayerBuffBar/icons/."));
         }
 
         public override void DrawUI()
@@ -804,7 +808,7 @@
                 ImDrawFlags.None,
                 1.5f);
 
-            var hint = "Drag to move. Disable dummy in settings when done.";
+            var hint = this.PluginText.T("hud.drag_hint", "Drag to move. Disable dummy in settings when done.");
             var hintSize = ImGui.CalcTextSize(hint);
             var hintPos = new Vector2(fixedTopLeft.X, fixedTopLeft.Y - hintSize.Y - 4f);
             draw.AddText(hintPos + Vector2.One, ImGuiHelper.Color(new Vector4(0f, 0f, 0f, 0.9f)), hint);
@@ -1209,7 +1213,8 @@
             return string.Join(" ", parts);
         }
 
-        private string FormatInactiveLabel(string watchId) => $"{PrettyName(watchId)} — off";
+        private string FormatInactiveLabel(string watchId) =>
+            this.PluginText.F("hud.inactive_suffix", "{0} - off", PrettyName(watchId));
 
         private string BuildResourceLine(Stats? stats)
         {
@@ -1249,7 +1254,7 @@
                 var rage = GetStat(stats, GameStats.current_rage);
                 if (!this.Settings.HideEmptyResources || rage > 0)
                 {
-                    parts.Add($"Rage:{rage}");
+                    parts.Add(this.PluginText.F("hud.rage_count", "Rage:{0}", rage));
                 }
             }
 
@@ -1263,14 +1268,14 @@
             {
                 if (Core.States.GameCurrentState is not (GameStateTypes.InGameState or GameStateTypes.EscapeState))
                 {
-                    this.dumpStatusLine = "Dump failed: enter a map or town first.";
+                    this.dumpStatusLine = this.PluginText.T("status.dump_failed_state", "Dump failed: enter a map or town first.");
                     return;
                 }
 
                 var player = Core.States.InGameStateObject.CurrentAreaInstance.Player;
                 if (!player.TryGetComponent<Buffs>(out var buffs, true))
                 {
-                    this.dumpStatusLine = "Dump failed: player buffs not readable.";
+                    this.dumpStatusLine = this.PluginText.T("status.dump_failed_buffs", "Dump failed: player buffs not readable.");
                     return;
                 }
 
@@ -1284,12 +1289,12 @@
                 File.WriteAllText(dumpPath, sb.ToString());
                 var count = buffs.StatusEffects.Count;
                 this.dumpStatusLine =
-                    $"Dump saved ({count} buffs): Plugins/PlayerBuffBar/player_buff_dump.txt";
+                    this.PluginText.F("status.dump_saved", "Dump saved ({0} buffs): Plugins/PlayerBuffBar/player_buff_dump.txt", count);
                 Console.WriteLine($"[PlayerBuffBar] Wrote {count} buffs to {dumpPath}");
             }
             catch (Exception ex)
             {
-                this.dumpStatusLine = $"Dump failed: {ex.Message}";
+                this.dumpStatusLine = this.PluginText.F("status.dump_failed_error", "Dump failed: {0}", ex.Message);
                 Console.WriteLine($"[PlayerBuffBar] Buff dump failed: {ex}");
             }
         }
@@ -1391,34 +1396,34 @@
 
         private void DrawGeneralSettings()
         {
-            ImGui.SeparatorText("General");
+            ImGui.SeparatorText(this.PluginText.T("section.general", "General"));
 
             var fieldWidth = ImGui.GetContentRegionAvail().X;
 
-            ImGui.Checkbox("Show overlay", ref this.Settings.ShowOverlay);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_overlay", "Show overlay", "PlayerBuffBarShowOverlay"), ref this.Settings.ShowOverlay);
 
-            ImGui.Text("Display mode");
+            ImGui.Text(this.PluginText.T("settings.display_mode", "Display mode"));
             ImGui.SetNextItemWidth(fieldWidth);
             var displayMode = (int)this.Settings.DisplayMode;
             var displayModePreview = displayMode switch
             {
-                0 => "Icons",
-                1 => "Text",
-                _ => "Icons + text",
+                0 => this.PluginText.T("display_mode.icons", "Icons"),
+                1 => this.PluginText.T("display_mode.text", "Text"),
+                _ => this.PluginText.T("display_mode.icons_and_text", "Icons + text"),
             };
             if (ImGui.BeginCombo("##display_mode", displayModePreview))
             {
-                if (ImGui.Selectable("Icons", displayMode == 0))
+                if (ImGui.Selectable(this.PluginText.T("display_mode.icons", "Icons"), displayMode == 0))
                 {
                     displayMode = 0;
                 }
 
-                if (ImGui.Selectable("Text", displayMode == 1))
+                if (ImGui.Selectable(this.PluginText.T("display_mode.text", "Text"), displayMode == 1))
                 {
                     displayMode = 1;
                 }
 
-                if (ImGui.Selectable("Icons + text", displayMode == 2))
+                if (ImGui.Selectable(this.PluginText.T("display_mode.icons_and_text", "Icons + text"), displayMode == 2))
                 {
                     displayMode = 2;
                 }
@@ -1431,20 +1436,20 @@
                 this.Settings.DisplayMode = (BuffBarDisplayMode)displayMode;
             }
 
-            ImGui.Checkbox("Hide in town / hideout", ref this.Settings.HideInTownOrHideout);
-            ImGui.Checkbox("Hide when game in background", ref this.Settings.HideWhenGameInBackground);
-            ImGui.Checkbox("Show inactive watchlist buffs", ref this.Settings.ShowInactiveWatchlist);
-            ImGui.Checkbox("Show durations", ref this.Settings.ShowDurations);
-            ImGui.Checkbox("Show stacks", ref this.Settings.ShowStacks);
-            ImGui.Checkbox("Auto-download poe2db icons", ref this.Settings.AutoDownloadWikiIcons);
-            ImGui.Checkbox("Count badge background", ref this.Settings.ShowResourceCountBackground);
+            ImGui.Checkbox(this.PluginText.Label("settings.hide_town_hideout", "Hide in town / hideout", "PlayerBuffBarHideTownHideout"), ref this.Settings.HideInTownOrHideout);
+            ImGui.Checkbox(this.PluginText.Label("settings.hide_background", "Hide when game in background", "PlayerBuffBarHideBackground"), ref this.Settings.HideWhenGameInBackground);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_inactive_watchlist", "Show inactive watchlist buffs", "PlayerBuffBarShowInactiveWatchlist"), ref this.Settings.ShowInactiveWatchlist);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_durations", "Show durations", "PlayerBuffBarShowDurations"), ref this.Settings.ShowDurations);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_stacks", "Show stacks", "PlayerBuffBarShowStacks"), ref this.Settings.ShowStacks);
+            ImGui.Checkbox(this.PluginText.Label("settings.auto_download_icons", "Auto-download poe2db icons", "PlayerBuffBarAutoDownloadIcons"), ref this.Settings.AutoDownloadWikiIcons);
+            ImGui.Checkbox(this.PluginText.Label("settings.count_badge_background", "Count badge background", "PlayerBuffBarCountBadgeBackground"), ref this.Settings.ShowResourceCountBackground);
             ImGuiHelper.ToolTip(
-                "When off, charge/rage counts and buff stack numbers are drawn as text only (no black bar on the icon).");
+                this.PluginText.T("settings.count_badge_background.tooltip", "When off, charge/rage counts and buff stack numbers are drawn as text only (no black bar on the icon)."));
 
             ImGui.Spacing();
         }
 
-        private bool DrawSettingsSection(string english, string id, ref bool isOpen)
+        private bool DrawSettingsSection(string key, string english, string id, ref bool isOpen)
         {
             var flags = ImGuiTreeNodeFlags.CollapsingHeader | ImGuiTreeNodeFlags.SpanFullWidth;
             if (isOpen)
@@ -1452,7 +1457,7 @@
                 flags |= ImGuiTreeNodeFlags.DefaultOpen;
             }
 
-            var opened = ImGui.TreeNodeEx($"{english}##PlayerBuffBar_{id}", flags);
+            var opened = ImGui.TreeNodeEx($"{this.PluginText.T(key, english)}##PlayerBuffBar_{id}", flags);
             isOpen = opened;
             return opened;
         }
