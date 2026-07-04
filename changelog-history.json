@@ -1,6 +1,14 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.4",
+                         "published":  "2026-07-02T15:06:45.3658571Z",
+                         "changelog":  [
+                                           "[Fix] hides Radar/Health Bars correctly when Atlas skill tree is opened (Gordin)",
+                                           "New: StashUtility (Tenchi)"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.3",
                          "published":  "2026-06-29T16:36:39.1970826Z",
                          "changelog":  [

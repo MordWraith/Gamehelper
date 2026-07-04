@@ -29,10 +29,23 @@
     <Content Include="expedition2_recipes.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- English display names for ExpeditionRelic buff mods, keyed by language-independent mod Id. Edit freely. -->
+    <Content Include="relic_mods_en.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Reward-marker icons sliced from the game minimap sheet by extract_minimap_icons.py. -->
+    <Content Include="icons\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
   </ItemGroup>
 
   <Target Name="CopyFiles" AfterTargets="Build">
-    <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;$(OutDir)expedition2_recipes.json;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;$(OutDir)expedition2_recipes.json;$(OutDir)relic_mods_en.json;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <RewardIconFiles Include="$(OutDir)icons\**\*.png" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RewardIconFiles)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\icons\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

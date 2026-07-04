@@ -7,7 +7,7 @@ param(
     [ValidateSet(
         "Menu", "Status", "Build", "Run",
         "SyncGordinCore", "SyncGordinPlugins", "SyncGordinAll",
-        "SyncPlugins", "SyncPluginsMordWraith", "SyncPluginsUpstream",
+        "SyncPlugins", "SyncPluginsMordWraith", "SyncPluginsUpstream", "SyncPluginsMulti",
         "Publish", "PushSource", "VerifyPublish", "BuildDownloader"
     )]
     [string]$Action = "Menu",

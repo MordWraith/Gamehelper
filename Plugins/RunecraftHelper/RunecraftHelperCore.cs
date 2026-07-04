@@ -101,6 +101,14 @@ namespace RunecraftHelper
         private const int BaseItemTypeArtOffset = 0x78;    // → sub-object; +0x08 → ".dds" art path
         private const int ArtSubPathOffset = 0x08;         //   art path = poe.ninja image-id
 
+        // Combinations-panel row UiElement → its Expedition2Recipes_Row (live-verified back-ptr).
+        private const int RecipeRowBackPtrOffset = 0x540;
+        // Expedition2Recipes_Row → reward BaseItemType* (null = "random currency" / no fixed item).
+        private const int RecipeRewardItemOffset = 0x2c;
+        // Expedition2Recipes_Row → level band (i32 MinLevelReq / i32 MaxLevelReq).
+        private const int RecipeMinLevelOffset = 0x24;
+        private const int RecipeMaxLevelOffset = 0x28;
+
         private IntPtr processHandle = IntPtr.Zero;
         private int handlePid;
 
@@ -118,6 +126,15 @@ namespace RunecraftHelper
         // While the dict is empty, throttle the (BFS-heavy) build attempts so a table that can't be
         // located doesn't re-run the pointer walk every frame. Reset on process change.
         private DateTime nameToArtNextTryUtc = DateTime.MinValue;
+
+        // {BaseItemType.Id (full meta path) → LOCALIZED display name}, built once per session from the
+        // in-memory BaseItemTypes table (row Id @+0x00, localized Name @+0x20). Used by the Monolith
+        // rewards window to show reward names in the client's language instead of the English catalog
+        // json. Keyed by the FULL meta path because the catalog's reward.id is the full path
+        // ("Metadata/Items/Currency/…"), which is unique (no last-segment collisions). Reset on process
+        // change (language-specific). See obsidian poe2/Loaders.md (FileRoot route).
+        private Dictionary<string, string> metaToLocalName = new(StringComparer.Ordinal);
+        private DateTime metaToLocalNextTryUtc = DateTime.MinValue;
 
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
         private string PriceCachePathname => Path.Join(this.DllDirectory, "config", "prices.json");
@@ -152,86 +169,184 @@ namespace RunecraftHelper
         public override void DrawSettings()
         {
             ImGui.TextWrapped("RunecraftHelper: while the in-game Runeshape Combinations panel is open, the " +
-                              "poe.ninja Exalted price is drawn on the right edge of each visible reward row. " +
-                              "The reward name shown is the game's own (any client language).");
+                            "poe.ninja Exalted price is drawn on the right edge of each visible reward row. " +
+                            "The reward name shown is the game's own (any client language).");
 
             ImGui.Spacing();
             ImGui.Separator();
 
-            ImGui.InputText("League", ref this.Settings.League, 64);
-            ImGui.SliderInt("Refresh interval (min)", ref this.Settings.CacheTtlMinutes, 5, 60);
+            if(ImGui.CollapsingHeader("poe.ninja settings")) {
+                ImGui.InputText("League", ref this.Settings.League, 64);
+                ImGui.SliderInt("Refresh interval (min)", ref this.Settings.CacheTtlMinutes, 5, 60);
 
-            int colorMode = (int)this.Settings.ColorMode;
-            if (ImGui.Combo("Price color", ref colorMode,
-                    "Off\0Relative (vs. median on screen)\0Absolute (Exalted thresholds)\0"))
-                this.Settings.ColorMode = (RewardColorMode)colorMode;
-
-            ImGui.SliderFloat("Price X offset", ref this.Settings.OverlayXOffset, -400f, 400f, "%.0f px");
-
-            ImGui.Checkbox("Highlight locked recipe (sealed monolith)", ref this.Settings.HighlightLockedRecipeInPanel);
-            if (this.Settings.HighlightLockedRecipeInPanel)
-                ImGui.TextDisabled("Gold border on the panel row of a sealed monolith's locked-in recipe.");
-
-            ImGui.Spacing();
-            ImGui.SeparatorText("Monolith rewards");
-            ImGui.Checkbox("Show monolith reward window", ref this.Settings.ShowMonolithRewards);
-            if (this.Settings.ShowMonolithRewards)
-            {
-                ImGui.SliderFloat("Hide rewards under (ex)", ref this.Settings.MonolithRewardsMinExalted, 0f, 50f, "%.0f ex");
-
-                ImGui.InputFloat("Highlight threshold (ex)", ref this.Settings.MonolithHighlightThreshold, 1f, 10f, "%.0f");
-                if (this.Settings.MonolithHighlightThreshold < 0f) this.Settings.MonolithHighlightThreshold = 0f;
-                ImGui.TextDisabled("Tints a monolith's header by its best reward value: green at/above the\n" +
-                    "threshold, yellow from 0.6× up to it, none below. 0 = off (use Price color).");
-
-                ImGui.Checkbox("Draw value on map overlay", ref this.Settings.DrawMonolithValueOnMap);
-                if (this.Settings.DrawMonolithValueOnMap)
+                // poe.ninja price sync status + manual refresh — common (the price overlay is shared by all features).
+                ImGui.Spacing();
+                var status = this.priceCache.Status;
+                var lastSync = this.priceCache.LastSyncUtc;
+                string statusText = status switch
                 {
-                    ImGui.TextDisabled("Paints each monolith's best value (ex) on the large-map overlay, like\n" +
-                        "Radar's socket count (tinted by the threshold above). If it doesn't line\n" +
-                        "up with the monolith, match these to your Radar large-map settings:");
-                    ImGui.Checkbox("Hide map values while Combinations panel open", ref this.Settings.HideMapValueWhenPanelOpen);
-                    ImGui.SliderFloat("Map value scale", ref this.Settings.MapValueScaleMultiplier, 0.1f, 3f, "%.2f");
-                    ImGui.SliderFloat("Map value X offset", ref this.Settings.MapValueXOffset, -200f, 200f, "%.0f");
-                    ImGui.SliderFloat("Map value Y offset", ref this.Settings.MapValueYOffset, -200f, 200f, "%.0f");
-                }
+                    PriceSyncStatus.Syncing => "syncing…",
+                    PriceSyncStatus.Ready => lastSync == DateTime.MinValue
+                        ? "ready (no data yet)"
+                        : $"updated {FormatRelative(lastSync)} ago",
+                    PriceSyncStatus.Error => $"error: {this.priceCache.LastError}",
+                    _ => "idle",
+                };
 
-                ImGui.TextDisabled("For each nearby monolith: its anchor rune + hole, and the candidate\n" +
-                    "recipes (from Expedition2Recipes.dat, filtered by the anchor) with\n" +
-                    "poe.ninja Exalted prices. Reads the anchor off the persistent device,\n" +
-                    "so it works even out of the network bubble.");
+                ImGui.Text($"Status: {statusText}");
+                ImGui.Text($"Items cached: {this.priceCache.PriceCount}");
+                if (this.priceCache.DivineToExaltedRate > 0)
+                    ImGui.Text($"1 Divine = {this.priceCache.DivineToExaltedRate:F2} Exalted");
+
+                ImGui.BeginDisabled(status == PriceSyncStatus.Syncing);
+                if (ImGui.Button("Refresh now"))
+                    this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
+                ImGui.EndDisabled();
             }
 
-            ImGui.Checkbox("Show monolith debug window", ref this.Settings.ShowWindow);
-            if (this.Settings.ShowWindow)
-                ImGui.TextDisabled("Pick a monolith and dump everything the offer rule uses (anchor/p/N,\n" +
-                    "sockets-vs-station N, area level, addresses, and every offered recipe with\n" +
-                    "row/size/gate/category/reward/levels/rune pattern). 'Copy report' → clipboard\n" +
-                    "for reporting a game-vs-plugin mismatch.");
-
             ImGui.Spacing();
+            if (!ImGui.BeginTabBar("rh_settings_tabs"))
+                return;
 
-            var status = this.priceCache.Status;
-            var lastSync = this.priceCache.LastSyncUtc;
-            string statusText = status switch
+            if (ImGui.BeginTabItem("Runestone monoliths"))
             {
-                PriceSyncStatus.Syncing => "syncing…",
-                PriceSyncStatus.Ready => lastSync == DateTime.MinValue
-                    ? "ready (no data yet)"
-                    : $"updated {FormatRelative(lastSync)} ago",
-                PriceSyncStatus.Error => $"error: {this.priceCache.LastError}",
-                _ => "idle",
-            };
+                ImGui.Spacing();
 
-            ImGui.Text($"Status: {statusText}");
-            ImGui.Text($"Items cached: {this.priceCache.PriceCount}");
-            if (this.priceCache.DivineToExaltedRate > 0)
-                ImGui.Text($"1 Divine = {this.priceCache.DivineToExaltedRate:F2} Exalted");
+                ImGui.Checkbox("Show glow runes", ref this.Settings.ShowGlowRunes);
+                if (this.Settings.ShowGlowRunes)
+                {
+                    ImGui.TextDisabled("Labels a monolith on the large map with a watched rune found on a glowing\n" +
+                        "socket. Highest-weight match shows; ties show all. Defaults can be toggled off but not removed.");
+                    this.EnsureGlowRuneDefaults();
+                    this.DrawGlowRuneTable();
+                }
 
-            ImGui.BeginDisabled(status == PriceSyncStatus.Syncing);
-            if (ImGui.Button("Refresh now"))
-                this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
-            ImGui.EndDisabled();
+                ImGui.Separator();
+                ImGui.Spacing();
+
+                ImGui.Checkbox("Highlight locked recipe (sealed monolith)", ref this.Settings.HighlightLockedRecipeInPanel);
+                if (this.Settings.HighlightLockedRecipeInPanel)
+                    ImGui.TextDisabled("Gold border on the panel row of a sealed monolith's locked-in recipe.");
+
+                ImGui.Separator();
+                ImGui.Spacing();
+
+                ImGui.Checkbox("Show monolith reward window", ref this.Settings.ShowMonolithRewards);
+                if (this.Settings.ShowMonolithRewards)
+                {
+                    // Price overlay controls live here — they tint / position the per-recipe price text drawn on the
+                    // in-game Runeshape Combinations panel (the monolith reward overlay).
+                    int colorMode = (int)this.Settings.ColorMode;
+                    if (ImGui.Combo("Price color", ref colorMode,
+                            "Off\0Relative (vs. median on screen)\0Absolute (Exalted thresholds)\0"))
+                        this.Settings.ColorMode = (RewardColorMode)colorMode;
+
+                    ImGui.SliderFloat("Price X offset", ref this.Settings.OverlayXOffset, -400f, 400f, "%.0f px");
+
+                    ImGui.SliderFloat("Hide rewards under (ex)", ref this.Settings.MonolithRewardsMinExalted, 0f, 50f, "%.0f ex");
+
+                    ImGui.InputFloat("Highlight threshold (ex)", ref this.Settings.MonolithHighlightThreshold, 1f, 10f, "%.0f");
+                    if (this.Settings.MonolithHighlightThreshold < 0f) this.Settings.MonolithHighlightThreshold = 0f;
+                    ImGui.TextDisabled("Tints a monolith's header by its best reward value: green at/above the\n" +
+                        "threshold, yellow from 0.6× up to it, none below. 0 = off (use Price color).");
+
+                    ImGui.Separator();
+                    ImGui.Spacing();
+
+                    ImGui.TextDisabled("Paints each monolith's best value (ex) on the large-map overlay");
+                    ImGui.Checkbox("Draw value on map overlay", ref this.Settings.DrawMonolithValueOnMap);
+                    if (this.Settings.DrawMonolithValueOnMap)
+                    {
+                        ImGui.Checkbox("Hide map values while Combinations panel open", ref this.Settings.HideMapValueWhenPanelOpen);
+                        ImGui.SliderFloat("Map value scale", ref this.Settings.MapValueScaleMultiplier, 0.1f, 3f, "%.2f");
+                        ImGui.SliderFloat("Map value X offset", ref this.Settings.MapValueXOffset, -200f, 200f, "%.0f");
+                        ImGui.SliderFloat("Map value Y offset", ref this.Settings.MapValueYOffset, -200f, 200f, "%.0f");
+                    }
+                }
+
+                //ImGui.Checkbox("Show monolith debug window", ref this.Settings.ShowWindow);
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("Expedition"))
+            {
+                ImGui.TextDisabled("Explosive-chain route planner");
+                ImGui.Checkbox("Show route planner", ref this.Settings.ShowExpeditionPlanner);
+                if (this.Settings.ShowExpeditionPlanner)
+                {
+                    ImGui.TextDisabled("A planner window appears while the in-game explosive HUD is visible");
+                    if(ImGui.CollapsingHeader("Reward / target profile")) {
+                        this.DrawExpeditionTargetProfileSettings();
+                    }
+
+                    if(ImGui.CollapsingHeader("Relic buff profile")) {
+                        this.DrawExpeditionBuffProfileSettings();
+                    }
+                }
+
+                if (ImGui.CollapsingHeader("Debug"))
+                {
+                    //ImGui.Checkbox("Show Expedition debug window", ref this.Settings.ShowExpeditionDebug);
+                    ImGui.Checkbox("Show grid value", ref this.Settings.ShowExpeditionGridValue);
+                    //ImGui.Checkbox("Show path blockers (gates)", ref this.Settings.ShowExpeditionGates);
+                    //if (this.Settings.ShowExpeditionGates)
+                    //{
+                    //    ImGui.TextDisabled("Paints, on the large map (Tab), the footprint of each TriggerableBlockage\n" +
+                    //        "terrain object — the hole it punches in the walkable grid. Red = still blocking,\n" +
+                    //        "green dot = open. Visualization + route now uses blast-opened paths (WIP).");
+                    //    ImGui.Indent();
+                    //    ImGui.SetNextItemWidth(160);
+                    //    ImGui.SliderInt("flood max radius", ref this.Settings.ExpGateFloodMaxRadius, 5, 120);
+                    //    ImGui.SetNextItemWidth(160);
+                    //    ImGui.SliderInt("flood max cells", ref this.Settings.ExpGateFloodMaxCells, 100, 8000);
+                    //    ImGui.SetNextItemWidth(160);
+                    //    ImGui.SliderInt("disk fallback radius", ref this.Settings.ExpGateDiskRadius, 2, 40);
+                    //    ImGui.TextDisabled("Tune until the red footprint covers the blocker (re-floods live).");
+                    //    ImGui.Unindent();
+                    //}
+
+                    //ImGui.Checkbox("Show weight heatmap (all)", ref this.Settings.ShowExpeditionHeatmap);
+                    //ImGui.Checkbox("Show marker heatmap (non-monolith)", ref this.Settings.ShowExpeditionHeatmapMarkers);
+                    //if (this.Settings.ShowExpeditionHeatmap || this.Settings.ShowExpeditionHeatmapMarkers)
+                    //{
+                    //    ImGui.Indent();
+                    //    ImGui.SetNextItemWidth(160);
+                    //    ImGui.SliderInt("heatmap radius", ref this.Settings.ExpHeatmapRadius, 20, 200);
+                    //    ImGui.TextDisabled("Dumps expedition_inventory.txt.");
+                    //    ImGui.Unindent();
+                    //}
+
+                    ImGui.Checkbox("Show route spine (Router)", ref this.Settings.ShowExpeditionSpine);
+                    if (this.Settings.ShowExpeditionSpine)
+                        ImGui.TextDisabled("Large map (Tab): draws the Router's strict-spine polyline (cyan) — the path\n" +
+                            "walked (detonator → anchors), shown separately from the charge placements.");
+
+                    ImGui.Checkbox("Log planner decisions", ref this.Settings.ExpLogPlanner);
+                    if (this.Settings.ExpLogPlanner)
+                    {
+                        ImGui.TextDisabled("Writes a full decision trace on each Run (every candidate, its score,\n" +
+                            "rejections, gate openings, final pick) to expedition_planner_log.txt in the\n" +
+                            "plugin folder. For debugging why the route chose a path.");
+                        if (this.expLogLines > 0)
+                        {
+                            ImGui.TextDisabled($"planner log: {this.expLogLines} lines");
+                            ImGui.SameLine();
+                            if (ImGui.SmallButton("open log"))
+                            {
+                                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(this.expLogPath) { UseShellExecute = true }); }
+                                catch { /* ignore */ }
+                            }
+
+                            ImGui.SameLine();
+                            if (ImGui.SmallButton("copy path")) ImGui.SetClipboardText(this.expLogPath);
+                        }
+                    }
+                }
+
+                ImGui.EndTabItem();
+            }
+
+            ImGui.EndTabBar();
         }
 
         public override void DrawUI()
@@ -267,7 +382,7 @@ namespace RunecraftHelper
             // locked-recipe highlight also needs the scan (to know each nearby station's locked recipe).
             bool wantLockHighlight = panelOpen && this.Settings.HighlightLockedRecipeInPanel;
             if (this.Settings.ShowMonolithRewards || this.Settings.ShowWindow ||
-                this.Settings.DrawMonolithValueOnMap || wantLockHighlight)
+                this.Settings.DrawMonolithValueOnMap || this.Settings.ShowGlowRunes || wantLockHighlight)
                 this.DrawMonolithRewards(panelOpen);
 
             // Which monolith's panel is open? Distance is NOT a discriminator — several monoliths can sit
@@ -282,6 +397,13 @@ namespace RunecraftHelper
                 this.lockedPanelMetaId = string.Empty;
                 this.lockedPanelName = string.Empty;
             }
+
+            // Expedition planner (WIP) — runs independently of the Runeshape Combinations panel, so do it
+            // before the panel-open early-return below.
+            if (this.Settings.ShowExpeditionDebug || this.Settings.ShowExpeditionGridValue ||
+                this.Settings.ShowExpeditionPlanner || this.Settings.ShowExpeditionGates ||
+                this.Settings.ShowExpeditionHeatmap || this.Settings.ShowExpeditionHeatmapMarkers)
+                this.ExpeditionTick();
 
             if (!panelOpen)
             {
@@ -408,12 +530,34 @@ namespace RunecraftHelper
                 var raw = this.ReadStdWString(label + NameWStringOffset);
                 if (string.IsNullOrEmpty(raw)) continue;
 
+                // Count ("Nx ") is digits — locale-independent — so keep parsing it from the label.
                 ParseNameAndCount(raw, out var count, out var name);
-                this.nameToArtId.TryGetValue(name.Trim(), out var keys);
+
+                // Reward identity from the recipe row, not the localized text. row UiElement +0x540 →
+                // Expedition2Recipes_Row; +0x2c → reward BaseItemType (Id/meta +0x00, Name +0x20, art +0x78→+0x08).
+                string metaId = string.Empty, ddsArt = string.Empty, recipeId = string.Empty;
+                var recipe = this.ReadPtr(row + RecipeRowBackPtrOffset);
+                if (recipe != IntPtr.Zero)
+                {
+                    // Recipe row +0x00 → language-independent Id ("4Slot…"); used to look up the offline
+                    // catalog for the glow-rune panel label (see GlowRuneLabelForRecipe).
+                    recipeId = this.ReadUtf16Z(this.ReadPtr(recipe), 64);
+                    var bit = this.ReadPtr(recipe + RecipeRewardItemOffset);
+                    if (bit != IntPtr.Zero)
+                    {
+                        metaId = LastMetaSegment(this.ReadUtf16Z(this.ReadPtr(bit + BaseItemTypeIdOffset), 128));
+                        var artSub = this.ReadPtr(bit + BaseItemTypeArtOffset);
+                        if (artSub != IntPtr.Zero)
+                            ddsArt = ArtIdFromDdsPath(this.ReadUtf16Z(this.ReadPtr(artSub + ArtSubPathOffset), 128));
+                        var bitName = this.ReadUtf16Z(this.ReadPtr(bit + BaseItemTypeNameOffset), 64);
+                        if (!string.IsNullOrEmpty(bitName)) name = bitName; // localized reward name (locked-match fallback)
+                    }
+                    // bit == 0 → "random currency": no fixed BaseItemType. Keep the label name; it has no price.
+                }
                 // RowAddress is the visible row UiElement — re-resolved every frame here, so the
                 // overlay always draws against fresh (post-scroll) screen coordinates. Name is kept
-                // only as a localized-name price fallback for English clients; it is never displayed.
-                this.recipes.Add(new Recipe(count, row, keys.MetaId ?? string.Empty, keys.DdsArt ?? string.Empty, name));
+                // only as a localized-name price fallback; it is never displayed.
+                this.recipes.Add(new Recipe(count, row, metaId, ddsArt, name, recipeId));
             }
         }
 
@@ -580,12 +724,12 @@ namespace RunecraftHelper
 
         // Scratch list of resolved rows, rebuilt each frame (kept as a field to avoid per-frame allocs).
         // Locked = this row is the sealed monolith's locked-in recipe (gold-bordered).
-        private readonly List<(Vector2 Pos, Vector2 Size, double Total, bool Locked)> overlayRows = new();
+        private readonly List<(Vector2 Pos, Vector2 Size, double Total, bool Locked, string Rune)> overlayRows = new();
 
         // Priced rows for the current frame (RowAddress + total), built BEFORE geometry is resolved so
         // the Relative-mode median is computed over the full priced set, independent of whether any
         // individual row's screen geometry read succeeds this frame. Locked: see overlayRows.
-        private readonly List<(IntPtr Addr, double Total, bool Locked)> pricedScratch = new();
+        private readonly List<(IntPtr Addr, double Total, bool Locked, string Rune)> pricedScratch = new();
 
         // Last-good screen geometry per row UiElement. A single ReadProcessMemory miss on a live client
         // would otherwise blank or teleport that row's price for a frame; instead we reuse the previous
@@ -601,6 +745,7 @@ namespace RunecraftHelper
         private const uint ColorShadow = 0xCC000000u;
         private const uint ColorPriceBg = 0xE6000000u; // 90%-opaque black plate behind the price text
         private const uint ColorGold = 0xFF00D7FFu;     // gold border on the sealed monolith's locked row
+        private const uint ColorGlowRune = 0xFF4DCCFFu;  // amber — watched-rune name after the price (matches the map label)
 
         // Reward metaId of the locked recipe for the sealed monolith the open panel belongs to (the
         // closest monolith). Set each frame in DrawUI; a visible panel row whose MetaId matches gets a
@@ -639,9 +784,16 @@ namespace RunecraftHelper
                          string.Equals(r.MetaId, this.lockedPanelMetaId, StringComparison.Ordinal)) ||
                         (this.lockedPanelName.Length > 0 &&
                          string.Equals(r.Name, this.lockedPanelName, StringComparison.Ordinal));
-                    this.pricedScratch.Add((r.RowAddress, unit * Math.Max(1, r.Count), locked));
+                    // Watched rune this recipe would place on the open monolith's glowing socket (empty if none).
+                    string rune = this.GlowRuneLabelForRecipe(r.Id);
+                    this.pricedScratch.Add((r.RowAddress, unit * Math.Max(1, r.Count), locked, rune));
                 }
             if (this.pricedScratch.Count == 0) return;
+
+            // Best reward = the highest-priced offered row (green frame below). Computed over the full
+            // priced set, independent of which rows' geometry resolves this frame.
+            double bestTotal = double.NegativeInfinity;
+            foreach (var p in this.pricedScratch) if (p.Total > bestTotal) bestTotal = p.Total;
 
             double median = 0;
             if (this.Settings.ColorMode == RewardColorMode.Relative)
@@ -649,10 +801,10 @@ namespace RunecraftHelper
 
             // 2) Resolve each row's screen geometry, falling back to its last-good (pos, size) for a few
             //    frames on a read miss so the price doesn't blink out or teleport on a single bad read.
-            foreach (var (addr, total, locked) in this.pricedScratch)
+            foreach (var (addr, total, locked, rune) in this.pricedScratch)
             {
                 if (!this.TryResolveRowGeometry(addr, out var pos, out var size)) continue;
-                this.overlayRows.Add((pos, size, total, locked));
+                this.overlayRows.Add((pos, size, total, locked, rune));
             }
             if (this.overlayRows.Count == 0) return;
 
@@ -698,6 +850,17 @@ namespace RunecraftHelper
                 var at = new Vector2(x, y);
                 var bgPad = new Vector2(4f * k, 2f * k);
                 drawList.AddRectFilled(at - bgPad, at + ts + bgPad, ColorPriceBg, 3f * k);
+
+                // Best reward: green frame. Drawn as an OUTER ring (offset beyond the gold box) so it never
+                // overlaps the locked-recipe gold frame — when the best row IS the locked row you see green
+                // outside + gold inside; otherwise each ring sits on its own row.
+                bool isBest = row.Total >= bestTotal && bestTotal > double.NegativeInfinity;
+                if (isBest)
+                {
+                    var gp = bgPad + new Vector2(2f * k, 2f * k);
+                    drawList.AddRect(at - gp, at + ts + gp, ColorGreen, 4f * k, ImDrawFlags.None, 2f * k);
+                }
+
                 if (row.Locked)
                 {
                     // Sealed monolith: ring the locked-in recipe's price box in gold so it's obvious
@@ -707,6 +870,17 @@ namespace RunecraftHelper
 
                 drawList.AddText(font, fontPx, at + new Vector2(1f, 1f), ColorShadow, text);
                 drawList.AddText(font, fontPx, at, color, text);
+
+                // Glow-rune label: this recipe places a watched rune on the monolith's glowing socket — write
+                // its name AFTER the price, on its own transparent plate (same style as the price box).
+                if (!string.IsNullOrEmpty(row.Rune))
+                {
+                    var rts = ImGui.CalcTextSize(row.Rune) * k;
+                    var rat = new Vector2(at.X + ts.X + bgPad.X + (8f * k), y);
+                    drawList.AddRectFilled(rat - bgPad, rat + rts + bgPad, ColorPriceBg, 3f * k);
+                    drawList.AddText(font, fontPx, rat + new Vector2(1f, 1f), ColorShadow, row.Rune);
+                    drawList.AddText(font, fontPx, rat, ColorGlowRune, row.Rune);
+                }
             }
         }
 
@@ -768,7 +942,7 @@ namespace RunecraftHelper
             }
         }
 
-        private static double MedianOf(List<(IntPtr Addr, double Total, bool Locked)> rows)
+        private static double MedianOf(List<(IntPtr Addr, double Total, bool Locked, string Rune)> rows)
         {
             var arr = new double[rows.Count];
             for (int i = 0; i < arr.Length; i++) arr[i] = rows[i].Total;
@@ -975,16 +1149,19 @@ namespace RunecraftHelper
         private bool TryGetRecipePrice(in Recipe r, out double unit)
         {
             // Uncut gems (Skill/Support/Spirit) reuse ONE icon per family; the level is the metaId's
-            // trailing digits with no "Level" marker. Match ONLY on dds-art + level (e.g.
-            // "SkillGemUncut19" + art "UncutSkillGem" → "UncutSkillGem19"). Never fall through: the
-            // bare dds-art key holds an arbitrary level's price, and base/quest variants (no digit)
-            // aren't tradable at all.
+            // trailing digits with no "Level" marker. Try dds-art + level first (e.g. "UncutSkillGemBuff"
+            // + 19), then fall back to the metaId→English-name path, which is level-SPECIFIC (the catalog
+            // name carries "(Level 19)") and language-independent — this rescues the gem when the live
+            // dds-art read comes back empty (offset drift) or its art id differs from poe.ninja's. We must
+            // NOT fall through to the BARE dds-art key, which holds an arbitrary level's price.
             if (IsUncutGem(r.MetaId))
             {
                 int gemLevel = UncutGemLevel(r.MetaId);
-                if (gemLevel >= 0 && !string.IsNullOrEmpty(r.DdsArt) &&
+                if (gemLevel < 0) { unit = 0; return false; }   // base/quest variant — not tradable
+                if (!string.IsNullOrEmpty(r.DdsArt) &&
                     this.priceCache.TryGetPriceByArtId(r.DdsArt + gemLevel.ToString(), out unit) && unit > 0)
                     return true;
+                if (this.TryPriceByMetaEnglish(r.MetaId, out unit)) return true;
                 unit = 0;
                 return false;
             }
@@ -1007,18 +1184,67 @@ namespace RunecraftHelper
             // English-name fallback: poe.ninja keys some items (notably Expedition logbooks) by display
             // NAME, not metaId/dds. The live panel only gives the LOCALIZED name, so resolve the reward's
             // ENGLISH name from the offline catalog (by metaId) and price by that — language-independent.
-            if (!string.IsNullOrEmpty(r.MetaId))
-            {
-                this.BuildMetaIdToEnglishIfNeeded();
-                if (this.metaIdToEnglish.TryGetValue(r.MetaId, out var eng) &&
-                    this.priceCache.TryGetExaltedPrice(eng, out unit) && unit > 0)
-                    return true;
-            }
+            if (this.TryPriceByMetaEnglish(r.MetaId, out unit)) return true;
 
             if (this.priceCache.TryGetExaltedPrice(r.Name, out unit) && unit > 0)
                 return true;
             unit = 0;
             return false;
+        }
+
+        // Price by the reward's ENGLISH catalog name resolved from its metaId (BaseItemType.Id last
+        // segment). Language-independent and level-specific (the catalog name carries "(Level N)"), so it
+        // works on any client. metaIdToEnglish is built from the offline recipe catalog.
+        private bool TryPriceByMetaEnglish(string metaId, out double unit)
+        {
+            unit = 0;
+            if (string.IsNullOrEmpty(metaId)) return false;
+            this.BuildMetaIdToEnglishIfNeeded();
+            return this.metaIdToEnglish.TryGetValue(metaId, out var eng) &&
+                   this.priceCache.TryGetExaltedPrice(eng, out unit) && unit > 0;
+        }
+
+        // Debug: mirror TryGetRecipePrice's branch order and report which path priced the row (and to what),
+        // so a mis-resolution (e.g. an uncut gem priced as a different item) is visible in the debug window.
+        private (double price, string branch) TraceRecipePrice(in Recipe r)
+        {
+            if (IsUncutGem(r.MetaId))
+            {
+                int lvl = UncutGemLevel(r.MetaId);
+                if (lvl < 0) return (0, "uncut base/quest (no level)");
+                if (!string.IsNullOrEmpty(r.DdsArt) &&
+                    this.priceCache.TryGetPriceByArtId(r.DdsArt + lvl, out var u) && u > 0)
+                    return (u, $"uncut dds+lvl [{r.DdsArt}{lvl}]");
+                if (this.TryPriceByMetaEnglish(r.MetaId, out var ue2)) return (ue2, $"uncut meta→eng");
+                return (0, $"uncut MISS lvl={lvl} dds={r.DdsArt}");
+            }
+
+            if (!string.IsNullOrEmpty(r.MetaId) && this.priceCache.TryGetPriceByArtId(r.MetaId, out var um) && um > 0)
+                return (um, $"metaId [{r.MetaId}]");
+
+            int level = LevelFromMetaId(r.MetaId);
+            if (level >= 0)
+            {
+                if (!string.IsNullOrEmpty(r.DdsArt) &&
+                    this.priceCache.TryGetPriceByArtId(r.DdsArt + level, out var ul) && ul > 0)
+                    return (ul, $"dds+lvl [{r.DdsArt}{level}]");
+            }
+            else if (!string.IsNullOrEmpty(r.DdsArt) && this.priceCache.TryGetPriceByArtId(r.DdsArt, out var ud) && ud > 0)
+            {
+                return (ud, $"dds bare [{r.DdsArt}]");
+            }
+
+            if (!string.IsNullOrEmpty(r.MetaId))
+            {
+                this.BuildMetaIdToEnglishIfNeeded();
+                if (this.metaIdToEnglish.TryGetValue(r.MetaId, out var eng) &&
+                    this.priceCache.TryGetExaltedPrice(eng, out var ue) && ue > 0)
+                    return (ue, $"meta→eng [{eng}]");
+            }
+
+            if (this.priceCache.TryGetExaltedPrice(r.Name, out var un) && un > 0)
+                return (un, $"name [{r.Name}]");
+            return (0, "none");
         }
 
         // {metaId (BaseItemType.Id last segment) → English reward name}, from the offline recipe catalog
@@ -1136,6 +1362,8 @@ namespace RunecraftHelper
             // language-specific. Drop it on process change so it rebuilds (e.g. after a language switch).
             this.nameToArtId = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
             this.nameToArtNextTryUtc = DateTime.MinValue;
+            this.metaToLocalName = new Dictionary<string, string>(StringComparer.Ordinal);
+            this.metaToLocalNextTryUtc = DateTime.MinValue;
         }
 
         private bool IsUiElementVisible(IntPtr addr)
@@ -1174,6 +1402,66 @@ namespace RunecraftHelper
             if (f < 0x10000 || f > 0x7FFFFFFFFFFFul) return false;
             if ((long)last < (long)first) return false;
             return true;
+        }
+
+        // Read the value of a NAMED state from a StateMachine component, RAW (not via GameHelper's StateMachine
+        // component, which is refreshed on a slow tier for static "awake" terrain objects like the detonator and
+        // so kept a STALE cached value — the bug that broke detonator-pressed detection). Layout: state VALUES are
+        // std::vector<long> @ comp+0x160; state NAMES are MSVC std::strings at *(comp+0x158 → +0x10) with stride
+        // 0xC0, parallel by index. Returns the matched state's value, or 0 if not found / unreadable.
+        //
+        // Match by NAME (not index): the detonator's "activated" is the dig-started flag (0 before the press, 1
+        // after), while "light_colour" flips 0→1 merely on PLACING a charge — matching "any non-zero state" or a
+        // fixed index would false-trigger on placement. Live-verified 0.5.4HF3: [activated,light_colour,3rd] =
+        // [0,0,0] idle, [0,1,0] with a charge placed (not detonated), [1,2,1] after detonation.
+        private long StateMachineNamedStateValue(IntPtr smComponentAddr, string stateName)
+        {
+            if (smComponentAddr == IntPtr.Zero) return 0;
+            if (!this.TryReadStdVector(smComponentAddr + 0x160, out var first, out var last)) return 0;
+            long count = ((long)last - (long)first) / 8;
+            if (count <= 0 || count > 256) return 0;
+
+            var valbuf = new byte[count * 8];
+            if (!ReadProcessMemory(this.processHandle, first, valbuf, (uint)valbuf.Length, out _)) return 0;
+
+            var p = new byte[8];
+            if (!ReadProcessMemory(this.processHandle, smComponentAddr + 0x158, p, 8, out _)) return 0;
+            long statesPtr = BitConverter.ToInt64(p, 0);
+            if (statesPtr < 0x10000) return 0;
+            if (!ReadProcessMemory(this.processHandle, (IntPtr)(statesPtr + 0x10), p, 8, out _)) return 0;
+            long namesArr = BitConverter.ToInt64(p, 0);
+            if (namesArr < 0x10000) return 0;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (this.ReadStdStringNarrow((IntPtr)(namesArr + (i * 0xC0))) == stateName)
+                    return BitConverter.ToInt64(valbuf, i * 8);
+            }
+
+            return 0;
+        }
+
+        // MSVC std::string (narrow): chars inline at +0x00 when capacity < 16 (SSO), else buffer ptr @ +0x00;
+        // length @ +0x10, capacity @ +0x18.
+        private string ReadStdStringNarrow(IntPtr addr)
+        {
+            var buf = new byte[0x20];
+            if (!ReadProcessMemory(this.processHandle, addr, buf, (uint)buf.Length, out _)) return string.Empty;
+            int len = BitConverter.ToInt32(buf, 0x10);
+            if (len <= 0 || len > 256) return string.Empty;
+            int cap = BitConverter.ToInt32(buf, 0x18);
+            if (cap < len) return string.Empty;
+
+            if (cap < 16)
+            {
+                return Encoding.ASCII.GetString(buf, 0, Math.Min(len, 16));
+            }
+
+            long ptr = BitConverter.ToInt64(buf, 0);
+            if (ptr < 0x10000 || ptr > 0x7FFFFFFFFFFF) return string.Empty;
+            var outBuf = new byte[len];
+            if (!ReadProcessMemory(this.processHandle, (IntPtr)ptr, outBuf, (uint)outBuf.Length, out _)) return string.Empty;
+            return Encoding.ASCII.GetString(outBuf);
         }
 
         // MSVC std::wstring: buffer ptr at +0x00 (or 8 chars inline if cap < 8), length at +0x10, capacity at +0x18.
@@ -1222,6 +1510,6 @@ namespace RunecraftHelper
         // MetaId: BaseItemType.Id last segment (primary price key).
         // DdsArt: .dds art filename = poe.ninja image-id (fallback price key).
         // Name: localized reward name — kept only as an English-client price fallback, never shown.
-        private readonly record struct Recipe(int Count, IntPtr RowAddress, string MetaId, string DdsArt, string Name);
+        private readonly record struct Recipe(int Count, IntPtr RowAddress, string MetaId, string DdsArt, string Name, string Id);
     }
 }

@@ -20,16 +20,31 @@ namespace StashUtility
         public int MinTier = 1;
         public bool FilterMaxRevives = false;
         public int MaxRevivesAvailable = 0;
+        
         public bool FilterMinItemRarity = false;
         public int MinItemRarity = 0;
+        public bool FilterMaxItemRarity = false;
+        public int MaxItemRarity = 200;
+        
         public bool FilterMinPackSize = false;
         public int MinPackSize = 0;
+        public bool FilterMaxPackSize = false;
+        public int MaxPackSize = 100;
+        
         public bool FilterMinMonsterRarity = false;
         public int MinMonsterRarity = 0;
+        public bool FilterMaxMonsterRarity = false;
+        public int MaxMonsterRarity = 100;
+        
         public bool FilterMinMonsterEffectiveness = false;
         public int MinMonsterEffectiveness = 0;
+        public bool FilterMaxMonsterEffectiveness = false;
+        public int MaxMonsterEffectiveness = 100;
+        
         public bool FilterMinWaystoneDropChance = false;
         public int MinWaystoneDropChance = 0;
+        public bool FilterMaxWaystoneDropChance = false;
+        public int MaxWaystoneDropChance = 300;
 
         // GREAT Conditions (Waystones)
         public bool FilterGreatRarity = false;

@@ -40,6 +40,11 @@ namespace RunecraftHelper
         // Id (UTF-16 at row+0x00, e.g. "4SlotArchaicRuneofControl1") matches the offline catalog id,
         // so we resolve it by Id and never need the per-area recipe table base.
         private const int StationSelectedRecipeOffset = 0x60;
+        // Server-authoritative recipe-mode enum (RuneStation_DeserializeNetState op0 [0xb], Ghidra
+        // 0x1417bb9b0): real Expedition dig monolith=1, unique=3 (also triggers the run-state buffs),
+        // and the current league's standalone "additional" monolith=0. Used to drop the foreigner from
+        // the route (see EnumerateMonoliths). NOT reward-based — it's the game's own monolith-type field.
+        private const int StationRecipeModeOffset = 0x58;
         // → listener registered by the open Runeshape Combinations panel (an in-module vtable ptr). Set
         // only while THIS station's panel is open, null otherwise — the direct "which monolith is the
         // player browsing" signal (distance/SM-range don't discriminate; several monoliths cluster and
@@ -58,6 +63,74 @@ namespace RunecraftHelper
         // = 0x9C0 = 24 × 0x68 exactly (0x6c would be misaligned).
         private const int ExpeditionRuneStride = 0x68;
         private const int RuneCount = 34;                  // Expedition2Runes rows 0..33
+
+        // All 34 rune names, index-aligned with Expedition2Runes rows (fallback for runeNames, and the
+        // source list for the glow-rune settings table). See obsidian poe2/expedition-runes.
+        private static readonly string[] AllRuneNames =
+        {
+            "Fire", "Cold", "Lightning", "Tempest", "Momentum", "Bloodletting", "Stone", "Adaptive",
+            "Arcane", "Toxic", "Electrocuting", "Protective", "Cyclonic", "Vision", "Tidal", "Rebirth",
+            "Prismatic", "Gasp", "Moon", "Celestial", "Opulent", "Rage", "Wisdom", "Sky", "Earth", "Life",
+            "Bond", "Ward", "Soul", "Death", "Oath", "Time", "Power", "Bait",
+        };
+
+        // Short monster-buff description per rune (from Mods.dat ExpeditionMonsterModRune* → Stats; see
+        // obsidian poe2/expedition-runes). "special (server-side)" = effect is a monster skill not exposed
+        // in the client .dat. Display-only.
+        private static readonly Dictionary<string, string> RuneEffects = new(StringComparer.Ordinal)
+        {
+            ["Fire"] = "Monster damage gains as Fire",
+            ["Cold"] = "Monster damage gains as Cold",
+            ["Lightning"] = "Monster damage gains as Lightning",
+            ["Tempest"] = "Hits Shock & Chill; monsters can't be Shocked",
+            ["Momentum"] = "+Move speed, unslowable, slows you",
+            ["Bloodletting"] = "Life leech + Corrupted Blood on hit",
+            ["Stone"] = "Armour from Strength + huge Stun threshold",
+            ["Adaptive"] = "Adapts resistance to the element that hits it",
+            ["Arcane"] = "Part of max Life as Energy Shield",
+            ["Toxic"] = "All damage can Poison + poison chance",
+            ["Electrocuting"] = "Lightning damage + Electrocute",
+            ["Protective"] = "special (server-side)",
+            ["Cyclonic"] = "special (server-side)",
+            ["Vision"] = "Reflects Curses, Shocks, Chills",
+            ["Tidal"] = "special (server-side)",
+            ["Rebirth"] = "Revive mechanic (server-side)",
+            ["Prismatic"] = "Resist all elements + random-element damage",
+            ["Gasp"] = "Volcanic: fire damage + Ignite",
+            ["Moon"] = "special (server-side)",
+            ["Celestial"] = "special (server-side)",
+            ["Opulent"] = "Opulent reward mod (more loot)",
+            ["Rage"] = "special (server-side)",
+            ["Wisdom"] = "+Experience from kills",
+            ["Sky"] = "special (server-side)",
+            ["Earth"] = "special (server-side)",
+            ["Life"] = "+Tankiness + Life regen",
+            ["Bond"] = "On death: pass rare mod + heal a nearby rare",
+            ["Ward"] = "Life as Ward; stronger while warded",
+            ["Soul"] = "Union of Souls (shared)",
+            ["Death"] = "special (server-side)",
+            ["Oath"] = "special (server-side)",
+            ["Time"] = "special (server-side)",
+            ["Power"] = "special (server-side)",
+            ["Bait"] = "filler (no monster buff)",
+        };
+
+        // Watch-table rows the user can toggle off but not delete (seeded on first use).
+        private static readonly string[] DefaultGlowRuneNames = { "Time", "Death", "Bond", "Power", "Opulent" };
+
+        // Rune display name for an Expedition2Runes index (json map first, static fallback).
+        private string? RuneNameByIndex(int idx) =>
+            this.runeNames.TryGetValue(idx, out var nm) ? nm
+            : (idx >= 0 && idx < AllRuneNames.Length ? AllRuneNames[idx] : null);
+
+        // Ensure the default glow-rune rows exist (add any missing default; never resets existing show/weight,
+        // so a default that was toggled off stays off). Guarantees defaults can't be lost from the table.
+        private void EnsureGlowRuneDefaults()
+        {
+            foreach (var name in DefaultGlowRuneNames)
+                if (!this.Settings.GlowRunes.Exists(g => string.Equals(g.Rune, name, StringComparison.Ordinal)))
+                    this.Settings.GlowRunes.Add(new GlowRuneEntry { Rune = name, Weight = 100f, Show = true });
+        }
 
         private List<MonoRecipe> monolithRecipes = new();
         private readonly List<double> monoPriceScratch = new(); // per-reward totals → row-total colour median
@@ -113,6 +186,13 @@ namespace RunecraftHelper
         {
             if (!this.LoadMonolithData()) return;
 
+            // Resolve reward names to the client's language from the in-memory BaseItemTypes table
+            // (once per session). Must run before EnumerateMonoliths so AddCandidate can localize.
+            this.BuildMetaToLocalNameIfNeeded();
+
+            // Seed the default watched glow-runes if the table is empty / missing a default.
+            this.EnsureGlowRuneDefaults();
+
             var now = DateTime.UtcNow;
             if (now >= this.nextMonolithScanUtc)
             {
@@ -122,11 +202,15 @@ namespace RunecraftHelper
 
             // Map value labels: optionally suppressed while the Runeshape Combinations panel is open so
             // they don't clutter the map on top of the panel's own per-recipe overlay.
-            bool drawMapValues = this.Settings.DrawMonolithValueOnMap &&
+            bool drawMap = (this.Settings.DrawMonolithValueOnMap || this.Settings.ShowGlowRunes) &&
                 !(this.Settings.HideMapValueWhenPanelOpen && combinationsPanelOpen);
-            if (drawMapValues) this.DrawMonolithMapLabels();
+            if (drawMap) this.DrawMonolithMapLabels();
             if (this.Settings.ShowMonolithRewards) this.DrawMonolithRewardsWindow();
-            if (this.Settings.ShowWindow) this.DrawMonolithDebugWindow();
+            if (this.Settings.ShowWindow)
+            {
+                this.DrawMonolithDebugWindow();
+                this.DrawOverlayRowsDebugWindow();
+            }
         }
 
         // Camera rotation of the in-game map, mirrored from Radar.Helper.CameraAngle.
@@ -179,7 +263,7 @@ namespace RunecraftHelper
             // label colour matches the window header (which compares each monolith against the best on screen).
             double maxBest = 0;
             foreach (var mv in this.monolithViews)
-                if (mv.Best > maxBest) maxBest = mv.Best;
+                if (mv.Activated != 5 && mv.Best > maxBest) maxBest = mv.Best;
 
             // Plate behind the price: match the LootTracker map/hideout bars — the active theme's
             // WindowBg colour with its alpha overridden to 0.55 (LootTracker's SetNextWindowBgAlpha
@@ -187,10 +271,19 @@ namespace RunecraftHelper
             var bgCol = ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg];
             bgCol.W = MonolithMapBgAlpha;
             uint monoBg = ImGui.GetColorU32(bgCol);
+            uint glowCol = ImGui.GetColorU32(new Vector4(1f, 0.80f, 0.30f, 1f));   // amber — glow-rune scouting labels
+
+            bool showPrice = this.Settings.DrawMonolithValueOnMap;
+            bool showGlow = this.Settings.ShowGlowRunes;
 
             foreach (var v in this.monolithViews)
             {
-                if (!v.HasPos || v.Best <= 0) continue;
+                if (!v.HasPos) continue;
+                if (v.Activated == 5) continue;   // standalone foreigner already running — its price is moot, hide the label
+
+                bool hasPrice = showPrice && v.Best > 0;
+                bool hasGlow = showGlow && v.GlowRuneLabels.Count > 0;
+                if (!hasPrice && !hasGlow) continue;
 
                 // DeltaInWorldToMapDelta replicated (Radar.Helper).
                 var delta = v.GridPos - trackingPos;
@@ -198,16 +291,38 @@ namespace RunecraftHelper
                 var fpos = new Vector2((delta.X - delta.Y) * cos, (deltaZ - (delta.X + delta.Y)) * sin);
                 var screen = center + fpos;
 
-                // Same tint as the rewards-window header (shared helper); untinted → white on the map.
-                uint col = this.MonolithValueColor(v.Best, maxBest, out _);
-
-                var text = $"{v.Best:F0} ex";
-                var ts = ImGui.CalcTextSize(text) * k;
-                var at = new Vector2(screen.X - (ts.X * 0.5f), screen.Y + 6f);
                 var pad = new Vector2(3f, 1f);
-                dl.AddRectFilled(at - pad, at + ts + pad, monoBg, 2f);
-                dl.AddText(font, fontPx, at + new Vector2(1f, 1f), ColorShadow, text);
-                dl.AddText(font, fontPx, at, col, text);
+                float priceTopY = screen.Y + 6f;   // top of the price row
+
+                if (hasPrice)
+                {
+                    // Same tint as the rewards-window header (shared helper); untinted → white on the map.
+                    uint col = this.MonolithValueColor(v.Best, maxBest, out _);
+                    var text = $"{v.Best:F0} ex";
+                    var ts = ImGui.CalcTextSize(text) * k;
+                    var at = new Vector2(screen.X - (ts.X * 0.5f), priceTopY);
+                    dl.AddRectFilled(at - pad, at + ts + pad, monoBg, 2f);
+                    dl.AddText(font, fontPx, at + new Vector2(1f, 1f), ColorShadow, text);
+                    dl.AddText(font, fontPx, at, col, text);
+                }
+
+                if (hasGlow)
+                {
+                    // Watched rune name(s) stacked ABOVE the price row (amber). Multiple lines when a monolith
+                    // has several tied-weight watched runes on its glowing sockets.
+                    float lineH = fontPx + 3f;
+                    float y = priceTopY - lineH;
+                    for (int r = v.GlowRuneLabels.Count - 1; r >= 0; r--)
+                    {
+                        var name = v.GlowRuneLabels[r];
+                        var ts = ImGui.CalcTextSize(name) * k;
+                        var at = new Vector2(screen.X - (ts.X * 0.5f), y);
+                        dl.AddRectFilled(at - pad, at + ts + pad, monoBg, 2f);
+                        dl.AddText(font, fontPx, at + new Vector2(1f, 1f), ColorShadow, name);
+                        dl.AddText(font, fontPx, at, glowCol, name);
+                        y -= lineH;
+                    }
+                }
             }
         }
 
@@ -400,7 +515,9 @@ namespace RunecraftHelper
                 ImGui.Text($"N = {v.HoleCount}    sockets state = {v.SocketsState}");
 
             ImGui.Text($"Area level: {v.AreaLevel}");
-            ImGui.TextColored(grey, $"device 0x{v.EntityId:X}   station 0x{v.StationAddr:X}   +0x40={FmtI(v.Field40)}  +0x44={FmtI(v.Field44)}");
+            if (v.IsForeign)
+                ImGui.TextColored(red, "FOREIGN monolith (recipe-mode 0) — standalone \"additional\", not part of the Expedition dig, excluded from the route");
+            ImGui.TextColored(grey, $"device 0x{v.EntityId:X}   station 0x{v.StationAddr:X}   mode={v.RecipeMode}   activated={v.Activated}   glow={v.GlowCount}   +0x40={FmtI(v.Field40)}  +0x44={FmtI(v.Field44)}");
             if (!string.IsNullOrEmpty(v.SmStates))
                 ImGui.TextColored(grey, $"SM states: {v.SmStates}");
 
@@ -451,6 +568,51 @@ namespace RunecraftHelper
             ImGui.End();
         }
 
+        // Standalone window dumping the live Runeshape Combinations panel rows exactly as the price OVERLAY
+        // resolves them: parsed name → MetaId / DdsArt (from nameToArtId) → which price branch fired → ex.
+        // Own window (not nested under the monolith debug) so it shows even when no monolith is detected and
+        // isn't pushed off-screen by the scrolling candidates table. Driven by the same ShowWindow toggle.
+        private void DrawOverlayRowsDebugWindow()
+        {
+            ImGui.SetNextWindowSize(new Vector2(640, 320), ImGuiCond.FirstUseEver);
+            if (!ImGui.Begin("Overlay Rows Debug###RunecraftOverlayRowsDebug"))
+            {
+                ImGui.End();
+                return;
+            }
+
+            ImGui.Text($"Combinations panel rows: {this.recipes.Count}  (open the panel to populate)");
+            if (this.recipes.Count > 0 && ImGui.BeginTable("ovrows", 6,
+                    ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY |
+                    ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Resizable))
+            {
+                ImGui.TableSetupColumn("x", ImGuiTableColumnFlags.WidthFixed, 24f);
+                ImGui.TableSetupColumn("parsed name", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("MetaId", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("DdsArt", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("ex", ImGuiTableColumnFlags.WidthFixed, 64f);
+                ImGui.TableSetupColumn("branch", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupScrollFreeze(0, 1);
+                ImGui.TableHeadersRow();
+
+                foreach (var r in this.recipes)
+                {
+                    var (price, branch) = this.TraceRecipePrice(in r);
+                    ImGui.TableNextRow();
+                    ImGui.TableSetColumnIndex(0); ImGui.Text(r.Count.ToString());
+                    ImGui.TableSetColumnIndex(1); ImGui.Text(r.Name);
+                    ImGui.TableSetColumnIndex(2); ImGui.Text(string.IsNullOrEmpty(r.MetaId) ? "—" : r.MetaId);
+                    ImGui.TableSetColumnIndex(3); ImGui.Text(string.IsNullOrEmpty(r.DdsArt) ? "—" : r.DdsArt);
+                    ImGui.TableSetColumnIndex(4); ImGui.Text(price > 0 ? price.ToString("0.###") : "—");
+                    ImGui.TableSetColumnIndex(5); ImGui.Text(branch);
+                }
+
+                ImGui.EndTable();
+            }
+
+            ImGui.End();
+        }
+
         private static string FmtI(int x) => x == int.MinValue ? "?" : x.ToString();
 
         // Mark the anchor hole in a " · "-joined rune list: anchor at pos 1 of "a · b · c" → "a · [b] · c".
@@ -468,7 +630,7 @@ namespace RunecraftHelper
         {
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"Monolith: {v.AnchorName} (idx {v.AnchorIdx})  p={v.AnchorPos} hole{v.AnchorPos + 1}  " +
-                          $"N={v.HoleCount} (sockets={v.SocketsState})  areaLvl={v.AreaLevel}  +0x40={FmtI(v.Field40)} +0x44={FmtI(v.Field44)}");
+                          $"N={v.HoleCount} (sockets={v.SocketsState})  areaLvl={v.AreaLevel}  mode={v.RecipeMode}{(v.IsForeign ? " FOREIGN(mode=0)" : "")}  activated={v.Activated}  glow={v.GlowCount}  +0x40={FmtI(v.Field40)} +0x44={FmtI(v.Field44)}");
             sb.AppendLine($"device 0x{v.EntityId:X}  station 0x{v.StationAddr:X}");
             if (!string.IsNullOrEmpty(v.SmStates))
                 sb.AppendLine($"SM states: {v.SmStates}");
@@ -530,7 +692,10 @@ namespace RunecraftHelper
                         v.HoleCount = (int)s.Value;
                     }
                     else if (string.Equals(s.Name, "activated", StringComparison.OrdinalIgnoreCase))
+                    {
+                        v.Activated = (int)s.Value;
                         collected = s.Value >= 7;
+                    }
                     else if (string.Equals(s.Name, "is_rerolled", StringComparison.OrdinalIgnoreCase))
                         v.IsRerolled = s.Value != 0;
                 }
@@ -558,6 +723,21 @@ namespace RunecraftHelper
                         v.HoleCount = nHoles;
                     if (this.TryReadI32(station + 0x40, out var f40)) v.Field40 = f40;
                     if (this.TryReadI32(station + 0x44, out var f44)) v.Field44 = f44;
+
+                    // Glow-socket vector size (station+0x40 std::vector<int32>). DEBUG ONLY — NOT a foreigner
+                    // discriminator: both the dig monoliths and the standalone "additional" one have a non-empty
+                    // glow vector (the standalone's glow just sits on a socket without rendering the gold ring).
+                    IntPtr gFirst = this.ReadPtr(station + 0x40);
+                    IntPtr gLast = this.ReadPtr(station + 0x48);
+                    v.GlowCount = (gFirst != IntPtr.Zero && (long)gLast > (long)gFirst)
+                        ? (int)(((long)gLast - (long)gFirst) / 4)
+                        : 0;
+
+                    // Foreigner discriminator (server-authoritative): station+0x58 = recipe-mode enum, written
+                    // verbatim from the server net-state (RuneStation_DeserializeNetState op0 [0xb], Ghidra
+                    // 0x1417bb9b0). Real Expedition dig monolith=1, unique=3; the current league's standalone
+                    // "additional" monolith=0. Live-confirmed: dig 1297/1299 = mode 1, standalone 1383 = mode 0.
+                    if (this.TryReadI32(station + StationRecipeModeOffset, out var rmode)) v.RecipeMode = rmode;
 
                     // Panel-open listener: an in-module vtable ptr only while THIS monolith's Combinations
                     // panel is open (null on the others). Direct signal of which monolith the player is
@@ -602,6 +782,10 @@ namespace RunecraftHelper
                             if (v.AnchorIdx < 0) v.StationDiag = string.Empty; // locked recipe is enough
                         }
                     }
+
+                    // Watched runes sitting on glowing sockets (map scouting label). Runs after anchor +
+                    // selected recipe are known, since it resolves each glow socket from those.
+                    this.ResolveGlowRunes(v, station);
                 }
                 else
                 {
@@ -612,6 +796,15 @@ namespace RunecraftHelper
                 foreach (var c in v.Candidates)
                     if (c.Priced) best = Math.Max(best, c.UnitEx * c.Count);
                 v.Best = best;
+
+                // Foreign standalone monolith (current "modified Expedition" league): NOT part of the explosive
+                // dig — the player collects it by hand, so the chain planner must never anchor to it. The game's
+                // own server-assigned recipe-mode enum (station+0x58) is the discriminator: dig monolith=1,
+                // unique=3, the standalone "additional" monolith=0. Exclude ONLY mode 0 (so normal AND unique dig
+                // monoliths still route). Earlier tries failed: glow vector is non-empty for both, and
+                // StateMachine `activated` was 1 for both on some maps — see the socket-glow memory note.
+                // Kept in the list for the debug dump; the route excludes it by EntityId (see ExpComputeRoute).
+                if (v.RecipeMode == 0) v.IsForeign = true;
 
                 list.Add(v);
             }
@@ -747,6 +940,7 @@ namespace RunecraftHelper
         // (BuildCandidates) and anchor-less (BuildCandidatesUnique) offer paths.
         private void AddCandidate(MonoView v, MonoRecipe rec)
         {
+            v.Offered.Add(rec);   // kept for the glow-rune scan (which runes offered recipes can place per socket)
             var c = new MonoCand
             {
                 Size = rec.size,
@@ -763,7 +957,13 @@ namespace RunecraftHelper
 
             if (rec.reward != null && !string.IsNullOrEmpty(rec.reward.name))
             {
-                c.Reward = rec.reward.name;
+                // Display the client-language name (from the in-memory BaseItemTypes table, keyed by the
+                // reward's full meta path) when available; fall back to the English catalog name. Pricing
+                // still keys on the English name — poe.ninja types are English-only.
+                c.Reward = (!string.IsNullOrEmpty(rec.reward.id) &&
+                            this.metaToLocalName.TryGetValue(rec.reward.id, out var localName))
+                    ? localName
+                    : rec.reward.name;
                 if (this.priceCache.TryGetExaltedPrice(rec.reward.name, out var u) && u > 0)
                 {
                     c.UnitEx = u;
@@ -776,6 +976,46 @@ namespace RunecraftHelper
             }
 
             v.Candidates.Add(c);
+        }
+
+        // Build {BaseItemType.Id → localized Name} once per session so the rewards window can show reward
+        // names in the client's language (the catalog json carries only English names). Rooted at the
+        // global FileRoot registry (Core.CurrentAreaLoadedFiles.Address) — always available in-game, so it
+        // works without the Combinations panel being open (unlike the price-overlay's nameToArtId, which is
+        // built from a panel BFS root). Throttled while empty so the pointer walk doesn't run every frame.
+        // FileRoot route + row layout: obsidian poe2/Loaders.md.
+        private void BuildMetaToLocalNameIfNeeded()
+        {
+            if (this.metaToLocalName.Count > 0) return;
+            var now = DateTime.UtcNow;
+            if (now < this.metaToLocalNextTryUtc) return;
+            this.metaToLocalNextTryUtc = now.AddSeconds(2);
+            if (!this.EnsureProcess()) return;
+
+            var fileRoot = Core.CurrentAreaLoadedFiles.Address;
+            if (fileRoot == IntPtr.Zero) return;
+            var bitTable = this.FindBaseItemTypesHandle(fileRoot, IntPtr.Zero);
+            if (bitTable == IntPtr.Zero) return;
+
+            var bitVec = this.ReadPtr(bitTable + TableRowsVectorOffset);
+            var bitBegin = this.ReadPtr(bitVec);
+            var bitEnd = this.ReadPtr(bitVec + 8);
+            if (bitBegin == IntPtr.Zero || (long)bitEnd <= (long)bitBegin) return;
+            long bitCount = ((long)bitEnd - (long)bitBegin) / BaseItemTypeStride;
+            if (bitCount <= 0 || bitCount > 200000) return;
+
+            var dict = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (long j = 0; j < bitCount; j++)
+            {
+                var row = bitBegin + (nint)(j * BaseItemTypeStride);
+                var id = this.ReadUtf16Z(this.ReadPtr(row + BaseItemTypeIdOffset), 128);
+                if (id.Length == 0) continue;
+                var name = this.ReadUtf16Z(this.ReadPtr(row + BaseItemTypeNameOffset), 64);
+                if (name.Length < 2) continue;
+                dict[id] = name.Trim();
+            }
+
+            if (dict.Count > 0) this.metaToLocalName = dict;
         }
 
         // True if Expedition2RunesWeights enables a partial recipe of `size` for anchor `idx` at hole
@@ -858,6 +1098,167 @@ namespace RunecraftHelper
             if (s.Length < 3) return false;
             id = s;
             return true;
+        }
+
+        // Populate v.GlowRuneLabels: the watched runes at this monolith's GLOWING socket positions, after the
+        // weight rule (highest weight wins; ties show all). Glow sockets = station+0x40 vector<int32> indices.
+        // Glow-socket position == rune position in a recipe, so no placed-rune memory read is needed:
+        //   • a recipe is selected (station+0x60) → that recipe's rune at the socket;
+        //   • else → scan the offered recipes (v.Offered) and collect every rune they could place at that
+        //     socket, so an UNTOUCHED monolith still lights up if it can roll a watched rune there.
+        private void ResolveGlowRunes(MonoView v, IntPtr station)
+        {
+            v.GlowRuneLabels.Clear();
+            v.GlowSockets.Clear();
+            if (!this.Settings.ShowGlowRunes || station == IntPtr.Zero) return;
+
+            IntPtr gFirst = this.ReadPtr(station + 0x40);
+            IntPtr gLast = this.ReadPtr(station + 0x48);
+            if (gFirst == IntPtr.Zero || (long)gLast <= (long)gFirst) return;
+            int cnt = (int)(((long)gLast - (long)gFirst) / 4);
+            if (cnt <= 0 || cnt > 16) return;
+
+            List<int>? selRuneIdx = null;
+            if (this.TryReadSelectedRecipeId(station, out var selId))
+                selRuneIdx = this.monolithRecipes
+                    .Find(r => string.Equals(r.id, selId, StringComparison.Ordinal))?.runeIdx;
+
+            // Distinct rune indices sitting at (or rollable at) the glowing socket positions.
+            var runeIdxAtGlow = new List<int>();
+            void Consider(int ri)
+            {
+                if (ri >= 0 && !runeIdxAtGlow.Contains(ri)) runeIdxAtGlow.Add(ri);
+            }
+
+            for (int i = 0; i < cnt; i++)
+            {
+                if (!this.TryReadI32(gFirst + (i * 4), out var socket) || socket < 0) continue;
+                if (!v.GlowSockets.Contains(socket)) v.GlowSockets.Add(socket);  // raw index (for the panel rune overlay)
+
+                if (selRuneIdx != null)
+                {
+                    // A recipe is selected → the socket holds exactly that recipe's rune.
+                    if (socket < selRuneIdx.Count) Consider(selRuneIdx[socket]);
+                    continue;
+                }
+
+                // No recipe selected → the socket has no fixed rune. Position == rune index in a recipe, so
+                // enumerate what the monolith's OFFERED recipes could place there (anchor is fixed at its pos).
+                if (socket == v.AnchorPos && v.AnchorIdx >= 0) Consider(v.AnchorIdx);
+                foreach (var rec in v.Offered)
+                    if (rec.runeIdx != null && socket < rec.runeIdx.Count) Consider(rec.runeIdx[socket]);
+            }
+            if (runeIdxAtGlow.Count == 0) return;
+
+            // Match against the watch table (Show only); keep the highest weight, show all ties.
+            float best = float.NegativeInfinity;
+            var matched = new List<(string name, float w)>();
+            foreach (var ri in runeIdxAtGlow)
+            {
+                var name = this.RuneNameByIndex(ri);
+                if (name == null) continue;
+                var e = this.Settings.GlowRunes.Find(
+                    g => g.Show && string.Equals(g.Rune, name, StringComparison.Ordinal));
+                if (e == null) continue;
+                matched.Add((name, e.Weight));
+                if (e.Weight > best) best = e.Weight;
+            }
+
+            foreach (var m in matched)
+                if (m.w >= best && !v.GlowRuneLabels.Contains(m.name)) v.GlowRuneLabels.Add(m.name);
+        }
+
+        // For the open Combinations panel: the watched rune name a given recipe would place on the open
+        // monolith's glowing socket(s), or empty. Used by DrawOverlay to label such recipe rows after the
+        // price. Matches the visible recipe to the offline catalog by Id → runeIdx[glowSocket].
+        private string GlowRuneLabelForRecipe(string recipeId)
+        {
+            if (!this.Settings.ShowGlowRunes || string.IsNullOrEmpty(recipeId)) return string.Empty;
+            var open = this.monolithViews.Find(v => v.PanelOpen);
+            if (open == null || open.GlowSockets.Count == 0) return string.Empty;
+            var mr = this.monolithRecipes.Find(m => string.Equals(m.id, recipeId, StringComparison.Ordinal));
+            if (mr?.runeIdx == null) return string.Empty;
+            foreach (var g in open.GlowSockets)
+            {
+                if (g < 0 || g >= mr.runeIdx.Count) continue;
+                var name = this.RuneNameByIndex(mr.runeIdx[g]);
+                if (name != null &&
+                    this.Settings.GlowRunes.Exists(e => e.Show && string.Equals(e.Rune, name, StringComparison.Ordinal)))
+                    return name;
+            }
+
+            return string.Empty;
+        }
+
+        // Settings UI: the watched glow-rune table (show / weight / rune / effect) + add / remove. Drawn from
+        // DrawSettings under the "Show glow runes" toggle. Defaults can be toggled off but not deleted.
+        private void DrawGlowRuneTable()
+        {
+            var runes = this.Settings.GlowRunes;
+            string? removeKey = null;
+            if (ImGui.BeginTable("glowrunes", 5,
+                    ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.ScrollY,
+                    new Vector2(0f, Math.Min(runes.Count + 1, 10) * ImGui.GetFrameHeightWithSpacing())))
+            {
+                ImGui.TableSetupColumn("Show", ImGuiTableColumnFlags.WidthFixed, 40f);
+                ImGui.TableSetupColumn("Weight", ImGuiTableColumnFlags.WidthFixed, 66f);
+                ImGui.TableSetupColumn("Rune", ImGuiTableColumnFlags.WidthFixed, 92f);
+                ImGui.TableSetupColumn("Effect", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("##rm", ImGuiTableColumnFlags.WidthFixed, 22f);
+                ImGui.TableSetupScrollFreeze(0, 1);
+                ImGui.TableHeadersRow();
+
+                foreach (var g in runes)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.PushID(g.Rune);
+
+                    ImGui.TableSetColumnIndex(0);
+                    bool show = g.Show;
+                    if (ImGui.Checkbox("##show", ref show)) g.Show = show;
+
+                    ImGui.TableSetColumnIndex(1);
+                    ImGui.SetNextItemWidth(60f);
+                    float w = g.Weight;
+                    if (ImGui.InputFloat("##w", ref w, 0f, 0f, "%.0f")) { if (w < 0f) w = 0f; g.Weight = w; }
+
+                    ImGui.TableSetColumnIndex(2);
+                    ImGui.AlignTextToFramePadding();
+                    ImGui.TextUnformatted(g.Rune);
+
+                    ImGui.TableSetColumnIndex(3);
+                    ImGui.AlignTextToFramePadding();
+                    ImGui.TextDisabled(RuneEffects.TryGetValue(g.Rune, out var eff) ? eff : string.Empty);
+
+                    ImGui.TableSetColumnIndex(4);
+                    if (Array.IndexOf(DefaultGlowRuneNames, g.Rune) < 0)   // defaults can't be removed
+                    {
+                        if (ImGui.SmallButton("×")) removeKey = g.Rune;
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove from table");
+                    }
+
+                    ImGui.PopID();
+                }
+
+                ImGui.EndTable();
+            }
+
+            if (removeKey != null)
+                runes.RemoveAll(g => string.Equals(g.Rune, removeKey, StringComparison.Ordinal));
+
+            // Add a rune not already in the table (all 34, with their effect).
+            if (ImGui.BeginCombo("Add rune", "+ add…", ImGuiComboFlags.HeightLarge))
+            {
+                foreach (var name in AllRuneNames)
+                {
+                    if (runes.Exists(g => string.Equals(g.Rune, name, StringComparison.Ordinal))) continue;
+                    var eff = RuneEffects.TryGetValue(name, out var e) ? e : string.Empty;
+                    if (ImGui.Selectable($"{name}  —  {eff}"))
+                        runes.Add(new GlowRuneEntry { Rune = name, Weight = 100f, Show = true });
+                }
+
+                ImGui.EndCombo();
+            }
         }
 
         // Reward metaId of the locked recipe for the monolith whose Runeshape Combinations panel is
@@ -945,6 +1346,10 @@ namespace RunecraftHelper
             public int AreaLevel;
             public int Field40 = int.MinValue; // station +0x40 (debug; not used for offers)
             public int Field44 = int.MinValue; // station +0x44 (debug)
+            public int GlowCount = -1;     // station+0x40 glow-socket vector size (debug; NOT the foreigner discriminator — both glow)
+            public int Activated = -1;     // StateMachine "activated" (debug only; unreliable — was 1 for both dig & foreigner on some maps)
+            public int RecipeMode = -1;    // station+0x58 server recipe-mode enum: dig=1, unique=3, standalone "additional"=0
+            public bool IsForeign;         // RecipeMode==0 → standalone non-Expedition "additional" monolith (current league) → excluded from the route
             public int AnchorIdx = -1;
             public int AnchorPos = -1;
             public string AnchorName = "?";
@@ -955,6 +1360,9 @@ namespace RunecraftHelper
             public string StationDiag = string.Empty; // why station/anchor failed to resolve (debug)
             public string SmStates = string.Empty;     // all StateMachine states "name=value" (debug)
             public List<MonoCand> Candidates = new();
+            public List<string> GlowRuneLabels = new(); // watched runes on glowing sockets to label on the map (weight-filtered)
+            public List<int> GlowSockets = new();        // raw glowing socket indices (station+0x40); used by the panel rune overlay
+            public List<MonoRecipe> Offered = new();     // recipes this monolith can roll (for glow-rune scan when no recipe is selected)
         }
 
         private sealed class MonoCand
