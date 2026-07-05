@@ -17,9 +17,12 @@ namespace Atlas
         // Default on so the plugin works out-of-the-box on a vanilla GameHelper.
         public bool UniversalFont = true;
 
-        // Client-language token used to resolve map-node display names from maps.json "translates"
-        // (e.g. "english", "russian", "korean"). Default English. Changing it re-labels nodes live.
-        public string Language = "english";
+        // Map-node display-name language: resolves names from maps.json "translates".
+        //   "auto"  (default) = follow GameHelper's UI language (re-resolves live when it changes).
+        //   otherwise a maps.json token ("english", "russian", "korean", …) = explicit override, so a
+        //           player can match their PoE2 client even if the GH UI is in another language.
+        // Existing installs keep whatever token they had saved (treated as an explicit override).
+        public string Language = "auto";
 
         public string SearchQuery = string.Empty;
         public bool DrawLinesSearchQuery = true;
@@ -59,6 +62,12 @@ namespace Atlas
         public bool ShowNodeIndex = false;
         public bool ShowBiomeBorder = true;
         public float BiomeBorderThickness = 2.0f;
+
+        // Draw the atlas connection graph: a faint line along every edge between adjacent map nodes
+        // (from the panel's edge list at panel+0x5A8), rendered under labels/routes on ChannelGrid.
+        public bool ShowAtlasGraph = false;
+        public Vector4 AtlasGraphLineColor = new(0.5f, 0.5f, 0.55f, 0.5f);
+        public float AtlasGraphThickness = 1.5f;
 
         public bool RouteLinesThroughNodes = true;
         public float PathLineThickness = 1f;

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
+    <Version>0.2.0</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -30,11 +31,17 @@
     <!-- UI icons (64x64 PNG) loaded at runtime from the deployed icons\ folder. -->
     <IconAsset Include="icons\*.png" />
     <None Include="@(IconAsset)" CopyToOutputDirectory="PreserveNewest" Link="icons\%(Filename)%(Extension)" />
+    <!-- UI localization dictionaries (<lang-code>.json), read via GameHelper's PluginLocalization. -->
+    <None Include="Localization\*.json" CopyToOutputDirectory="PreserveNewest" Link="Localization\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <Target Name="CopyFiles" AfterTargets="Build">
     <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;$(OutDir)metaArt.json;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(IconAsset)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\icons" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <LocalizationFiles Include="$(OutDir)Localization\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LocalizationFiles)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\Localization" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

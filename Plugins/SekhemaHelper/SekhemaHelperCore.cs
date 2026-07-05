@@ -1,6 +1,7 @@
 namespace SekhemaHelper
 {
     using GameHelper;
+    using GameHelper.Localization;
     using GameHelper.Plugin;
     using GameHelper.RemoteEnums;
     using GameHelper.RemoteObjects.Components;
@@ -18,6 +19,15 @@ namespace SekhemaHelper
     public sealed class SekhemaHelperCore : PCore<SekhemaHelperSettings>
     {
         private string SettingPathname => Path.Join(DllDirectory, "config", "settings.txt");
+
+        // UI localization via GameHelper's per-plugin dictionaries (Localization\<lang>.json next to the
+        // dll). Lazy so it's ready even if a Draw* runs before OnEnable. English literal fallback at each
+        // call site keeps the plugin working with no dictionaries present.
+        private PluginLocalization loc;
+        private PluginLocalization Loc => this.loc ??= new PluginLocalization(this.DllDirectory);
+        private string L(string key, string fallback) => this.Loc.T(key, fallback);
+        private string LF(string key, string fallback, params object[] args) => this.Loc.F(key, fallback, args);
+
         private WeightCalculator weightCalculator;
         private bool dumpRequested;
         private bool scanHonourRequested;
@@ -110,8 +120,8 @@ namespace SekhemaHelper
         public override void DrawSettings()
         {
             // ---- Profile ----
-            ImGui.SeparatorText(this.PluginText.T("section.profile", "Profile"));
-            if (ImGui.BeginCombo(this.PluginText.Label("settings.active_profile", "Active Profile", "SekhemaActiveProfile"), Settings.CurrentProfile))
+            ImGui.SeparatorText(this.L("sk.profile", "Profile"));
+            if (ImGui.BeginCombo(this.L("sk.active_profile", "Active Profile"), Settings.CurrentProfile))
             {
                 foreach (var name in Settings.Profiles.Keys)
                 {
@@ -127,75 +137,76 @@ namespace SekhemaHelper
             // ---- Weights — {profile} (Reset + Room types / Afflictions / Rewards) ----
             DrawWeightSettings();
 
-            ImGui.Checkbox(this.PluginText.Label("settings.debug_show_weights", "Debug (show weights)", "SekhemaDebugShowWeights"), ref Settings.DebugEnable);
+            ImGui.Checkbox(this.L("sk.debug", "Debug (show weights)"), ref Settings.DebugEnable);
             if (Settings.DebugEnable)
             {
-                this.ColorSwatch("settings.debug_text_color", "Debug Text Color", "DebugTextColor", ref Settings.TextColor);
-                this.ColorSwatch("settings.debug_background", "Debug Background", "DebugBackground", ref Settings.BackgroundColor);
+                // Debug/RE dump tooling below is developer-facing (references config file paths) — left in English.
+                ColorSwatch("Debug Text Color", ref Settings.TextColor);
+                ColorSwatch("Debug Background", ref Settings.BackgroundColor);
                 // Force the Death-crystal route through an explicit crystal-id set (ignores active/collected
                 // state + room filter), to reproduce a routing bug with a known crystal set.
-                ImGui.InputText(this.PluginText.Label("settings.force_crystal_ids", "Force Crystal IDs (route override)", "SekhemaForceCrystalIds"), ref Settings.HazardDebugCrystalIds, 128);
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.force_crystal_ids.tooltip", "Comma/space separated crystal entity ids (read from the yellow/grey id labels). Empty = normal room route."));
-                ImGui.Checkbox(this.PluginText.Label("settings.paint_walkable_grid", "Paint Walkable Grid (where can I walk)", "SekhemaPaintWalkableGrid"), ref Settings.HazardDebugDrawWalkable);
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.paint_walkable_grid.tooltip", "Green = cells the game marks walkable, around the player. Shows why an A* leg goes straight (player on a non-walkable cell)."));
+                ImGui.InputText("Force Crystal IDs (route override)", ref Settings.HazardDebugCrystalIds, 128);
+                ImGuiHelper.ToolTip("Comma/space separated crystal entity ids (read from the yellow/grey id labels). Empty = normal room route.");
+                ImGui.Checkbox("Paint Walkable Grid (where can I walk)", ref Settings.HazardDebugDrawWalkable);
+                ImGuiHelper.ToolTip("Green = cells the game marks walkable, around the player. Shows why an A* leg goes straight (player on a non-walkable cell).");
                 if (Settings.HazardDebugDrawWalkable)
-                    ImGui.SliderFloat(this.PluginText.Label("settings.walkable_paint_radius", "Walkable Paint Radius", "SekhemaWalkablePaintRadius"), ref Settings.HazardDebugWalkableRadius, 50f, 1200f, "%.0f");
+                    ImGui.SliderFloat("Walkable Paint Radius", ref Settings.HazardDebugWalkableRadius, 50f, 1200f, "%.0f");
                 // Dump every room's content FK pairs (+ the FloorData content vector) to
                 // config\fk_dump.txt on the next frame the Trial map is open.
-                if (ImGui.Button(this.PluginText.Label("button.dump_fk", "Dump FK -> config\\fk_dump.txt", "SekhemaDumpFk")))
+                if (ImGui.Button("Dump FK -> config\\fk_dump.txt"))
                     this.dumpRequested = true;
-                if (ImGui.Button(this.PluginText.Label("button.dump_honour_candidates", "Dump Honour candidates -> config\\honour_scan.txt", "SekhemaDumpHonourCandidates")))
+                if (ImGui.Button("Dump Honour candidates -> config\\honour_scan.txt"))
                     this.scanHonourRequested = true;
-                ImGui.InputInt(this.PluginText.Label("settings.honour_current", "Honour current", "SekhemaHonourCurrent"), ref this.honourScanCur);
-                ImGui.InputInt(this.PluginText.Label("settings.honour_max", "Honour max", "SekhemaHonourMax"), ref this.honourScanMax);
-                if (ImGui.Button(this.PluginText.Label("button.locate_honour", "Locate Honour by value -> config\\honour_byvalue.txt", "SekhemaLocateHonour")) &&
+                ImGui.InputInt("Honour current", ref this.honourScanCur);
+                ImGui.InputInt("Honour max", ref this.honourScanMax);
+                if (ImGui.Button("Locate Honour by value -> config\\honour_byvalue.txt") &&
                     this.honourScanCur > 0 && this.honourScanMax > 0)
                     this.scanHonourByValueRequested = true;
-                if (ImGui.Button(this.PluginText.Label("button.dump_ui_fingerprints", "Dump UI fingerprints -> config\\ui_fp_dump.txt", "SekhemaDumpUiFingerprints")))
+                if (ImGui.Button("Dump UI fingerprints -> config\\ui_fp_dump.txt"))
                     this.dumpUiFpRequested = true;
             }
 
             // ---- Display ----
-            ImGui.SeparatorText(this.PluginText.T("section.display", "Display"));
-            ImGui.Checkbox(this.PluginText.Label("settings.draw_best_path", "Draw Best Path", "SekhemaDrawBestPath"), ref Settings.DrawBestPath);
-            ImGui.SliderFloat(this.PluginText.Label("settings.frame_thickness", "Frame Thickness", "SekhemaFrameThickness"), ref Settings.FrameThickness, 1f, 10f);
-            this.ColorSwatch("settings.best_path_color", "Best Path Color", "BestPathColor", ref Settings.BestPathColor);
+            ImGui.SeparatorText(this.L("sk.display", "Display"));
+            ImGui.Checkbox(this.L("sk.draw_best_path", "Draw Best Path"), ref Settings.DrawBestPath);
+            ImGui.SliderFloat(this.L("sk.frame_thickness", "Frame Thickness"), ref Settings.FrameThickness, 1f, 10f);
+            ColorSwatch(this.L("sk.best_path_color", "Best Path Color"), ref Settings.BestPathColor);
 
             // ---- Overlay POI (Portals / Levers / Crystals) ----
-            if (ImGui.CollapsingHeader(this.PluginText.Title("section.overlay_poi", "Overlay POI", "SekhemaOverlayPoi")))
+            if (ImGui.CollapsingHeader(this.Loc.Title("sk.overlay_poi", "Overlay POI", "sk_overlay_poi")))
             {
                 ImGui.Indent();
 
-                ImGui.Checkbox(this.PluginText.Label("settings.show_portals", "Show Portals (Ritual)", "SekhemaShowPortals"), ref Settings.ShowPortals);
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.show_portals.tooltip", "Mark ACTIVE hazard Portals on the large map. Removed once a portal closes."));
+                ImGui.Checkbox(this.L("sk.show_portals", "Show Portals (Ritual)"), ref Settings.ShowPortals);
+                ImGuiHelper.ToolTip(this.L("sk.show_portals_hint", "Mark ACTIVE hazard Portals on the large map. Removed once a portal closes."));
                 if (Settings.ShowPortals)
-                    this.ColorSwatch("settings.portal_color", "Portal Color", "PortalColor", ref Settings.PortalColor);
+                    ColorSwatch(this.L("sk.portal_color", "Portal Color"), ref Settings.PortalColor);
 
-                ImGui.Checkbox(this.PluginText.Label("settings.show_levers", "Show Levers (Gauntlet)", "SekhemaShowLevers"), ref Settings.ShowLevers);
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.show_levers.tooltip", "Mark the un-activated Sanctum lever on the large map. Removed once pulled."));
+                ImGui.Checkbox(this.L("sk.show_levers", "Show Levers (Gauntlet)"), ref Settings.ShowLevers);
+                ImGuiHelper.ToolTip(this.L("sk.show_levers_hint", "Mark the un-activated Sanctum lever on the large map. Removed once pulled."));
                 if (Settings.ShowLevers)
-                    this.ColorSwatch("settings.lever_color", "Lever Color", "LeverColor", ref Settings.LeverColor);
+                    ColorSwatch(this.L("sk.lever_color", "Lever Color"), ref Settings.LeverColor);
 
                 if (Settings.ShowPortals || Settings.ShowLevers)
-                    ImGui.SliderFloat(this.PluginText.Label("settings.poi_marker_radius", "POI Marker Radius", "SekhemaPoiMarkerRadius"), ref Settings.RoomObjectMarkerRadius, 4f, 20f);
+                    ImGui.SliderFloat(this.L("sk.poi_marker_radius", "POI Marker Radius"), ref Settings.RoomObjectMarkerRadius, 4f, 20f);
 
                 ImGui.Spacing();
-                ImGui.Checkbox(this.PluginText.Label("settings.show_crystals", "Show Crystals (Escape)", "SekhemaShowCrystals"), ref Settings.DrawHazardRoute);
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.show_crystals.tooltip", "Death-crystal (HourglassLethal) collection route + markers on the map overlay."));
+                ImGui.Checkbox(this.L("sk.show_crystals", "Show Crystals (Escape)"), ref Settings.DrawHazardRoute);
+                ImGuiHelper.ToolTip(this.L("sk.show_crystals_hint", "Death-crystal (HourglassLethal) collection route + markers on the map overlay."));
                 if (Settings.DrawHazardRoute)
                 {
-                    ImGui.Checkbox(this.PluginText.Label("settings.follow_walkable_terrain", "Follow Walkable Terrain (A*)", "SekhemaFollowWalkableTerrain"), ref Settings.HazardWalkableRoute);
-                    ImGuiHelper.ToolTip(this.PluginText.T("settings.follow_walkable_terrain.tooltip", "On: route follows the walkable path like Radar. Off: straight lines."));
-                    this.ColorSwatch("settings.route_line_color", "Route Line Color", "RouteLineColor", ref Settings.HazardRouteColor);
+                    ImGui.Checkbox(this.L("sk.follow_walkable", "Follow Walkable Terrain (A*)"), ref Settings.HazardWalkableRoute);
+                    ImGuiHelper.ToolTip(this.L("sk.follow_walkable_hint", "On: route follows the walkable path like Radar. Off: straight lines."));
+                    ColorSwatch(this.L("sk.route_line_color", "Route Line Color"), ref Settings.HazardRouteColor);
                     ImGui.SameLine();
-                    this.ColorSwatch("settings.crystal_marker_color", "Crystal Marker Color", "CrystalMarkerColor", ref Settings.HazardMarkerColor);
-                    ImGui.SliderFloat(this.PluginText.Label("settings.route_thickness", "Route Thickness", "SekhemaRouteThickness"), ref Settings.HazardRouteThickness, 1f, 8f);
-                    ImGui.SliderFloat(this.PluginText.Label("settings.marker_radius", "Marker Radius", "SekhemaMarkerRadius"), ref Settings.HazardMarkerRadius, 3f, 20f);
-                    ImGui.SliderFloat(this.PluginText.Label("settings.max_grid_distance", "Max Grid Distance (0 = all)", "SekhemaMaxGridDistance"), ref Settings.HazardMaxGridDistance, 0f, 500f, "%.0f");
-                    ImGui.SliderInt(this.PluginText.Label("settings.room_id_gap", "Room ID Gap (0 = off)", "SekhemaRoomIdGap"), ref Settings.HazardIdGroupGap, 0, 200);
-                    ImGuiHelper.ToolTip(this.PluginText.T("settings.room_id_gap.tooltip", "Crystals of one room share contiguous entity ids; a larger gap = another room. Only the player's room is routed."));
-                    ImGui.SliderFloat(this.PluginText.Label("settings.room_margin", "Room Margin (in-room gate)", "SekhemaRoomMargin"), ref Settings.HazardRoomMargin, 0f, 800f, "%.0f");
-                    ImGuiHelper.ToolTip(this.PluginText.T("settings.room_margin.tooltip", "Route shows only when the player is within the crystal room's bounding box + this margin. Prevents it appearing from an adjacent room."));
+                    ColorSwatch(this.L("sk.crystal_marker_color", "Crystal Marker Color"), ref Settings.HazardMarkerColor);
+                    ImGui.SliderFloat(this.L("sk.route_thickness", "Route Thickness"), ref Settings.HazardRouteThickness, 1f, 8f);
+                    ImGui.SliderFloat(this.L("sk.marker_radius", "Marker Radius"), ref Settings.HazardMarkerRadius, 3f, 20f);
+                    ImGui.SliderFloat(this.L("sk.max_grid_distance", "Max Grid Distance (0 = all)"), ref Settings.HazardMaxGridDistance, 0f, 500f, "%.0f");
+                    ImGui.SliderInt(this.L("sk.room_id_gap", "Room ID Gap (0 = off)"), ref Settings.HazardIdGroupGap, 0, 200);
+                    ImGuiHelper.ToolTip(this.L("sk.room_id_gap_hint", "Crystals of one room share contiguous entity ids; a larger gap = another room. Only the player's room is routed."));
+                    ImGui.SliderFloat(this.L("sk.room_margin", "Room Margin (in-room gate)"), ref Settings.HazardRoomMargin, 0f, 800f, "%.0f");
+                    ImGuiHelper.ToolTip(this.L("sk.room_margin_hint", "Route shows only when the player is within the crystal room's bounding box + this margin. Prevents it appearing from an adjacent room."));
                 }
 
                 ImGui.Unindent();
@@ -204,19 +215,19 @@ namespace SekhemaHelper
             ImGui.Separator();
 
             // ---- Final-room chest priority ----
-            ImGui.Checkbox(this.PluginText.Label("settings.mark_best_chests", "Mark Best Chests by Keys", "SekhemaMarkBestChests"), ref Settings.DrawChestPriority);
-            ImGuiHelper.ToolTip(this.PluginText.T("settings.mark_best_chests.tooltip", "In the reward room, marks the best chests on the large map. For each key\n" +
+            ImGui.Checkbox(this.L("sk.mark_best_chests", "Mark Best Chests by Keys"), ref Settings.DrawChestPriority);
+            ImGuiHelper.ToolTip(this.L("sk.mark_best_chests_hint", "In the reward room, marks the best chests on the large map. For each key\n" +
                 "tier it highlights the top-N chests by content priority, where N = your live\n" +
                 "Bronze/Silver/Gold key count."));
             if (Settings.DrawChestPriority)
             {
-                this.ColorSwatch("settings.selected_marker_color", "Selected Marker Color", "SelectedMarkerColor", ref Settings.ChestMarkerColor);
-                ImGui.SliderFloat(this.PluginText.Label("settings.chest_marker_radius", "Chest Marker Radius", "SekhemaChestMarkerRadius"), ref Settings.ChestMarkerRadius, 4f, 24f);
+                ColorSwatch(this.L("sk.selected_marker_color", "Selected Marker Color"), ref Settings.ChestMarkerColor);
+                ImGui.SliderFloat(this.L("sk.chest_marker_radius", "Chest Marker Radius"), ref Settings.ChestMarkerRadius, 4f, 24f);
                 Settings.ChestPriorityOrder ??= ChestPriority.DefaultOrder();
                 Settings.ChestDisabledContent ??= new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-                if (ImGui.TreeNode(this.PluginText.Title("section.content_priority", "Content priority (top = best)", "SekhemaContentPriority")))
+                if (ImGui.TreeNode(this.Loc.Title("sk.content_priority", "Content priority (top = best)", "sk_content_priority")))
                 {
-                    ImGui.TextDisabled(this.PluginText.T("settings.content_priority_help", "Tick a type to track it; higher in the list = higher priority.\n" +
+                    ImGui.TextDisabled(this.L("sk.content_priority_hint", "Tick a type to track it; higher in the list = higher priority.\n" +
                         "Un-tick types you don't want marked (to track only a few, un-tick the rest).\n" +
                         "Use the arrows to reorder."));
                     var order = Settings.ChestPriorityOrder;
@@ -226,7 +237,7 @@ namespace SekhemaHelper
                         ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.SizingFixedFit))
                     {
                         ImGui.TableSetupColumn("##move", ImGuiTableColumnFlags.WidthFixed, 64f);
-                        ImGui.TableSetupColumn(this.PluginText.T("table.content", "Content"), ImGuiTableColumnFlags.WidthStretch);
+                        ImGui.TableSetupColumn(this.L("sk.col_content", "Content"), ImGuiTableColumnFlags.WidthStretch);
                         for (int i = 0; i < order.Count; i++)
                         {
                             ImGui.TableNextRow();
@@ -259,7 +270,7 @@ namespace SekhemaHelper
                         order.RemoveAt(moveFrom);
                         order.Insert(moveTo, item);
                     }
-                    if (ImGui.Button(this.PluginText.Label("button.reset_chest_priority", "Reset chest priority order", "SekhemaResetChestPriority")))
+                    if (ImGui.Button(this.L("sk.reset_chest_priority", "Reset chest priority order")))
                     {
                         Settings.ChestPriorityOrder = ChestPriority.DefaultOrder();
                         Settings.ChestDisabledContent = ChestPriority.DefaultDisabled();
@@ -277,10 +288,10 @@ namespace SekhemaHelper
             if (!Settings.Profiles.TryGetValue(Settings.CurrentProfile, out var profile) || profile == null)
                 return;
 
-            ImGui.SeparatorText(this.PluginText.F("section.weights_profile", "Weights - {0}", Settings.CurrentProfile));
-            ImGui.TextDisabled(this.PluginText.T("settings.weights_help", "Higher = more desirable. Drag to adjust (Ctrl+click to type). Saved to config."));
+            ImGui.SeparatorText(this.LF("sk.weights", "Weights — {0}", Settings.CurrentProfile));
+            ImGui.TextDisabled(this.L("sk.weights_hint", "Higher = more desirable. Drag to adjust (Ctrl+click to type). Saved to config."));
 
-            if (ImGui.Button(this.PluginText.Label("button.reset_profile_defaults", "Reset this profile to defaults", "SekhemaResetProfileDefaults")))
+            if (ImGui.Button(this.L("sk.reset_profile", "Reset this profile to defaults")))
             {
                 Settings.Profiles[Settings.CurrentProfile] = Settings.CurrentProfile == "No-Hit"
                     ? ProfileContent.CreateNoHitProfile()
@@ -288,20 +299,20 @@ namespace SekhemaHelper
                 return;
             }
 
-            this.DrawWeightGroup("weights.room_types", "Room types", profile.RoomTypeWeights);
+            DrawWeightGroup(this.L("sk.group_room_types", "Room types"), "roomtypes", profile.RoomTypeWeights);
 
             // Resource-aware reward suppression. SOFT: lowers the reward so an equally-good alternative is
             // preferred, but the path still routes through it when every other option is worse. Lives on
             // Settings (not per-profile). Grouped under Room types per the menu layout.
             ImGui.Indent();
-            ImGui.Checkbox(this.PluginText.Label("settings.avoid_merchant_low_water", "Avoid Merchant when water below", "SekhemaAvoidMerchantLowWater"), ref Settings.SuppressMerchantLowWater);
+            ImGui.Checkbox(this.L("sk.avoid_merchant", "Avoid Merchant when water below"), ref Settings.SuppressMerchantLowWater);
             if (Settings.SuppressMerchantLowWater)
             {
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(130f);
                 ImGui.SliderInt("##merchantwater", ref Settings.MerchantWaterThreshold, 100, 1000);
             }
-            ImGui.Checkbox(this.PluginText.Label("settings.avoid_honour_restore_high", "Avoid honour restore when honour above", "SekhemaAvoidHonourRestoreHigh"), ref Settings.SuppressHonourRestoreHighPct);
+            ImGui.Checkbox(this.L("sk.avoid_honour_restore", "Avoid honour restore when honour above"), ref Settings.SuppressHonourRestoreHighPct);
             if (Settings.SuppressHonourRestoreHighPct)
             {
                 ImGui.SameLine();
@@ -310,20 +321,21 @@ namespace SekhemaHelper
             }
             ImGui.Unindent();
 
-            this.DrawWeightGroup("weights.afflictions", "Afflictions", profile.AfflictionWeights);
-            this.DrawWeightGroup("weights.rewards", "Rewards", profile.RewardWeights);
+            DrawWeightGroup(this.L("sk.group_afflictions", "Afflictions"), "afflictions", profile.AfflictionWeights);
+            DrawWeightGroup(this.L("sk.group_rewards", "Rewards"), "rewards", profile.RewardWeights);
         }
 
         // One collapsible group of {name → weight} sliders. Edits the dictionary value in place.
-        private void DrawWeightGroup(string titleKey, string fallbackTitle, Dictionary<string, float> weights)
+        // `title` is the (localized) display label; `id` is a stable, language-independent ImGui id so
+        // the collapse state and per-slider ids don't reset when the UI language changes.
+        private static void DrawWeightGroup(string title, string id, Dictionary<string, float> weights)
         {
             if (weights == null || weights.Count == 0)
                 return;
-            var title = this.PluginText.T(titleKey, fallbackTitle);
-            if (!ImGui.CollapsingHeader($"{title} ({weights.Count})"))
+            if (!ImGui.CollapsingHeader($"{title} ({weights.Count})###{id}"))
                 return;
 
-            ImGui.PushID(title);
+            ImGui.PushID(id);
             ImGui.Indent();
             var keys = new List<string>(weights.Keys);
             keys.Sort(StringComparer.OrdinalIgnoreCase);
@@ -367,7 +379,7 @@ namespace SekhemaHelper
 
             // Room interactables (Portals / Lever) on the large map, coloured by used/activated state
             // (§12). Self-gates on large-map visibility; independent of the Trial map panel below.
-            RoomObjects.Draw(Settings, this.PluginText);
+            RoomObjects.Draw(Settings);
 
             var gameUi = Core.States.InGameStateObject.GameUi;
 
@@ -401,7 +413,7 @@ namespace SekhemaHelper
                 DumpUiFingerprints(panel.Address, gameUi.Address);
             }
             if (Settings.DebugEnable)
-                this.DrawResourcesHud(drawList);
+                DrawResourcesHud(drawList);
             if (!panel.IsVisible)
             {
                 DebugHud(drawList, $"panel 0x{panel.Address.ToInt64():X} not visible (map closed)");
@@ -958,12 +970,12 @@ namespace SekhemaHelper
         }
 
         // Minimal resources HUD (when Debug is on): just the live Sacred Water + Honour readout.
-        private void DrawResourcesHud(ImDrawListPtr drawList)
+        private static void DrawResourcesHud(ImDrawListPtr drawList)
         {
             var waterStr = liveWater >= 0 ? liveWater.ToString() : "?";
             var honourStr = liveHonourPct >= 0 ? $"{liveHonourPct:F0}%" : "?";
             string K(int v) => v >= 0 ? v.ToString() : "?";
-            var text = this.PluginText.F("debug.resources_hud", "water {0}, honour {1}, keys {2}/{3}/{4} (B/S/G)", waterStr, honourStr, K(liveBronze), K(liveSilver), K(liveGold));
+            var text = $"water {waterStr}, honour {honourStr}, keys {K(liveBronze)}/{K(liveSilver)}/{K(liveGold)} (B/S/G)";
             var pos = new Vector2(20f, 160f);
             var size = ImGui.CalcTextSize(text);
             drawList.AddRectFilled(pos - new Vector2(4, 2), pos + size + new Vector2(4, 2),
@@ -979,23 +991,21 @@ namespace SekhemaHelper
             var size = ImGui.CalcTextSize(text);
             drawList.AddRectFilled(pos - new Vector2(4, 2), pos + size + new Vector2(4, 2),
                 ImGuiHelper.Color(new Vector4(0f, 0f, 0f, 0.8f)));
-            drawList.AddText(pos, ImGuiHelper.Color(new Vector4(1f, 0.9f, 0.2f, 1f)), this.PluginText.F("debug.prefix", "SekhemaHelper: {0}", text));
+            drawList.AddText(pos, ImGuiHelper.Color(new Vector4(1f, 0.9f, 0.2f, 1f)), "SekhemaHelper: " + text);
         }
 
         [DllImport("user32.dll")]
         private static extern nint GetForegroundWindow();
 
-        private void ColorSwatch(string key, string fallback, string id, ref Vector4 color)
+        private static void ColorSwatch(string label, ref Vector4 color)
         {
-            var visibleLabel = this.PluginText.T(key, fallback);
-            var popupId = $"SekhemaColor_{id}";
-            if (ImGui.ColorButton(popupId, color))
-                ImGui.OpenPopup(popupId);
+            if (ImGui.ColorButton(label, color))
+                ImGui.OpenPopup(label);
             ImGui.SameLine();
-            ImGui.Text(visibleLabel);
-            if (ImGui.BeginPopup(popupId))
+            ImGui.Text(label);
+            if (ImGui.BeginPopup(label))
             {
-                ImGui.ColorPicker4(this.PluginText.Label(key, fallback, $"{id}Picker"), ref color);
+                ImGui.ColorPicker4(label, ref color);
                 ImGui.EndPopup();
             }
         }

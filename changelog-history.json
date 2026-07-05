@@ -1,6 +1,16 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.5",
+                         "published":  "2026-07-05T04:46:46.1503054Z",
+                         "changelog":  [
+                                           "Update: RuneCrafthelper",
+                                           "Gordin Merge for localization",
+                                           "RunecraftHelper/ Atlas / SekhemaHelper / Atlas: UI localization  11 languages",
+                                           "RunecraftHelper:   Expedition planner fixes"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.4",
                          "published":  "2026-07-02T15:06:45.3658571Z",
                          "changelog":  [

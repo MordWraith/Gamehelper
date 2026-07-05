@@ -38,14 +38,22 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
+    <!-- UI localization dictionaries (<lang-code>.json). Read at runtime via GameHelper's PluginLocalization
+         from <plugin>/Localization by the selected UI language (OverlayLocalization.CurrentLanguage). -->
+    <Content Include="Localization\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Localization\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
   </ItemGroup>
 
   <Target Name="CopyFiles" AfterTargets="Build">
     <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;$(OutDir)expedition2_recipes.json;$(OutDir)relic_mods_en.json;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
     <ItemGroup>
       <RewardIconFiles Include="$(OutDir)icons\**\*.png" />
+      <LocalizationFiles Include="$(OutDir)Localization\**\*.json" />
     </ItemGroup>
     <Copy SourceFiles="@(RewardIconFiles)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\icons\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(LocalizationFiles)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\Localization\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

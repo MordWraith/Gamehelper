@@ -1,6 +1,7 @@
 namespace Atlas
 {
     using GameHelper;
+    using GameHelper.Localization;
     using GameHelper.Plugin;
     using GameHelper.RemoteObjects.Components;
     using GameHelper.Utils;
@@ -56,6 +57,45 @@ namespace Atlas
         private string SettingPathname => Path.Join(DllDirectory, "config", "settings.txt");
         private string MapGroupsPathname => Path.Join(DllDirectory, "config", "mapgroups.json");
         private string NewGroupName = string.Empty;
+
+        // ── UI-chrome localization (GameHelper PluginLocalization; Localization\<lang>.json next to the
+        // dll). Lazy so it's ready even if a Draw* runs before OnEnable. English literal fallback at each
+        // call site keeps the plugin working with no dictionaries present. This is the plugin's own UI
+        // text; it is SEPARATE from Settings.Language, which selects the game map-name data language. ──
+        private PluginLocalization loc;
+        private PluginLocalization Loc => this.loc ??= new PluginLocalization(this.DllDirectory);
+        private string L(string key, string fallback) => this.Loc.T(key, fallback);
+
+        // ── Map-name (data) language. "auto" (default) tracks GameHelper's UI language; any other value
+        // is an explicit maps.json "translates" token override. See the Settings language combo. ──
+        private const string AutoLang = "auto";
+        private static bool IsAutoLang(string s) =>
+            string.IsNullOrWhiteSpace(s) || s.Equals(AutoLang, StringComparison.OrdinalIgnoreCase);
+
+        // maps.json "translates" token for GameHelper's current UI language (used when Language == auto).
+        // ChineseSimplified has no map translations → falls back to traditional chinese (then English via
+        // ApplyContentLanguage). Thai map values are often English in the data; that's the data's choice.
+        private static string UiLanguageMapToken() => OverlayLocalization.CurrentLanguage switch
+        {
+            OverlayLanguage.Russian => "russian",
+            OverlayLanguage.French => "french",
+            OverlayLanguage.German => "german",
+            OverlayLanguage.SpanishSpain => "spanish",
+            OverlayLanguage.Japanese => "japanese",
+            OverlayLanguage.Korean => "korean",
+            OverlayLanguage.PortugueseBrazil => "portuguese",
+            OverlayLanguage.Thai => "thai",
+            OverlayLanguage.ChineseTraditional => "traditional chinese",
+            OverlayLanguage.ChineseSimplified => "traditional chinese",
+            _ => "english",
+        };
+
+        // Effective map-name token: resolves "auto" to the UI-language token; else the explicit override.
+        private string EffectiveLanguage => IsAutoLang(Settings?.Language) ? UiLanguageMapToken() : Settings.Language;
+
+        // Last map-name token actually applied to the content overlays; lets DrawUI re-slice live when the
+        // GH UI language changes while Language == auto. Set by ApplyContentLanguage.
+        private static string appliedContentLang = null;
         // Free-text filters for the "Add content…" / "Add map…" (content-route) / map-group pickers
         // (one combo open at a time).
         private string ContentAddFilter = string.Empty;
@@ -250,34 +290,47 @@ namespace Atlas
             // Collapsed-by-default top section grouping the rarely-touched setup toggles
             // (input layout, font, map-name language). CollapsingHeader matches GameHelper's
             // General-tab section style (full-width bar).
-            if (ImGui.CollapsingHeader("Settings"))
+            if (ImGui.CollapsingHeader(this.Loc.Title("atlas.settings", "Settings", "atlas_settings")))
             {
-                ImGui.SeparatorText("Input");
-                if (ImGui.Checkbox("Controller Mode", ref Settings.ControllerMode))
+                ImGui.SeparatorText(this.L("atlas.input", "Input"));
+                if (ImGui.Checkbox(this.L("atlas.controller_mode", "Controller Mode"), ref Settings.ControllerMode))
                     nodeCache.Clear(); // re-resolve the panel on the other layout next frame
-                ImGuiHelper.ToolTip("GameHelper auto-detects controller mode, so you normally don't need this. " +
+                ImGuiHelper.ToolTip(this.L("atlas.controller_mode_hint", "GameHelper auto-detects controller mode, so you normally don't need this. " +
                     "Tick it only to FORCE the controller Atlas layout if auto-detect ever fails. Either way the " +
                     "plugin falls back to the other layout when the selected one isn't found. In controller mode " +
-                    "the overlay also stays visible while the inventory is open.");
+                    "the overlay also stays visible while the inventory is open."));
 
-                ImGui.SeparatorText("Font");
-                if (ImGui.Checkbox("Universal font (render map names in any language)", ref Settings.UniversalFont))
+                ImGui.SeparatorText(this.L("atlas.font", "Font"));
+                if (ImGui.Checkbox(this.L("atlas.universal_font", "Universal font (render map names in any language)"), ref Settings.UniversalFont))
                 {
                     if (Settings.UniversalFont)
                         UniversalFont.Apply(DllDirectory);
                     else
                         UniversalFont.Restore();
                 }
-                ImGuiHelper.ToolTip("Loads the plugin's bundled DejaVuSans + GNU Unifont into the overlay so " +
+                ImGuiHelper.ToolTip(this.L("atlas.universal_font_hint", "Loads the plugin's bundled DejaVuSans + GNU Unifont into the overlay so " +
                     "any-language map names render without configuring a font in GameHelper. Affects the whole overlay; " +
-                    "turning it off restores GameHelper's configured font.");
+                    "turning it off restores GameHelper's configured font."));
 
-                ImGui.SeparatorText("Map name language");
-                if (ImGui.BeginCombo("Language", Settings.Language))
+                ImGui.SeparatorText(this.L("atlas.map_name_language", "Map name language"));
+                bool isAuto = IsAutoLang(Settings.Language);
+                string autoLabel = this.L("atlas.lang_auto", "Auto (follow UI language)");
+                // Preview shows "Auto" (with the resolved token) or the explicit override token.
+                string preview = isAuto ? $"{autoLabel} — {UiLanguageMapToken()}" : Settings.Language;
+                if (ImGui.BeginCombo(this.L("atlas.language", "Language"), preview))
                 {
+                    // Auto = track GameHelper's UI language; re-resolves live when the UI language changes.
+                    if (ImGui.Selectable(autoLabel, isAuto) && !isAuto)
+                    {
+                        Settings.Language = AutoLang;
+                        ApplyContentLanguage(EffectiveLanguage);
+                        nodeCache.Clear();
+                    }
+                    if (isAuto)
+                        ImGui.SetItemDefaultFocus();
                     foreach (var lang in AvailableLanguages)
                     {
-                        bool selected = string.Equals(lang, Settings.Language, StringComparison.OrdinalIgnoreCase);
+                        bool selected = !isAuto && string.Equals(lang, Settings.Language, StringComparison.OrdinalIgnoreCase);
                         if (ImGui.Selectable(lang, selected) && !selected)
                         {
                             Settings.Language = lang;
@@ -289,47 +342,59 @@ namespace Atlas
                     }
                     ImGui.EndCombo();
                 }
-                ImGuiHelper.ToolTip("Display language for map-node names (from maps.json 'translates'). " +
-                    "Changing it re-labels nodes immediately. Map Group names are matched in the selected language.");
+                ImGuiHelper.ToolTip(this.L("atlas.language_hint", "Display language for map-node names (from maps.json 'translates'). " +
+                    "Auto follows GameHelper's UI language; pick a specific language to match your game client instead. " +
+                    "Changing it re-labels nodes immediately. Map Group names are matched in the selected language."));
 
-                ImGui.SeparatorText("Draw Lines");
-                if (ImGui.TreeNode("Draw Lines Settings"))
+                ImGui.SeparatorText(this.L("atlas.draw_lines", "Draw Lines"));
+                if (ImGui.TreeNode(this.Loc.Title("atlas.draw_lines_settings", "Draw Lines Settings", "atlas_draw_lines")))
                 {
-                    ImGui.Checkbox("Shortest Path", ref Settings.RouteLinesThroughNodes);
-                    ImGuiHelper.ToolTip("Route lines follow the shortest hop-path through the revealed atlas edges " +
-                        "(from the nearest accessible node). When off, a straight line is drawn instead.");
+                    ImGui.Checkbox(this.L("atlas.shortest_path", "Shortest Path"), ref Settings.RouteLinesThroughNodes);
+                    ImGuiHelper.ToolTip(this.L("atlas.shortest_path_hint", "Route lines follow the shortest hop-path through the revealed atlas edges " +
+                        "(from the nearest accessible node). When off, a straight line is drawn instead."));
                     ImGui.SameLine();
                     ImGui.SetNextItemWidth(150);
-                    ImGui.SliderFloat("Path Thickness", ref Settings.PathLineThickness, 1.0f, 8.0f);
+                    ImGui.SliderFloat(this.L("atlas.path_thickness", "Path Thickness"), ref Settings.PathLineThickness, 1.0f, 8.0f);
                     ImGui.SetNextItemWidth(150);
-                    ImGui.SliderFloat("Arrow spacing", ref Settings.RouteArrowSpacing, 6.0f, 18.0f);
-                    ImGuiHelper.ToolTip("Gap between the direction arrows drawn along a route (higher = more spread out).");
+                    ImGui.SliderFloat(this.L("atlas.arrow_spacing", "Arrow spacing"), ref Settings.RouteArrowSpacing, 6.0f, 18.0f);
+                    ImGuiHelper.ToolTip(this.L("atlas.arrow_spacing_hint", "Gap between the direction arrows drawn along a route (higher = more spread out)."));
                     ImGui.SetNextItemWidth(150);
-                    ImGui.SliderFloat("Search route range", ref Settings.DrawSearchInRange, 1.0f, 10.0f);
+                    ImGui.SliderFloat(this.L("atlas.search_route_range", "Search route range"), ref Settings.DrawSearchInRange, 1.0f, 10.0f);
                     ImGui.TreePop();
                 }
 
-                ImGui.SeparatorText("Debug");
-                ImGui.Checkbox("Show Node Index (debug/RE)", ref Settings.ShowNodeIndex);
-                ImGuiHelper.ToolTip("DEBUG: draws each node's child-index (its number in the atlas-panel child list) as a badge " +
-                    "to the left of the map name, so a node referenced by number is easy to locate on-screen.");
+                ImGui.SeparatorText(this.L("atlas.debug", "Debug"));
+                ImGui.Checkbox(this.L("atlas.show_node_index", "Show Node Index (debug/RE)"), ref Settings.ShowNodeIndex);
+                ImGuiHelper.ToolTip(this.L("atlas.show_node_index_hint", "DEBUG: draws each node's child-index (its number in the atlas-panel child list) as a badge " +
+                    "to the left of the map name, so a node referenced by number is easy to locate on-screen."));
             }
 
             // Collapsed-by-default Display section: node-visibility filters, biome border, label
             // layout, and the content-icon overlay.
-            if (ImGui.CollapsingHeader("Display"))
+            if (ImGui.CollapsingHeader(this.Loc.Title("atlas.display", "Display", "atlas_display")))
             {
-                ImGui.SeparatorText("Atlas Settings");
-                ImGui.Checkbox("Hide Completed Maps", ref Settings.HideCompletedMaps);
-                ImGui.Checkbox("Hide Not Accessible Maps", ref Settings.HideNotAccessibleMaps);
-                ImGui.Checkbox("Hide Available Maps", ref Settings.HideAvailableMaps);
-                ImGuiHelper.ToolTip("Hide maps that are accessible/runnable right now. Route/search targets stay visible.");
-                ImGui.Checkbox("Show Biome Border", ref Settings.ShowBiomeBorder);
+                ImGui.SeparatorText(this.L("atlas.atlas_settings", "Atlas Settings"));
+                ImGui.Checkbox(this.L("atlas.hide_completed", "Hide Completed Maps"), ref Settings.HideCompletedMaps);
+                ImGui.Checkbox(this.L("atlas.hide_not_accessible", "Hide Not Accessible Maps"), ref Settings.HideNotAccessibleMaps);
+                ImGui.Checkbox(this.L("atlas.hide_available", "Hide Available Maps"), ref Settings.HideAvailableMaps);
+                ImGuiHelper.ToolTip(this.L("atlas.hide_available_hint", "Hide maps that are accessible/runnable right now. Route/search targets stay visible."));
+                ImGui.Checkbox(this.L("atlas.show_connections", "Show node connections"), ref Settings.ShowAtlasGraph);
+                ImGuiHelper.ToolTip(this.L("atlas.show_connections_hint", "Draw the atlas connection graph — a faint line along every edge between adjacent map nodes, beneath the labels and routes."));
+                if (Settings.ShowAtlasGraph)
+                {
+                    ColorSwatch("##AtlasGraphColor", ref Settings.AtlasGraphLineColor);
+                    ImGui.SameLine();
+                    ImGui.Text(this.L("atlas.connection_color", "Connection Color"));
+                    ImGui.SetNextItemWidth(150);
+                    ImGui.SliderFloat(this.L("atlas.connection_thickness", "Connection Thickness"), ref Settings.AtlasGraphThickness, 0.5f, 5.0f);
+                }
+
+                ImGui.Checkbox(this.L("atlas.show_biome_border", "Show Biome Border"), ref Settings.ShowBiomeBorder);
                 if (Settings.ShowBiomeBorder)
-                    if (ImGui.TreeNode("Biome Settings"))
+                    if (ImGui.TreeNode(this.Loc.Title("atlas.biome_settings", "Biome Settings", "atlas_biome")))
                     {
                         ImGui.SetNextItemWidth(180);
-                        ImGui.SliderFloat("Biome Border Thickness", ref Settings.BiomeBorderThickness, 1.0f, 6.0f);
+                        ImGui.SliderFloat(this.L("atlas.biome_border_thickness", "Biome Border Thickness"), ref Settings.BiomeBorderThickness, 1.0f, 6.0f);
 
                         if (ImGui.BeginTable("split", 3))
                         {
@@ -354,7 +419,7 @@ namespace Atlas
 
                                 var border = ov.BorderColor ?? info.BdColor;
                                 ImGui.SameLine();
-                                ColorSwatch($"Border Color##Biome{id}", ref border);
+                                ColorSwatch($"{this.L("atlas.border_color", "Border Color")}##Biome{id}", ref border);
                                 if (!ColorsEqual(border, ov.BorderColor ?? info.BdColor))
                                 {
                                     ov.BorderColor = border;
@@ -371,35 +436,35 @@ namespace Atlas
                         ImGui.TreePop();
                     }
 
-                if (ImGui.TreeNode("Layout Settings"))
+                if (ImGui.TreeNode(this.Loc.Title("atlas.layout_settings", "Layout Settings", "atlas_layout")))
                 {
                     var nudge = Settings.AnchorNudge;
-                    if (ImGui.SliderFloat2("Layout Nudge (px)", ref nudge, -60f, 60f))
+                    if (ImGui.SliderFloat2(this.L("atlas.layout_nudge", "Layout Nudge (px)"), ref nudge, -60f, 60f))
                         Settings.AnchorNudge = nudge;
-                    ImGui.SliderFloat("Scale Multiplier", ref Settings.ScaleMultiplier, 0.5f, 3.0f);
+                    ImGui.SliderFloat(this.L("atlas.scale_multiplier", "Scale Multiplier"), ref Settings.ScaleMultiplier, 0.5f, 3.0f);
                     ImGui.TreePop();
                 }
 
-                ImGui.SeparatorText("Content Icons");
-                ImGui.Checkbox("Show Content Icons", ref Settings.ShowContentIcons);
-                ImGuiHelper.ToolTip("Draws each content as its in-game icon (from Plugins\\Atlas\\icons\\<name>.png) above the map " +
+                ImGui.SeparatorText(this.L("atlas.content_icons", "Content Icons"));
+                ImGui.Checkbox(this.L("atlas.show_content_icons", "Show Content Icons"), ref Settings.ShowContentIcons);
+                ImGuiHelper.ToolTip(this.L("atlas.show_content_icons_hint", "Draws each content as its in-game icon (from Plugins\\Atlas\\icons\\<name>.png) above the map " +
                     "name. Content without an icon file falls back to its text name. Icons are suppressed on visible nodes " +
-                    "(the game already draws them there) and shown only on hidden ones.");
+                    "(the game already draws them there) and shown only on hidden ones."));
                 if (Settings.ShowContentIcons)
                 {
                     ImGui.SetNextItemWidth(180);
-                    ImGui.SliderFloat("Content Icon Size", ref Settings.ContentIconSize, 16f, 64f);
+                    ImGui.SliderFloat(this.L("atlas.content_icon_size", "Content Icon Size"), ref Settings.ContentIconSize, 16f, 64f);
                     var iconOffset = Settings.ContentIconOffset;
                     ImGui.SetNextItemWidth(180);
-                    if (ImGui.SliderFloat2("Content Icon Offset (X,Y)", ref iconOffset, -64f, 64f))
+                    if (ImGui.SliderFloat2(this.L("atlas.content_icon_offset", "Content Icon Offset (X,Y)"), ref iconOffset, -64f, 64f))
                         Settings.ContentIconOffset = iconOffset;
                 }
 
-                if (ImGui.TreeNode("Map Styles##MapStyles"))
+                if (ImGui.TreeNode(this.Loc.Title("atlas.map_styles", "Map Styles", "MapStyles")))
                 {
-                    ImGui.InputTextWithHint("##MapGroupName", "group name", ref Settings.GroupNameInput, 256);
+                    ImGui.InputTextWithHint("##MapGroupName", this.L("atlas.hint_group_name", "group name"), ref Settings.GroupNameInput, 256);
                     ImGui.SameLine();
-                    if (ImGui.Button("Add new map group"))
+                    if (ImGui.Button(this.L("atlas.add_map_group", "Add new map group")))
                     {
                         Settings.MapGroups.Add(new MapGroupSettings(Settings.GroupNameInput, Settings.DefaultBackgroundColor, Settings.DefaultFontColor));
                         Settings.GroupNameInput = string.Empty;
@@ -421,39 +486,39 @@ namespace Atlas
                                 MoveMapGroup(i, 1);
                             }
                             ImGui.SameLine();
-                            if (ImGui.Button($"Rename Group##{i}"))
+                            if (ImGui.Button($"{this.L("atlas.rename_group", "Rename Group")}##{i}"))
                             {
                                 NewGroupName = mapGroup.Name;
                                 ImGui.OpenPopup($"RenamePopup##{i}");
                             }
                             ImGui.SameLine();
-                            if (ImGui.Button($"Delete Group##{i}"))
+                            if (ImGui.Button($"{this.L("atlas.delete_group", "Delete Group")}##{i}"))
                             {
                                 DeleteMapGroup(i);
                             }
                             ImGui.SameLine();
                             ColorSwatch($"##MapGroupBackgroundColor{i}", ref mapGroup.BackgroundColor);
                             ImGui.SameLine();
-                            ImGui.Text("Background Color");
+                            ImGui.Text(this.L("atlas.background_color", "Background Color"));
                             ImGui.SameLine();
                             ColorSwatch($"##MapGroupFontColor{i}", ref mapGroup.FontColor);
-                            ImGui.SameLine(); ImGui.Text("Font Color");
+                            ImGui.SameLine(); ImGui.Text(this.L("atlas.font_color", "Font Color"));
 
                             for (int j = 0; j < mapGroup.Maps.Count; j++)
                             {
                                 var mapName = mapGroup.Maps[j];
-                                if (ImGui.InputTextWithHint($"##MapName{i}-{j}", "map name", ref mapName, 256))
+                                if (ImGui.InputTextWithHint($"##MapName{i}-{j}", this.L("atlas.hint_map_name", "map name"), ref mapName, 256))
                                     mapGroup.Maps[j] = mapName;
 
                                 ImGui.SameLine();
-                                if (ImGui.Button($"Delete##MapNameDelete{i}-{j}"))
+                                if (ImGui.Button($"{this.L("atlas.delete", "Delete")}##MapNameDelete{i}-{j}"))
                                 {
                                     mapGroup.Maps.RemoveAt(j);
                                     break;
                                 }
                             }
 
-                            if (ImGui.Button($"Add new map##AddNewMap{i}"))
+                            if (ImGui.Button($"{this.L("atlas.add_new_map", "Add new map")}##AddNewMap{i}"))
                                 mapGroup.Maps.Add(string.Empty);
 
                             // Pick a map from a filtered list instead of typing it. Stores the localized
@@ -461,11 +526,11 @@ namespace Atlas
                             // filter narrows by localized or English name. Skips maps already in the group.
                             ImGui.SameLine();
                             ImGui.SetNextItemWidth(220);
-                            if (ImGui.BeginCombo($"##MapGroupAdd{i}", "Add from list…"))
+                            if (ImGui.BeginCombo($"##MapGroupAdd{i}", this.L("atlas.add_from_list", "Add from list…")))
                             {
                                 EnsureMapPickCache();
                                 ImGui.SetNextItemWidth(-1);
-                                ImGui.InputTextWithHint($"##MapGroupFilter{i}", "filter…", ref MapGroupAddFilter, 64);
+                                ImGui.InputTextWithHint($"##MapGroupFilter{i}", this.L("atlas.hint_filter", "filter…"), ref MapGroupAddFilter, 64);
                                 var gfilter = MapGroupAddFilter;
                                 foreach (var (english, localized) in MapPickCache)
                                 {
@@ -486,14 +551,14 @@ namespace Atlas
 
                             if (ImGui.BeginPopupModal($"RenamePopup##{i}", ImGuiWindowFlags.AlwaysAutoResize))
                             {
-                                ImGui.InputText("New Name", ref NewGroupName, 256);
-                                if (ImGui.Button("OK"))
+                                ImGui.InputText(this.L("atlas.new_name", "New Name"), ref NewGroupName, 256);
+                                if (ImGui.Button(this.L("atlas.ok", "OK")))
                                 {
                                     mapGroup.Name = NewGroupName;
                                     ImGui.CloseCurrentPopup();
                                 }
                                 ImGui.SameLine();
-                                if (ImGui.Button("Cancel"))
+                                if (ImGui.Button(this.L("atlas.cancel", "Cancel")))
                                 {
                                     ImGui.CloseCurrentPopup();
                                 }
@@ -506,16 +571,16 @@ namespace Atlas
                 }
             }
 
-            ImGui.SeparatorText("Search Maps");
-            ImGui.InputTextWithHint("Search Map", "You can search multiple maps at once using a comma separator ','", ref Settings.SearchQuery, 256);
+            ImGui.SeparatorText(this.L("atlas.search_maps", "Search Maps"));
+            ImGui.InputTextWithHint(this.L("atlas.search_map", "Search Map"), this.L("atlas.search_map_hint", "You can search multiple maps at once using a comma separator ','"), ref Settings.SearchQuery, 256);
             ImGui.SameLine();
-            if (ImGui.SmallButton("Clear"))
+            if (ImGui.SmallButton(this.L("atlas.clear", "Clear")))
                 Settings.SearchQuery = string.Empty;
             // Search routing is always on now (the old "Draw Lines to Search in range" toggle is hidden);
             // a non-empty Search query draws routes to the matching maps within range.
             Settings.DrawLinesSearchQuery = true;
 
-            ImGui.SeparatorText("Target farming");
+            ImGui.SeparatorText(this.L("atlas.target_farming", "Target farming"));
             DrawMapContentSettings();
             #endregion
         }
@@ -528,9 +593,9 @@ namespace Atlas
         private void DrawMapContentSettings()
         {
             {
-                ImGui.InputTextWithHint("##ContentGroupName", "group name", ref Settings.ContentGroupNameInput, 256);
+                ImGui.InputTextWithHint("##ContentGroupName", this.L("atlas.hint_group_name", "group name"), ref Settings.ContentGroupNameInput, 256);
                 ImGui.SameLine();
-                if (ImGui.Button("Add content group"))
+                if (ImGui.Button(this.L("atlas.add_content_group", "Add content group")))
                 {
                     Settings.ContentGroups.Add(new ContentGroupSettings
                     {
@@ -542,7 +607,7 @@ namespace Atlas
                 for (int gi = 0; gi < Settings.ContentGroups.Count; gi++)
                 {
                     var grp = Settings.ContentGroups[gi];
-                    string title = grp.Locked ? $"{grp.Name} (built-in)##ContentGroup{gi}" : $"{grp.Name}##ContentGroup{gi}";
+                    string title = grp.Locked ? $"{grp.Name} {this.L("atlas.builtin_suffix", "(built-in)")}##ContentGroup{gi}" : $"{grp.Name}##ContentGroup{gi}";
                     // The built-in group stays expanded while it's the only group; once other groups
                     // exist it collapses by default but the user can still toggle it freely.
                     if (grp.Locked && Settings.ContentGroups.Count == 1)
@@ -551,22 +616,22 @@ namespace Atlas
                         continue;
 
                     bool drawPaths = grp.DrawPaths;
-                    if (ImGui.Checkbox($"Draw paths##CG{gi}", ref drawPaths))
+                    if (ImGui.Checkbox($"{this.L("atlas.draw_paths", "Draw paths")}##CG{gi}", ref drawPaths))
                         grp.DrawPaths = drawPaths;
-                    ImGuiHelper.ToolTip("Master switch for this group: when off, no route is drawn for any of its content, " +
-                        "but each entry keeps its own 'route' checkbox unchanged.");
+                    ImGuiHelper.ToolTip(this.L("atlas.draw_paths_hint", "Master switch for this group: when off, no route is drawn for any of its content, " +
+                        "but each entry keeps its own 'route' checkbox unchanged."));
 
                     // One line thickness for all entries in the group, shown right under "Draw paths".
                     ImGui.SetNextItemWidth(180);
                     float gth = grp.LineThickness;
-                    if (ImGui.SliderFloat($"Line thickness##CGth{gi}", ref gth, 1f, 8f))
+                    if (ImGui.SliderFloat($"{this.L("atlas.line_thickness", "Line thickness")}##CGth{gi}", ref gth, 1f, 8f))
                         grp.LineThickness = gth;
 
                     // The built-in group can't be deleted and its content list is fixed.
                     if (!grp.Locked)
                     {
                         ImGui.SameLine();
-                        if (ImGui.Button($"Delete group##CG{gi}"))
+                        if (ImGui.Button($"{this.L("atlas.delete_group_lc", "Delete group")}##CG{gi}"))
                         {
                             Settings.ContentGroups.RemoveAt(gi);
                             ImGui.TreePop();
@@ -576,10 +641,10 @@ namespace Atlas
                         // Add-content combo (only content types not already in this group). Filter box
                         // narrows by content name OR description (in the selected UI language).
                         ImGui.SetNextItemWidth(220);
-                        if (ImGui.BeginCombo($"##AddContent{gi}", "Add content…"))
+                        if (ImGui.BeginCombo($"##AddContent{gi}", this.L("atlas.add_content", "Add content…")))
                         {
                             ImGui.SetNextItemWidth(-1);
-                            ImGui.InputTextWithHint($"##ContentFilter{gi}", "filter…", ref ContentAddFilter, 64);
+                            ImGui.InputTextWithHint($"##ContentFilter{gi}", this.L("atlas.hint_filter", "filter…"), ref ContentAddFilter, 64);
                             var cfilter = ContentAddFilter;
                             foreach (var choice in ContentChoices)
                             {
@@ -610,11 +675,11 @@ namespace Atlas
                         // name). Names are shown/sorted in the selected UI language; filter box narrows.
                         ImGui.SameLine();
                         ImGui.SetNextItemWidth(220);
-                        if (ImGui.BeginCombo($"##AddMap{gi}", "Add map…"))
+                        if (ImGui.BeginCombo($"##AddMap{gi}", this.L("atlas.add_map", "Add map…")))
                         {
                             EnsureMapPickCache();
                             ImGui.SetNextItemWidth(-1);
-                            ImGui.InputTextWithHint($"##MapFilter{gi}", "filter…", ref MapAddFilter, 64);
+                            ImGui.InputTextWithHint($"##MapFilter{gi}", this.L("atlas.hint_filter", "filter…"), ref MapAddFilter, 64);
                             var filter = MapAddFilter;
                             foreach (var (english, localized) in MapPickCache)
                             {
@@ -645,7 +710,7 @@ namespace Atlas
                         bool draw = entry.DrawPath;
                         if (ImGui.Checkbox("##route", ref draw))
                             entry.DrawPath = draw;
-                        ImGuiHelper.ToolTip("Draw a route to the nearest node carrying this content.");
+                        ImGuiHelper.ToolTip(this.L("atlas.route_entry_hint", "Draw a route to the nearest node carrying this content."));
 
                         ImGui.SameLine();
                         var col = entry.LineColor;
@@ -657,7 +722,7 @@ namespace Atlas
                         int hops = entry.MaxHops;
                         if (ImGui.DragInt("##hops", ref hops, 0.1f, 0, 1000))
                             entry.MaxHops = Math.Max(0, hops);
-                        ImGuiHelper.ToolTip("Max hops to route through (0 = unlimited). A longer route is suppressed.");
+                        ImGuiHelper.ToolTip(this.L("atlas.max_hops_hint", "Max hops to route through (0 = unlimited). A longer route is suppressed."));
 
                         // Icon (content entries only) + localized name (map name for built-in entries).
                         ImGui.SameLine();
@@ -701,6 +766,14 @@ namespace Atlas
                 return;
 
             EnsureProcessHandle();
+
+            // Auto map-name language: re-slice the content/name overlays live if the GH UI language
+            // changed since the last apply (no-op in explicit-override mode once tokens match).
+            if (!string.Equals(appliedContentLang, EffectiveLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyContentLanguage(EffectiveLanguage);
+                nodeCache.Clear();
+            }
 
             var player = Core.States.InGameStateObject.CurrentAreaInstance.Player;
             if (!player.TryGetComponent<Render>(out var playerRender))
@@ -746,7 +819,8 @@ namespace Atlas
             // drawn — so reading per-node data this frame would be wasted work. Skip the read + draw.
             bool allStatesHidden = Settings.HideCompletedMaps && Settings.HideNotAccessibleMaps && Settings.HideAvailableMaps;
             bool needNodeData = !allStatesHidden || doSearch || wantContentRoute
-                || Settings.DrawLinesToUniqueMaps || Settings.PathToLineageMaps || Settings.PathToArbiterMaps;
+                || Settings.DrawLinesToUniqueMaps || Settings.PathToLineageMaps || Settings.PathToArbiterMaps
+                || Settings.ShowAtlasGraph;
             if (!needNodeData)
             {
                 // cacheFrameCounter is left past the threshold (not incremented) so a re-enable
@@ -876,6 +950,46 @@ namespace Atlas
                 // inline with a global phase let two routes whose phase slots collided stamp opaque
                 // triangles on the same spots — the later colour (usually a white/cream content route)
                 // then fully hid the earlier one (e.g. a red arbiter route) on their common segment.
+                // ── Atlas connection graph: faint line along every edge between adjacent nodes ──
+                // Drawn on ChannelGrid (the bottom layer) so labels/routes sit on top. Reuses the
+                // routing edge-graph + centers when a route is also being computed this frame.
+                if (Settings.ShowAtlasGraph)
+                {
+                    var gGraph = routeGraph ?? BuildConnectionGraph(atlasPanelAddr);
+                    var gCenters = routeCenters;
+                    if (gCenters == null)
+                    {
+                        gCenters = new Dictionary<StdTuple2D<int>, Vector2>(nodeCache.Count);
+                        foreach (var nd in nodeCache)
+                        {
+                            var ub = Read<UiElementBaseOffset>(nd.Address);
+                            var sc = ComputeScalePair(in ub);
+                            var tl = GetLeafTopLeft(in ub);
+                            var sz = new Vector2(ub.UnscaledSize.X * sc.X, ub.UnscaledSize.Y * sc.Y);
+                            var center = tl + sz * 0.5f;
+                            if (panelRect.Contains(center.X, center.Y))
+                                gCenters[nd.GridPosition] = center;
+                        }
+                    }
+
+                    drawList.ChannelsSetCurrent(ChannelGrid);
+                    uint gcol = ImGuiHelper.Color(Settings.AtlasGraphLineColor);
+                    float gth = MathF.Max(0.5f, uiScale * Settings.AtlasGraphThickness);
+                    foreach (var kv in gGraph)
+                    {
+                        if (!gCenters.TryGetValue(kv.Key, out var ca))
+                            continue;
+                        foreach (var b in kv.Value)
+                        {
+                            // AddEdge stores both directions; draw each undirected edge once.
+                            if (!IsCanonicalEdge(kv.Key, b))
+                                continue;
+                            if (gCenters.TryGetValue(b, out var cb))
+                                drawList.AddLine(ca, cb, gcol, gth);
+                        }
+                    }
+                }
+
                 var pendingRoutes = new List<(List<StdTuple2D<int>> path, uint color, float thickness)>();
 
                 foreach (var nd in nodeCache)
@@ -1204,7 +1318,7 @@ namespace Atlas
                 var mapInfo = GetMapInfo(internalId);
                 var contentTokens = GetContentTokens(addr);
                 var badgeIds = GetBadgeContentIds(nodeUi);
-                var mapName = ResolveLocalizedName(internalId, mapInfo, Settings.Language);
+                var mapName = ResolveLocalizedName(internalId, mapInfo, EffectiveLanguage);
                 nodeCache.Add(new NodeData
                 {
                     Address = addr,
@@ -1270,7 +1384,7 @@ namespace Atlas
                     var mapInfo = GetMapInfo(internalId);
                     var tokens = ToUintArray(nTokens?.GetValue(map));
                     var badgeIds = ToUintArray(nBadgeIds?.GetValue(map));
-                    var mapName = ResolveLocalizedName(internalId, mapInfo, Settings.Language);
+                    var mapName = ResolveLocalizedName(internalId, mapInfo, EffectiveLanguage);
                     newCache.Add(new NodeData
                     {
                         Address = (IntPtr)(nAddress.GetValue(map) ?? IntPtr.Zero),
@@ -1395,6 +1509,11 @@ namespace Atlas
             if (!list.Contains(b))
                 list.Add(b);
         }
+
+        // Keep only one direction of an undirected edge (a precedes b), so the connection graph
+        // draws each line once instead of twice.
+        private static bool IsCanonicalEdge(StdTuple2D<int> a, StdTuple2D<int> b)
+            => a.X < b.X || (a.X == b.X && a.Y <= b.Y);
 
         // Multi-source BFS over the undirected graph seeded from every accessible (frontier) node,
         // skipping blocked (failed) nodes. Returns a cameFrom tree pointing back toward the nearest
@@ -1645,7 +1764,7 @@ namespace Atlas
             }
             ContentChoices.Sort(StringComparer.OrdinalIgnoreCase);
 
-            ApplyContentLanguage(Settings?.Language);
+            ApplyContentLanguage(EffectiveLanguage);
         }
 
         // Special map-state contents that have a VisualIdentity icon but NO EndgameMapContent row, so
@@ -1773,10 +1892,10 @@ namespace Atlas
             if (!string.IsNullOrEmpty(e.Match) && e.Match.StartsWith("id:", StringComparison.OrdinalIgnoreCase))
             {
                 var id = e.Match[3..];
-                return ResolveLocalizedName(id, GetMapInfo(id), Settings?.Language);
+                return ResolveLocalizedName(id, GetMapInfo(id), EffectiveLanguage);
             }
             if (!string.IsNullOrEmpty(e.Match) && e.Match.StartsWith("name:", StringComparison.OrdinalIgnoreCase))
-                return ResolveLocalizedMapName(e.Match[5..], Settings?.Language);
+                return ResolveLocalizedMapName(e.Match[5..], EffectiveLanguage);
             return LocalizedName(e.ContentName);
         }
 
@@ -1794,7 +1913,7 @@ namespace Atlas
         // Build/refresh the deduped, language-sorted map list backing the "Add map…" picker.
         private void EnsureMapPickCache()
         {
-            var lang = Settings?.Language ?? string.Empty;
+            var lang = EffectiveLanguage ?? string.Empty;
             if (MapPickCacheLang == lang && MapPickCache.Count > 0)
                 return;
 
@@ -1815,6 +1934,7 @@ namespace Atlas
         // so display falls back to the canonical English name/desc. Called on load and on language change.
         private static void ApplyContentLanguage(string lang)
         {
+            appliedContentLang = lang;
             NameToLocalizedName.Clear();
             NameToLocalizedDesc.Clear();
             if (string.IsNullOrWhiteSpace(lang) || lang.Equals("english", StringComparison.OrdinalIgnoreCase))

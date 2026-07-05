@@ -539,8 +539,8 @@ namespace StashUtility
                         ImGui.EndCombo();
                     }
 
-                    DrawModListUI(PluginText.T("stashutility.bad_mods_title", "BAD WAYSTONE MODS (RED HIGHLIGHT)"), Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
-                    DrawModListUI(PluginText.T("stashutility.good_mods_title", "GOOD WAYSTONE MODS (GREEN HIGHLIGHT)"), Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
+                    DrawModListUI(PluginText.T("stashutility.bad_mods_title", "BAD WAYSTONE MODS (RED HIGHLIGHT)"), "bad_waystone", Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
+                    DrawModListUI(PluginText.T("stashutility.good_mods_title", "GOOD WAYSTONE MODS (GREEN HIGHLIGHT)"), "good_waystone", Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
                 }
 
                 if (ImGui.CollapsingHeader(PluginText.T("stashutility.waystone_great_conditions_header", "Waystone GREAT Highlight Conditions")))
@@ -618,7 +618,7 @@ namespace StashUtility
                         {
                             if (ImGui.BeginTabItem(PluginText.T($"stashutility.tablet.category.{kvp.Key}", kvp.Key)))
                             {
-                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value).ToList();
+                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value.Filter).ToList();
                                 
                                 ImGui.InputTextWithHint($"##search{kvp.Key}", PluginText.F("stashutility.tablet.search_category", "Search {0} Mods...", kvp.Key), ref tabletSearchTerm, 64);
                                 var filtered = tabMods.Where(m => m.Name.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();

@@ -51,6 +51,19 @@ namespace RunecraftHelper
         private const int ServerDataScanStart = 0x2580;     // drift-recovery scan window around +0x2618
         private const int ServerDataScanEnd = 0x26b0;
 
+        // Map/zone modifiers: the AreaInstance exposes its active mods as a std::vector<{ i32 StatsKey; i32 Value }>
+        // at +0x158 (begin) / +0x160 (end) — locale-free, Value = signed integer percent (RE 2026-07-03, obsidian
+        // poe2/MapMods, live-verified 0.5.4BHF3). The planner reads the Expedition placement-range / explosive-radius
+        // mods straight from here so they're applied automatically (no manual entry).
+        //
+        // NB: these StatsKeys are EMPIRICALLY confirmed against live zones — the numeric ids do NOT line up with the
+        // names in the dumped Stats.dat for 0.5.4b (the id space is misaligned/scrambled: e.g. the radius mod reads
+        // on key 13471 even though Stats.dat calls that row "explosives"). Confirm any new one by reading the vector
+        // in a zone that has the mod and matching the displayed %, not by the .dat name.
+        private const int AreaMapModsVecOffset = 0x158;
+        private const int StatMapExpeditionExplosiveRadiusPct = 13471;   // "Increased Expedition Explosive Radius" (confirmed: 36% zone)
+        private const int StatMapExpeditionPlacementRangePct = 13685;    // "Increased Expedition Explosive Placement Range" (confirmed: 32% zone)
+
         private const string ExpDetonatorPath = "Metadata/MiscellaneousObjects/Expedition/ExpeditionDetonator";
         private const string ExpExplosivePath = "Metadata/MiscellaneousObjects/Expedition/ExpeditionExplosive";
         private const string ExpMarkerPath = "Metadata/MiscellaneousObjects/Expedition/ExpeditionMarker";
@@ -212,10 +225,15 @@ namespace RunecraftHelper
         // placement reach AND blast than a Grand / Logbook one (base ~20). Earlier 108/35 were measured on Grand
         // (15-explosive) maps; the normal 90/28 came from maxing all 5 hops / edge-touching a marker on a 5-charge
         // map. Picked by ExpIsGrand(total) so each strategy uses its own physics.
-        private const float ExpBasePlacementDistanceGrand = 108f;   // grid
-        private const float ExpBasePlacementDistanceNormal = 90f;   // grid
-        private const float ExpBaseBlastRadiusGrand = 35f;          // grid
-        private const float ExpBaseBlastRadiusNormal = 28f;         // grid
+        // EXACT bases from Ghidra (BHF3): placement in ExpeditionExplosive_BuildPlacementPath (0x141ec19a0) =
+        // 0x6c/0x5a; blast radius in ExpeditionExplosive_ComputeBlastRadius (0x14178d1b0) = 0x25/0x1e. The
+        // Grand vs Normal branch is the same area-type test in both. Effective = base × (1 + mod%/100); the
+        // engine also adds +8×(nearby-uncovered) to the radius, so this floor is a safe (conservative) coverage
+        // value. (Radius was 35/28 from live measurement — 2 grid low vs the code floor 37/30.)
+        private const float ExpBasePlacementDistanceGrand = 108f;   // grid (0x6c)
+        private const float ExpBasePlacementDistanceNormal = 90f;   // grid (0x5a)
+        private const float ExpBaseBlastRadiusGrand = 37f;          // grid (0x25)
+        private const float ExpBaseBlastRadiusNormal = 30f;         // grid (0x1e)
 
         // The active base for the CURRENT map, chosen by the charge total (Grand vs normal). The Grand verdict is
         // only trusted from a CONFIRMED total — the controller (ServerData+0x2618) or the in-game HUD counter.
@@ -658,6 +676,11 @@ namespace RunecraftHelper
             var area = Core.States.InGameStateObject.CurrentAreaInstance;
             if (area == null) { this.expScanStatus = "no area"; return; }
 
+            // Auto-detect this map's Expedition mods (placement distance / explosive radius %) from the area's
+            // mod vector, every scan — replaces the old manual sliders. Per-map data; self-heals if it reads a
+            // frame late on entry.
+            this.ApplyExpeditionMapMods(area.Address);
+
             // Drop the persistent cache (targets + sticky detonator/charge anchor) only when the area
             // changes; within an area it accumulates so player movement never shrinks the routed set.
             if (area.AreaHash != this.expCachedAreaHash)
@@ -681,10 +704,8 @@ namespace RunecraftHelper
                 lock (this.expResultLock) { this.expPendingResult = null; }
                 this.expComputing = false;
 
-                // Map modifiers are per-map (read off the new map) — reset to 0 each area so they DON'T carry
-                // over, unlike the reward weights which persist. The player re-enters them for the new map.
-                this.Settings.ExpPlacementDistancePct = 0;
-                this.Settings.ExpBlastRadiusPct = 0;
+                // Map modifiers are per-map and auto-detected from the AreaInstance each scan
+                // (ApplyExpeditionMapMods), so nothing to carry over or reset here.
             }
 
             // Monolith ex-values reused from RunecraftHelper's own (patch-current) scan.
@@ -937,6 +958,47 @@ namespace RunecraftHelper
             this.expPlacedMax = this.expCtrlResolved ? rawPlaced : Math.Max(this.expPlacedMax, rawPlaced);
 
             this.expScanStatus = canWalk ? $"{this.expItems.Count} items" : $"{this.expItems.Count} items (no walkable grid)";
+        }
+
+        // Auto-detect this map's Expedition modifiers from the AreaInstance map-mods vector and feed them into the
+        // planner's placement-distance / blast-radius %s (replaces the old manual sliders). Vector = std::vector<
+        // { i32 StatsKey; i32 Value }> at areaAddr+0x158 (begin) / +0x160 (end); Value is a signed integer percent.
+        // Absent stat ⇒ 0 (no mod). Read failure ⇒ values left untouched (no flicker); a genuinely empty vector ⇒ 0.
+        // Keys are empirically confirmed (see constants) — the dumped Stats.dat names are misaligned for this build.
+        private void ApplyExpeditionMapMods(IntPtr areaAddr)
+        {
+            if (areaAddr == IntPtr.Zero || this.processHandle == IntPtr.Zero) return;
+
+            var head = new byte[16];
+            if (!ReadProcessMemory(this.processHandle, areaAddr + AreaMapModsVecOffset, head, (uint)head.Length, out _))
+                return;
+
+            long begin = BitConverter.ToInt64(head, 0);
+            long end = BitConverter.ToInt64(head, 8);
+            if (begin == 0 && end == 0) { this.Settings.ExpPlacementDistancePct = 0; this.Settings.ExpBlastRadiusPct = 0; return; }
+
+            ulong b = (ulong)begin;
+            if (b < 0x10000 || b > 0x7FFFFFFFFFFFul) return;
+            long span = end - begin;
+            if (span <= 0 || (span % 8) != 0 || span > 0x8000) return;   // 0x8000 ⇒ 4096-entry sanity cap
+
+            var buf = new byte[span];
+            if (!ReadProcessMemory(this.processHandle, (IntPtr)begin, buf, (uint)buf.Length, out _)) return;
+
+            int distancePct = 0, radiusPct = 0;
+            for (int off = 0; off + 8 <= buf.Length; off += 8)
+            {
+                int statId = BitConverter.ToInt32(buf, off);
+                int value = BitConverter.ToInt32(buf, off + 4);
+                switch (statId)
+                {
+                    case StatMapExpeditionPlacementRangePct: distancePct += value; break;
+                    case StatMapExpeditionExplosiveRadiusPct: radiusPct += value; break;
+                }
+            }
+
+            this.Settings.ExpPlacementDistancePct = distancePct;
+            this.Settings.ExpBlastRadiusPct = radiusPct;
         }
 
         // Debug dump: list every relic's mods split into Upside (+) / Downside (−) by the self-documenting mod-name
@@ -1807,7 +1869,14 @@ namespace RunecraftHelper
                 }
                 else if (t.Kind == ExpKind.Marker)
                 {
-                    w = this.ExpMarkerTierWeight(ExpMarkerPoleOffset(t), markerBaseline, out _);
+                    // NORMAL: reward flags are valued by pole HEIGHT (logbook/gold/magic/white tiers) — the whole
+                    // height-tier + Sentinel logic only makes sense here. GRAND: those same flags are INERT (their
+                    // drop is completely different / useless), so height weights must NOT leak in and send the route
+                    // chasing them. In Grand, value markers by their reward-icon profile instead (reward-chest icons
+                    // get their profile weight; inert flags fall to the catch-all default and stay negligible).
+                    w = inp.MarkerCoverageMode
+                        ? this.ExpMarkerTierWeight(ExpMarkerPoleOffset(t), markerBaseline, out _)
+                        : this.ExpEffectiveRewardWeight(t.Info);
                 }
                 else if (t.Kind == ExpKind.Sentinel)
                 {
@@ -3104,6 +3173,10 @@ namespace RunecraftHelper
             // (camera-nearer) ring rendered LARGER than the on-ground blast actually is. Sampling ground height per
             // point drops the ring onto the terrain and lets it follow slopes, so its size reads correctly.
             float effRadius = this.ExpBaseBlastRadius() * (1f + (this.Settings.ExpBlastRadiusPct / 100f));
+            // VISUAL-ONLY shrink: the ground-plane camera projection reads a touch larger than the game's in-game
+            // coverage circle, so draw the ring at 0.95× the true blast radius to match by eye. Routing/coverage keep
+            // the true effRadius (a charge still grabs exactly what the planner counted) — this only affects the ring.
+            float drawRadius = effRadius * 0.95f;
             var heights = Core.States.InGameStateObject.CurrentAreaInstance?.GridHeightData;
             float GroundZ(float gx, float gy)
             {
@@ -3119,8 +3192,8 @@ namespace RunecraftHelper
             for (int i = 0; i <= Seg; i++)
             {
                 double a = 2.0 * Math.PI * i / Seg;
-                float gx = rp.TargetGrid.X + (effRadius * (float)Math.Cos(a));
-                float gy = rp.TargetGrid.Y + (effRadius * (float)Math.Sin(a));
+                float gx = rp.TargetGrid.X + (drawRadius * (float)Math.Cos(a));
+                float gy = rp.TargetGrid.Y + (drawRadius * (float)Math.Sin(a));
                 var ring = world.WorldToScreen(new StdTuple3D<float>
                 {
                     X = gx * ExpWorldPerGrid,
@@ -3145,8 +3218,9 @@ namespace RunecraftHelper
         private void DrawExpeditionTargetProfileSettings()
         {
             var s = this.Settings;
-            ImGui.TextDisabled("Weight each reward marker (0 = ignore, blank types default to 1). Monoliths are\n" +
-                "valued by their real reward price — this profile only weights the markers.");
+            ImGui.TextDisabled(this.L("prof.reward_hint",
+                "Weight each reward marker (0 = ignore, blank types default to 1). Monoliths are\n" +
+                "valued by their real reward price — this profile only weights the markers."));
 
             this.ExpActiveTargetProfile();   // ensure migration / non-empty before the picker
             var profile = this.ExpProfilePicker("target", s.ExpTargetProfiles, ref s.ExpActiveTargetProfile, "Default");
@@ -3174,7 +3248,7 @@ namespace RunecraftHelper
             float iconSz = ImGui.GetTextLineHeight() + 4f;
             if (rewardRows.Count == 0)
             {
-                ImGui.TextDisabled("(no reward markers discovered yet)");
+                ImGui.TextDisabled(this.L("prof.no_markers", "(no reward markers discovered yet)"));
             }
             else if (ImGui.BeginTable("exprewards", 3,
                          ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.ScrollY,
@@ -3244,9 +3318,9 @@ namespace RunecraftHelper
             }
 
             ImGui.SameLine();
-            if (ImGui.SmallButton("reset values")) profile.Weights.Clear();
+            if (ImGui.SmallButton(this.Loc.Label("prof.reset_values", "reset values", "rh_reset_vals"))) profile.Weights.Clear();
             ImGui.SameLine();
-            if (ImGui.SmallButton("reload icons")) this.expRewardIconCache.Clear();
+            if (ImGui.SmallButton(this.Loc.Label("prof.reload_icons", "reload icons", "rh_reload_icons"))) this.expRewardIconCache.Clear();
         }
 
         // Combo-only profile selector for the planner window (management — new/rename/delete — lives in settings).
@@ -3305,9 +3379,10 @@ namespace RunecraftHelper
         {
             var s = this.Settings;
             this.LoadRelicModNamesIfNeeded();
-            ImGui.TextDisabled("Weight each relic mod (a plain weight, not ex). A relic becomes a route target when its\n" +
+            ImGui.TextDisabled(this.L("prof.buff_hint",
+                "Weight each relic mod (a plain weight, not ex). A relic becomes a route target when its\n" +
                 "Σ(+ weights) − Σ(− weights) is > 0; otherwise it's ignored. Both columns take positive\n" +
-                "numbers — the − column is an avoidance penalty. Stored by internal mod id (any language).");
+                "numbers — the − column is an avoidance penalty. Stored by internal mod id (any language)."));
 
             var profile = this.ExpProfilePicker("buff", s.ExpBuffProfiles, ref s.ExpActiveBuffProfile, "Default");
             var w = profile.Weights;
@@ -3317,8 +3392,8 @@ namespace RunecraftHelper
                     ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.ScrollY,
                     new Vector2(0f, Math.Min(rows + 1, 8) * ImGui.GetFrameHeightWithSpacing())))
             {
-                ImGui.TableSetupColumn("Upside  (+)", ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn("Downside  (−)", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(this.L("prof.buff_upside", "Upside  (+)"), ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(this.L("prof.buff_downside", "Downside  (−)"), ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
 
@@ -3336,7 +3411,7 @@ namespace RunecraftHelper
                 ImGui.EndTable();
             }
 
-            if (ImGui.SmallButton("clear weights##buff")) w.Clear();
+            if (ImGui.SmallButton(this.Loc.Label("prof.clear_weights", "clear weights", "buff"))) w.Clear();
         }
 
         // One relic-mod cell: a narrow weight input + the (localized) mod label. 0 removes the entry (keeps the
@@ -3376,11 +3451,11 @@ namespace RunecraftHelper
 
             // new / rename open a name-entry popup (seeded with "" / the current name); dup + del act at once.
             ImGui.SameLine();
-            if (ImGui.SmallButton($"new##{id}")) { this.expProfileInput = string.Empty; ImGui.OpenPopup($"newprofile##{id}"); }
+            if (ImGui.SmallButton($"{this.L("prof.new", "new")}##{id}")) { this.expProfileInput = string.Empty; ImGui.OpenPopup($"newprofile##{id}"); }
             ImGui.SameLine();
-            if (ImGui.SmallButton($"rename##{id}")) { this.expProfileInput = profiles[sel].Name; ImGui.OpenPopup($"renameprofile##{id}"); }
+            if (ImGui.SmallButton($"{this.L("prof.rename", "rename")}##{id}")) { this.expProfileInput = profiles[sel].Name; ImGui.OpenPopup($"renameprofile##{id}"); }
             ImGui.SameLine();
-            if (ImGui.SmallButton($"dup##{id}"))
+            if (ImGui.SmallButton($"{this.L("prof.dup", "dup")}##{id}"))
             {
                 var copy = new WeightProfile
                 {
@@ -3392,7 +3467,7 @@ namespace RunecraftHelper
 
             ImGui.SameLine();
             ImGui.BeginDisabled(profiles.Count <= 1);
-            if (ImGui.SmallButton($"del##{id}"))
+            if (ImGui.SmallButton($"{this.L("prof.del", "del")}##{id}"))
             {
                 profiles.RemoveAt(sel);
                 sel = Math.Clamp(sel, 0, profiles.Count - 1);
@@ -3401,14 +3476,14 @@ namespace RunecraftHelper
 
             ImGui.EndDisabled();
 
-            if (ExpProfileNamePopup($"newprofile##{id}", "New profile name", ref this.expProfileInput, out var created)
+            if (ExpProfileNamePopup($"newprofile##{id}", this.L("prof.popup_new", "New profile name"), ref this.expProfileInput, out var created)
                 && !ProfileNameExists(profiles, created))
             {
                 profiles.Add(new WeightProfile { Name = created });
                 sel = profiles.Count - 1; activeName = created;
             }
 
-            if (ExpProfileNamePopup($"renameprofile##{id}", "Rename profile", ref this.expProfileInput, out var renamed)
+            if (ExpProfileNamePopup($"renameprofile##{id}", this.L("prof.popup_rename", "Rename profile"), ref this.expProfileInput, out var renamed)
                 && (string.Equals(renamed, profiles[sel].Name, StringComparison.Ordinal) || !ProfileNameExists(profiles, renamed)))
             {
                 profiles[sel].Name = renamed; activeName = renamed;
@@ -3468,7 +3543,7 @@ namespace RunecraftHelper
             this.DrawExpeditionNextPointWorld();
 
             ImGui.SetNextWindowSize(new Vector2(340f, 0f), ImGuiCond.FirstUseEver);
-            if (!ImGui.Begin("Expedition Planner###RunecraftExpeditionPlanner"))
+            if (!ImGui.Begin(this.Loc.Title("exp.planner_title", "Expedition Planner", "RunecraftExpeditionPlanner")))
             {
                 ImGui.End();
                 return;
@@ -3484,18 +3559,18 @@ namespace RunecraftHelper
             if (this.expCtrlResolved)
             {
                 int left = this.expTotalCharges - this.expPlacedFromCtrl;
-                ImGui.Text($"Charges: {left} left / {this.expTotalCharges} total" +
-                           (ExpIsGrand(this.expTotalCharges) ? "  (Grand)" : string.Empty));
+                ImGui.Text(this.LF("exp.charges_ctrl", "Charges: {0} left / {1} total", left, this.expTotalCharges) +
+                           (ExpIsGrand(this.expTotalCharges) ? this.L("exp.grand_suffix", "  (Grand)") : string.Empty));
             }
             else if (this.expHudResolved)
             {
                 int left = Math.Max(0, this.expHudTotal - this.expPlacedFromEntities);
-                ImGui.Text($"Charges: {left} left / {this.expHudTotal} total (HUD) · {this.expPlacedFromEntities} placed");
+                ImGui.Text(this.LF("exp.charges_hud", "Charges: {0} left / {1} total (HUD) · {2} placed", left, this.expHudTotal, this.expPlacedFromEntities));
             }
             else
             {
                 int left = Math.Max(0, s.ExpTotalChargesManual - this.expPlacedFromEntities);
-                ImGui.Text($"Charges: {left} left / {s.ExpTotalChargesManual} (manual) · {this.expPlacedFromEntities} placed");
+                ImGui.Text(this.LF("exp.charges_manual", "Charges: {0} left / {1} (manual) · {2} placed", left, s.ExpTotalChargesManual, this.expPlacedFromEntities));
             }
 
             // Run button, right-aligned on the header line. While the background planner runs it reads
@@ -3507,7 +3582,7 @@ namespace RunecraftHelper
             if (this.expComputing)
             {
                 ImGui.BeginDisabled();
-                ImGui.Button("Cooking...", new Vector2(runW, 0f));
+                ImGui.Button(this.L("exp.cooking", "Cooking..."), new Vector2(runW, 0f));
                 ImGui.EndDisabled();
             }
             else
@@ -3519,7 +3594,7 @@ namespace RunecraftHelper
                     ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.16f, 0.45f, 0.16f, 1f));
                 }
 
-                if (ImGui.Button(routeStale ? "Run*" : "Run", new Vector2(runW, 0f)))
+                if (ImGui.Button(routeStale ? this.L("exp.run_stale", "Run*") : this.L("exp.run", "Run"), new Vector2(runW, 0f)))
                 {
                     this.LaunchRouteCompute(routeFp);
                 }
@@ -3527,8 +3602,8 @@ namespace RunecraftHelper
                 if (routeStale) ImGui.PopStyleColor(3);
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip(routeStale
-                        ? "Settings changed — click to (re)build the route."
-                        : "Route is up to date.");
+                        ? this.L("exp.run_tip_stale", "Settings changed — click to (re)build the route.")
+                        : this.L("exp.run_tip_ok", "Route is up to date."));
             }
 
             // Neither the controller nor the HUD counter could be read this scan — let the player set the total so
@@ -3536,39 +3611,40 @@ namespace RunecraftHelper
             if (!this.expCtrlResolved && !this.expHudResolved)
             {
                 ImGui.SetNextItemWidth(120f);
-                if (ImGui.InputInt("Total charges (manual)", ref s.ExpTotalChargesManual) && s.ExpTotalChargesManual < 1)
+                if (ImGui.InputInt(this.L("exp.total_manual", "Total charges (manual)"), ref s.ExpTotalChargesManual) && s.ExpTotalChargesManual < 1)
                     s.ExpTotalChargesManual = 1;
-                ImGui.TextDisabled("Controller + HUD unreadable — set total to match the in-game counter, then Run.");
+                ImGui.TextDisabled(this.L("exp.manual_hint", "Controller + HUD unreadable — set total to match the in-game counter, then Run."));
             }
 
             if (this.expLastComputeMs > 0)
             {
-                ImGui.TextDisabled($"last plan: {this.expLastComputeMs:F0} ms · A* {this.expLastAStarCalls} run = {this.expLastAStarMs:F0} ms · {this.expLastAStarHits} cached");
+                ImGui.TextDisabled(this.LF("exp.last_plan", "last plan: {0:F0} ms · A* {1} run = {2:F0} ms · {3} cached",
+                    this.expLastComputeMs, this.expLastAStarCalls, this.expLastAStarMs, this.expLastAStarHits));
                 if (this.expLastPhase.Length > 0) ImGui.TextDisabled(this.expLastPhase);
             }
 
-            ImGui.SeparatorText("Map modifiers");
-            ImGui.SliderInt("Placement dist +%", ref s.ExpPlacementDistancePct, 0, 100);
-            ImGui.SliderInt("Blast radius +%", ref s.ExpBlastRadiusPct, 0, 100);
+            ImGui.SeparatorText(this.L("exp.map_mods", "Map modifiers (auto)"));
+            ImGui.Text(this.LF("exp.map_mods_values", "Placement dist +%: {0}    Blast radius +%: {1}", s.ExpPlacementDistancePct, s.ExpBlastRadiusPct));
+            ImGui.TextDisabled(this.L("exp.map_mods_hint", "auto-detected from the map's Expedition modifiers"));
             float effDist = this.ExpBasePlacementDistance() * (1f + (s.ExpPlacementDistancePct / 100f));
             float effRadius = this.ExpBaseBlastRadius() * (1f + (s.ExpBlastRadiusPct / 100f));
-            ImGui.TextDisabled($"→ distance {effDist:F0} grid · radius {effRadius:F0} grid · " +
-                               $"{(this.ExpCurrentIsGrand() ? "Grand" : "normal")} base  (reset each map)");
+            ImGui.TextDisabled(this.LF("exp.eff_values", "→ distance {0:F0} grid · radius {1:F0} grid · {2} base  (auto each map)",
+                effDist, effRadius, this.ExpCurrentIsGrand() ? this.L("exp.base_grand", "Grand") : this.L("exp.base_normal", "normal")));
 
-            ImGui.SeparatorText("Targets to route");
+            ImGui.SeparatorText(this.L("exp.targets_to_route", "Targets to route"));
 
-            ImGui.InputFloat("Monolith min (ex)", ref s.ExpMonolithMinEx, 1f, 10f, "%.0f");
+            ImGui.InputFloat(this.L("exp.monolith_min", "Monolith min (ex)"), ref s.ExpMonolithMinEx, 1f, 10f, "%.0f");
             if (s.ExpMonolithMinEx < 0f) s.ExpMonolithMinEx = 0f;
-            ImGui.TextDisabled("Monoliths with best reward ≥ this are routed.");
+            ImGui.TextDisabled(this.L("exp.monolith_min_hint", "Monoliths with best reward ≥ this are routed."));
 
             // Weight profiles (Reward + Buff) exist only on Grand expeditions — a normal Expedition has no
             // reward/buff tables to weight, so the controls are hidden once we know the current map is normal.
             if (!this.ExpCurrentIsNormal())
             {
                 ImGui.Spacing();
-                ImGui.TextDisabled("Weight profiles (create / edit the tables in Settings → Show route planner):");
-                this.ExpProfileCombo("plantarget", s.ExpTargetProfiles, ref s.ExpActiveTargetProfile, "Reward profile", "Default");
-                this.ExpProfileCombo("planbuff", s.ExpBuffProfiles, ref s.ExpActiveBuffProfile, "Buff profile", "Default");
+                ImGui.TextDisabled(this.L("exp.weight_profiles_hint", "Weight profiles (create / edit the tables in Settings → Show route planner):"));
+                this.ExpProfileCombo("plantarget", s.ExpTargetProfiles, ref s.ExpActiveTargetProfile, this.L("exp.reward_profile_combo", "Reward profile"), "Default");
+                this.ExpProfileCombo("planbuff", s.ExpBuffProfiles, ref s.ExpActiveBuffProfile, this.L("exp.buff_profile_combo", "Buff profile"), "Default");
 
                 // Spare-charge marker gate: leftover charges after the monoliths only land where one blast covers
                 // ≥ N markers — so they hit dense clusters, never single (possibly-trash) markers. We can't tier
@@ -3576,10 +3652,10 @@ namespace RunecraftHelper
                 // Expedition this is forced to 1 in ExpComputeRoute (see MinMarkers there), so the knob is hidden.
                 ImGui.Spacing();
                 ImGui.SetNextItemWidth(120f);
-                ImGui.SliderInt("Min markers / spare charge", ref s.ExpMinMarkersPerSpareCharge, 1, 3);
+                ImGui.SliderInt(this.L("exp.min_markers", "Min markers / spare charge"), ref s.ExpMinMarkersPerSpareCharge, 1, 3);
                 if (s.ExpMinMarkersPerSpareCharge < 1) s.ExpMinMarkersPerSpareCharge = 1;
                 if (s.ExpMinMarkersPerSpareCharge > 3) s.ExpMinMarkersPerSpareCharge = 3;
-                ImGui.TextDisabled("After monoliths, a spare charge is used only if it covers this many\nmarkers at once (normal maps; Grand routes every weighted target).");
+                ImGui.TextDisabled(this.L("exp.min_markers_hint", "After monoliths, a spare charge is used only if it covers this many\nmarkers at once (normal maps; Grand routes every weighted target)."));
             }
 
             // Expedition targets (reward-flag value by height tier). Normal-expedition only — flags/height
@@ -3587,15 +3663,15 @@ namespace RunecraftHelper
             if (!this.ExpCurrentIsGrand())
             {
                 ImGui.Spacing();
-                ImGui.SeparatorText("Expedition targets");
+                ImGui.SeparatorText(this.L("exp.expedition_targets", "Expedition targets"));
                 ImGui.SetNextItemWidth(120f);
-                ImGui.SliderInt("White remnant chests",   ref s.ExpMarkerWeightWhite,   0, 500);
+                ImGui.SliderInt(this.L("exp.marker_white", "White remnant chests"),   ref s.ExpMarkerWeightWhite,   0, 500);
                 ImGui.SetNextItemWidth(120f);
-                ImGui.SliderInt("Magic remnant chests",   ref s.ExpMarkerWeightMagic,   0, 500);
+                ImGui.SliderInt(this.L("exp.marker_magic", "Magic remnant chests"),   ref s.ExpMarkerWeightMagic,   0, 500);
                 ImGui.SetNextItemWidth(120f);
-                ImGui.SliderInt("Gold remnant chests",    ref s.ExpMarkerWeightGold,    0, 500);
+                ImGui.SliderInt(this.L("exp.marker_gold", "Gold remnant chests"),    ref s.ExpMarkerWeightGold,    0, 500);
                 ImGui.SetNextItemWidth(120f);
-                ImGui.SliderInt("Logbook flag (tall 2▲)", ref s.ExpMarkerWeightLogbook, 0, 1000);
+                ImGui.SliderInt(this.L("exp.marker_logbook", "Logbook flag (tall 2▲)"), ref s.ExpMarkerWeightLogbook, 0, 1000);
             }
 
             ImGui.End();

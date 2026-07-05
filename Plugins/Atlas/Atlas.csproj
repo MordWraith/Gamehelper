@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
+    <Version>0.2.0</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -48,6 +49,8 @@
     <None Update="fonts\unifont.ttf">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- UI localization dictionaries (<lang-code>.json), read via GameHelper's PluginLocalization. -->
+    <None Include="Localization\*.json" CopyToOutputDirectory="PreserveNewest" Link="Localization\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <Target Name="CopyFiles" AfterTargets="Build">
@@ -58,6 +61,10 @@
       <DeployIcons Include="$(OutDir)icons\*.png" />
     </ItemGroup>
     <Copy SourceFiles="@(DeployIcons)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\icons" SkipUnchangedFiles="true" Condition="'@(DeployIcons)' != ''" />
+    <ItemGroup>
+      <LocalizationFiles Include="$(OutDir)Localization\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LocalizationFiles)" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\Localization" SkipUnchangedFiles="true" Condition="'@(LocalizationFiles)' != ''" />
   </Target>
 
 </Project>
