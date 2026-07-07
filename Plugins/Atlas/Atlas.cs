@@ -46,6 +46,59 @@ namespace Atlas
         // map-node fp 0x542EF3). Used to locate the player's current atlas node by screen position.
         private const uint AtlasCurrentNodeFp = 0x502EF3;
 
+        // fp of a MIST-shrouded map node (King in the Mists): the map-node fp 0x542EF3 with
+        // bit 20 cleared. Data-block layout is identical to a regular node. Upstream's core atlas
+        // reader keeps only 0x542EF3, silently dropping these from GameUi.AtlasMaps — so when the
+        // cache is fed from the core list, AppendMistNodesMissedByCore() sweeps them back in.
+        // (Kept plugin-side on purpose: no core edit to re-apply after an upstream sync.)
+        private const uint AtlasMistNodeFp = 0x442EF3;
+
+        // ── Uncharted Waters ships (sea chunk reveal buttons) ──────────────────────────────
+        // A sea "ship" is NOT an atlas node: it's an EndgameRegionActionButton widget living in
+        // the same children list as the map nodes (row 0=Breach, 1=Forest, 2=Ocean/ship,
+        // 3=Tower). Using a logbook on a ship reveals the ship's whole 16x16 atlas chunk, and
+        // the hidden nodes of that chunk are already materialized client-side with their map
+        // assigned — so the reveal set is known in advance. Verified live 0.5.4BHF3 (2026-07);
+        // see obsidian poe2/Atlas.md §"Sea / ships".
+        private const int RegionButtonRowPtrOffset = 0x320;   // ptr → EndgameRegionActionButtons row
+        private const int RegionButtonGridOffset = 0x330;     // int32 x, int32 y (button grid coords)
+        private const int RegionButtonRowIndexOffset = 0x338; // int32 row index; 2 = Ocean/ship
+        private const int RegionButtonOceanRow = 2;
+        // icons\UnchartedShip.png — the ship graphic drawn on fog ships. Game asset:
+        // Art/2DArt/UIImages/InGame/MapQuickUseButton/QuickUseItemIconLogbook (the dat row's
+        // QuickUseIcon — despite the name, the art is the framed ship).
+        private const string FogShipIconName = "UnchartedShip";
+
+        // ── Ritual atlas line (the line drawn to the Crux of Nothingness) ───────────────────
+        // When a node is picked onto the line, the game sets flag bit 20 on the node widget and
+        // attaches a text child at +0x3B8 whose label already holds the LOCALIZED Rite-mod lines
+        // (rolled client-side, translated via stat_descriptions.csd). We just read that text.
+        // See obsidian poe2/Ritual.md; Ghidra AtlasPanel_ritualLineToggleNode / FUN_140b18010.
+        private const uint RitualLineFlagMask = 0x100000u;  // node widget +0x180 bit 20 = "on the ritual line"
+        private const int RitualModsChildOffset = 0x3B8;    // ptr → text child carrying the Rite-mod lines
+        private const int TextElementTextOffset = 0x4C0;    // std::wstring on a game text element (uitree guide)
+        // Ritual-line state on the atlas panel (== the node-list container, verified live 0.5.4):
+        private const int PanelLineModeOffset = 0x637;      // u8 bool: ritual line mode (page mode 6) active
+        private const int PanelLineIdOffset = 0x63C;        // u32 line id/seed word (TinyMT input word 0)
+        private const int PanelPendingVecOffset = 0x648;    // std::vector<(i32,i32)> candidate grids
+        private const int PanelCommittedVecOffset = 0x660;  // std::vector<(i32,i32)> committed line grids
+        // Precomputed next-candidate table (AtlasPanel_ritualLineNextCandidates does a binary search
+        // here): std::vector begin@+0x590 / end@+0x598, entry stride 0x44 = 17 int32:
+        //   [0]=nodeX [1]=nodeY, then 5 candidates × (x,y,extra) = ints [2..16]. Sorted by x<<16|y.
+        // The roll's candIdx = the clicked node's rank among these 5 (minus (0,0) / already-committed)
+        // sorted lexicographically by (x,y). See obsidian poe2/Ritual.md.
+        private const int PanelCandTableBeginOffset = 0x590;
+        private const int PanelCandTableEndOffset = 0x598;
+        private const int CandTableEntryStride = 0x44;   // bytes; 17 int32
+        private const int CandTableMaxCandidates = 5;
+        // Node widget +0x300 → per-map dat-row ptr; row +0x7C = special-map category id
+        // (0 normal, 1 unique, 3 hideout, 5/7/8/13 citadels & league bosses, 6 tower — audited
+        // live over the whole atlas, re-tools/ritual/reachcheck_audit.py). The game's reach
+        // check (ritualLineReachCheck 140b775f0) refuses ANY nonzero category, so this — not a
+        // maps.json type/tag guess — is the authoritative "line can't pass here" discriminator.
+        private const int NodeDatRowPtrOffset = 0x300;
+        private const int DatRowSpecialCategoryOffset = 0x7C;
+
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct AtlasConnectionEdge
         {
@@ -56,6 +109,8 @@ namespace Atlas
 
         private string SettingPathname => Path.Join(DllDirectory, "config", "settings.txt");
         private string MapGroupsPathname => Path.Join(DllDirectory, "config", "mapgroups.json");
+        private string MapRatingsPathname => Path.Join(DllDirectory, "config", "mapratings.json");
+        private string RitualRollLogPathname => Path.Join(DllDirectory, "config", "ritual_roll_log.jsonl");
         private string NewGroupName = string.Empty;
 
         // ── UI-chrome localization (GameHelper PluginLocalization; Localization\<lang>.json next to the
@@ -100,6 +155,7 @@ namespace Atlas
         // (one combo open at a time).
         private string ContentAddFilter = string.Empty;
         private string MapAddFilter = string.Empty;
+        private string RatingFilter = string.Empty;
         private string MapGroupAddFilter = string.Empty;
         // Distinct map display names for the picker, as (canonical English name, localized name), sorted
         // by the localized name. Rebuilt when the UI language changes (MapPickCacheLang tracks it).
@@ -183,8 +239,17 @@ namespace Atlas
             public uint[] BadgeContentIds;  // class-2 badge content ids (badge+0x188); see re-findings §2.10.3
             public string[] ContentNames;   // resolved + filtered + de-duped display names (precomputed in cache, not per-frame)
             public StdTuple2D<int> GridPosition;
+            public int Rating;              // 0..10 from config/mapratings.json, keyed by MapInfo.Name (-1 = unrated)
+            public bool RitualSpecial;      // game's ritual reach-check refuses this node (dat-row category != 0)
         }
         private readonly List<NodeData> nodeCache = new();
+        // Uncharted Waters ships found in the atlas children list, with the button's grid coords
+        // (== the grid of the chunk node the button snapped to) and the 16x16 chunk they chart
+        // (grid >> 4). Refreshed with nodeCache; empty while both ship toggles are off.
+        private readonly List<(IntPtr Address, int GridX, int GridY, int ChunkX, int ChunkY)> shipCache = new();
+        // Fog-ship icons drawn THIS frame (chunk + screen rect), so the leyline hover can
+        // hit-test them. Rebuilt every frame by DrawFogShips; cleared when the pass is off.
+        private readonly List<((int X, int Y) Chunk, Vector2 Center, float Half)> fogShipIcons = new();
         // Addresses of "you are here" marker candidates (fp 0x502EF3), refreshed with nodeCache.
         private readonly List<IntPtr> markerCandidates = new();
         private int cacheFrameCounter = int.MaxValue;   // force refresh on first frame
@@ -215,11 +280,16 @@ namespace Atlas
                 Settings = JsonConvert.DeserializeObject<AtlasSettings>(content, serializerSettings);
             }
 
+            // Migrate out-of-range ship icon sizes (old default was 28, slider is now 32..96).
+            if (Settings.ShipIconSize is < 32f or > 96f)
+                Settings.ShipIconSize = 64f;
+
             LoadMapGroups();
             LoadBiomeMap();
             LoadContentMap();
             LoadMapContent();
             LoadMaps();
+            LoadMapRatings();
             EnsureBuiltInContentGroup();
 
             if (Settings.UniversalFont)
@@ -236,6 +306,7 @@ namespace Atlas
             File.WriteAllText(SettingPathname, settingsData);
 
             SaveMapGroups();
+            SaveMapRatings();
         }
 
         // MapGroups live in their own config/mapgroups.json (kept out of settings.txt via [JsonIgnore]).
@@ -282,6 +353,46 @@ namespace Atlas
                 Directory.CreateDirectory(dir);
 
             File.WriteAllText(MapGroupsPathname, JsonConvert.SerializeObject(Settings.MapGroups, Formatting.Indented));
+        }
+
+        // Map ratings live in config/mapratings.json (dict: canonical English map name → 0..10).
+        // First run (no config file) seeds from the bundled json\mapratings.json defaults.
+        private void LoadMapRatings()
+        {
+            if (Settings == null)
+                return;
+
+            Settings.MapRatings.Clear();
+            try
+            {
+                var path = File.Exists(MapRatingsPathname)
+                    ? MapRatingsPathname
+                    : Path.Join(DllDirectory, "json", "mapratings.json");
+                if (!File.Exists(path))
+                    return;
+
+                var ratings = JsonConvert.DeserializeObject<Dictionary<string, int>>(File.ReadAllText(path));
+                if (ratings == null)
+                    return;
+
+                foreach (var kv in ratings)
+                    if (!string.IsNullOrWhiteSpace(kv.Key))
+                        Settings.MapRatings[kv.Key] = Math.Clamp(kv.Value, 0, 10);
+            }
+            catch (JsonException) { /* malformed file — start with no ratings */ }
+        }
+
+        private void SaveMapRatings()
+        {
+            if (Settings?.MapRatings == null)
+                return;
+
+            var dir = Path.GetDirectoryName(MapRatingsPathname);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            var ordered = new SortedDictionary<string, int>(Settings.MapRatings, StringComparer.OrdinalIgnoreCase);
+            File.WriteAllText(MapRatingsPathname, JsonConvert.SerializeObject(ordered, Formatting.Indented));
         }
 
         public override void DrawSettings()
@@ -442,6 +553,141 @@ namespace Atlas
                     if (ImGui.SliderFloat2(this.L("atlas.layout_nudge", "Layout Nudge (px)"), ref nudge, -60f, 60f))
                         Settings.AnchorNudge = nudge;
                     ImGui.SliderFloat(this.L("atlas.scale_multiplier", "Scale Multiplier"), ref Settings.ScaleMultiplier, 0.5f, 3.0f);
+                    ImGui.TreePop();
+                }
+
+                // Per-map rating (0 = normal … 10 = terrible): colored number pill right of the map
+                // name. Ratings are keyed by canonical English name (config/mapratings.json) while
+                // the table lists maps in the UI language, so they work on any client language.
+                if (ImGui.TreeNode(this.Loc.Title("atlas.maps_rating", "Maps rating", "atlas_maps_rating")))
+                {
+                    ImGui.Checkbox(this.L("atlas.map_rating_show", "Show maps rating"), ref Settings.ShowMapRating);
+                    ImGuiHelper.ToolTip(this.L("atlas.map_rating_show_hint",
+                        "Draws each rated map's rating (0 = normal … 10 = terrible) as a colored pill " +
+                        "to the right of the map name: green → yellow → red."));
+
+                    ImGui.SetNextItemWidth(220);
+                    ImGui.InputTextWithHint("##RatingFilter", this.L("atlas.hint_filter", "filter…"), ref RatingFilter, 64);
+
+                    EnsureMapPickCache();
+                    if (ImGui.BeginTable("##MapRatings", 3,
+                        ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersOuter | ImGuiTableFlags.ScrollY,
+                        new Vector2(0, 320)))
+                    {
+                        ImGui.TableSetupScrollFreeze(0, 1);
+                        ImGui.TableSetupColumn(this.L("atlas.rating_map_col", "Map"), ImGuiTableColumnFlags.WidthStretch);
+                        ImGui.TableSetupColumn(this.L("atlas.rating_col", "Rating"), ImGuiTableColumnFlags.WidthFixed, 170f);
+                        ImGui.TableSetupColumn("##clear", ImGuiTableColumnFlags.WidthFixed, 26f);
+                        ImGui.TableHeadersRow();
+
+                        var rfilter = RatingFilter;
+                        foreach (var (english, localized) in MapPickCache)
+                        {
+                            if (!string.IsNullOrEmpty(rfilter)
+                                && localized.IndexOf(rfilter, StringComparison.OrdinalIgnoreCase) < 0
+                                && english.IndexOf(rfilter, StringComparison.OrdinalIgnoreCase) < 0)
+                                continue;
+
+                            ImGui.PushID(english);
+                            ImGui.TableNextRow();
+                            ImGui.TableNextColumn();
+                            ImGui.AlignTextToFramePadding();
+                            ImGui.TextUnformatted(localized);
+
+                            ImGui.TableNextColumn();
+                            bool rated = Settings.MapRatings.TryGetValue(english, out int rating);
+                            if (rated)
+                            {
+                                ImGui.ColorButton("##sw", RatingColor(rating),
+                                    ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoPicker | ImGuiColorEditFlags.NoDragDrop,
+                                    new Vector2(ImGui.GetFrameHeight(), ImGui.GetFrameHeight()));
+                                ImGui.SameLine();
+                            }
+                            int v = rated ? rating : 0;
+                            ImGui.SetNextItemWidth(-1);
+                            // Unrated rows show "—" until first touched; any edit stores a rating.
+                            if (ImGui.SliderInt("##rating", ref v, 0, 10, rated ? "%d" : "—"))
+                                Settings.MapRatings[english] = v;
+                            if (ImGui.IsItemDeactivatedAfterEdit())
+                                SaveMapRatings();
+
+                            ImGui.TableNextColumn();
+                            if (rated && ImGui.SmallButton("X"))
+                            {
+                                Settings.MapRatings.Remove(english);
+                                SaveMapRatings();
+                            }
+                            ImGui.PopID();
+                        }
+
+                        ImGui.EndTable();
+                    }
+
+                    ImGui.TreePop();
+                }
+
+                // Expedition (sea / Uncharted Waters) overlays: leyline highlight + fog ships.
+                if (ImGui.TreeNode(this.Loc.Title("atlas.expedition_settings", "Expedition Settings", "atlas_expedition")))
+                {
+                    if (ImGui.Checkbox(this.L("atlas.uncharted_leylines", "Uncharted waters leyline"), ref Settings.ShowUnchartedLeylines))
+                        nodeCache.Clear(); // force a cache rebuild next frame — the ship scan is gated on this toggle
+                    ImGuiHelper.ToolTip(this.L("atlas.uncharted_leylines_hint",
+                        "Hover a sea ship (Uncharted Waters) to highlight its reveal area: the connection graph " +
+                        "between the map nodes a logbook used there will uncover, thicker than the normal node " +
+                        "connections. The hidden maps are already assigned client-side, so the highlighted " +
+                        "cluster is exactly what that ship yields."));
+                    if (Settings.ShowUnchartedLeylines)
+                    {
+                        ColorSwatch("##UnchartedLeylineColor", ref Settings.UnchartedLeylineColor);
+                        ImGui.SameLine();
+                        ImGui.Text(this.L("atlas.leyline_color", "Leyline Color"));
+                        ImGui.SetNextItemWidth(150);
+                        ImGui.SliderFloat(this.L("atlas.leyline_thickness", "Leyline Thickness"), ref Settings.UnchartedLeylineThickness, 1.0f, 8.0f);
+                    }
+
+                    if (ImGui.Checkbox(this.L("atlas.ships_in_fog", "Show ships in fog"), ref Settings.ShowShipsInFog))
+                        nodeCache.Clear(); // force a cache rebuild next frame — the ship scan is gated on the toggles
+                    ImGuiHelper.ToolTip(this.L("atlas.ships_in_fog_hint",
+                        "Marks the Uncharted Waters ships the game isn't rendering yet (deep fog) with an icon, " +
+                        "one per uncharted sea chunk — so upcoming logbook spots are visible before you sail " +
+                        "close. Uses icons\\UnchartedShip.png when present, else a ring marker. Hovering the " +
+                        "icon also triggers the leyline highlight."));
+                    if (Settings.ShowShipsInFog)
+                    {
+                        ImGui.SetNextItemWidth(150);
+                        ImGui.SliderFloat(this.L("atlas.ship_icon_size", "Ship icon size"), ref Settings.ShipIconSize, 32f, 96f);
+                    }
+
+                    ImGui.TreePop();
+                }
+
+                // Ritual (atlas line to the Crux of Nothingness) overlays.
+                if (ImGui.TreeNode(this.Loc.Title("atlas.ritual_settings", "Ritual Settings", "atlas_ritual")))
+                {
+                    if (ImGui.Checkbox(this.L("atlas.ritual_predict", "Show Ritual mods (on hover)"),
+                        ref Settings.ShowRitualPrediction))
+                        nodeCache.Clear(); // force a cache rebuild next frame — the mod-text read is gated on this toggle
+                    ImGuiHelper.ToolTip(this.L("atlas.ritual_predict_hint",
+                        "Shows the Rite mods of the Ritual atlas line (the line drawn to the Crux of " +
+                        "Nothingness): the game's own mods on committed line nodes (blue), plus the exact " +
+                        "predicted mods (green) every still-reachable node WILL roll — the whole look-ahead " +
+                        "chain into the fog, before you click, including which nodes get a second mod. Before " +
+                        "the first node is placed, hover any accessible map in line mode to preview the whole " +
+                        "chain that start would give. Predicted labels are in English."));
+
+                    ImGui.Checkbox(this.L("atlas.ritual_planner", "Head of the king planner window"),
+                        ref Settings.ShowRitualPlanner);
+                    ImGuiHelper.ToolTip(this.L("atlas.ritual_planner_hint",
+                        "Opens a window while the atlas is in line-drawing mode listing every path the line " +
+                        "could take from every possible start map, with the predicted reward chain for each. " +
+                        "Pick desired rewards in the filter dropdown (a path shows if ANY of them is in its " +
+                        "chain); tick a path to highlight its route on the atlas and draw a ray to its first " +
+                        "map. Closing the window with X also clears this checkbox."));
+                    if (Settings.ShowRitualPlanner)
+                        this.DrawRewardWeightsTable();
+
+                    // The "Log Ritual rolls (RE)" debug toggle is HIDDEN from the UI for release;
+                    // LogRitualRolls still works when set by hand in config/settings.txt.
                     ImGui.TreePop();
                 }
 
@@ -818,9 +1064,19 @@ namespace Atlas
             // When every node state is hidden and nothing searches/routes to a node, no node is ever
             // drawn — so reading per-node data this frame would be wasted work. Skip the read + draw.
             bool allStatesHidden = Settings.HideCompletedMaps && Settings.HideNotAccessibleMaps && Settings.HideAvailableMaps;
+            // Ritual line mode (page mode 6): gates the "Head of the King Rewards" planner window/overlay.
+            bool ritualLineMode = Read<byte>(IntPtr.Add(atlasPanelAddr, PanelLineModeOffset)) != 0;
+            bool wantPlanner = Settings.ShowRitualPlanner && ritualLineMode;
+            // While drawing the ritual line the Hide toggles are ignored: they cull nodes BEFORE
+            // the hover hit-test, so with all three on the pre-click hover start could never
+            // register (its prediction-exemption only kicks in once a node is already predicted).
+            bool ritualShowAll = ritualLineMode
+                && (Settings.ShowRitualPrediction || wantPlanner);
             bool needNodeData = !allStatesHidden || doSearch || wantContentRoute
                 || Settings.DrawLinesToUniqueMaps || Settings.PathToLineageMaps || Settings.PathToArbiterMaps
-                || Settings.ShowAtlasGraph;
+                || Settings.ShowAtlasGraph || Settings.ShowUnchartedLeylines || Settings.ShowShipsInFog
+                || Settings.ShowRitualPrediction || Settings.LogRitualRolls
+                || wantPlanner;
             if (!needNodeData)
             {
                 // cacheFrameCounter is left past the threshold (not incremented) so a re-enable
@@ -836,6 +1092,23 @@ namespace Atlas
                 this.RefreshNodeCache(atlasUi, atlasCount);
                 cacheFrameCounter = 0;
             }
+
+            // RE ground-truth collector for the deterministic Rite-mod roll (see poe2/Ritual.md).
+            // Snapshots the ritual line (lineId + committed/pending grids + each node's rolled mod
+            // text) to config/ritual_roll_log.jsonl, deduped, so walking many maps builds a dataset.
+            if (Settings.LogRitualRolls)
+                this.LogRitualSnapshot(atlasPanelAddr);
+
+            // Predict the next candidates' Rite mods (shown before you click them). Rebuilt each frame
+            // it's on — cheap (candidate table is cached; the roll is a few dozen TinyMT draws).
+            this.ritualPredictions = Settings.ShowRitualPrediction
+                ? this.BuildRitualPredictions(atlasPanelAddr)
+                : EmptyRitualPredictions;
+
+            // "Head of the King Rewards" planner: enumerate the chains from the current start/frontier
+            // (cached by line state, so idle frames cost only the state reads).
+            if (wantPlanner)
+                this.BuildPlannerChains(atlasPanelAddr);
 
             var panelTopLeft = GetFinalTopLeft(in atlasUi.UiElementBase);
             var panelScale = ComputeScalePair(in atlasUi.UiElementBase);
@@ -953,7 +1226,7 @@ namespace Atlas
                 // ── Atlas connection graph: faint line along every edge between adjacent nodes ──
                 // Drawn on ChannelGrid (the bottom layer) so labels/routes sit on top. Reuses the
                 // routing edge-graph + centers when a route is also being computed this frame.
-                if (Settings.ShowAtlasGraph)
+                if (Settings.ShowAtlasGraph && !ritualShowAll)
                 {
                     var gGraph = routeGraph ?? BuildConnectionGraph(atlasPanelAddr);
                     var gCenters = routeCenters;
@@ -990,8 +1263,23 @@ namespace Atlas
                     }
                 }
 
+                // Uncharted Waters leylines (connection graph of the hovered ship's reveal set),
+                // under labels/routes on the same bottom layer as the connection graph. Reuses
+                // the routing edge-graph when one was built this frame.
+                // Fog ships first: they record this frame's icon rects, which the leyline
+                // hover below also hit-tests.
+                if (Settings.ShowShipsInFog && shipCache.Count > 0 && !ritualShowAll)
+                    DrawFogShips(drawList, in panelRect, uiScale);
+                else
+                    fogShipIcons.Clear();
+
+                if (Settings.ShowUnchartedLeylines && shipCache.Count > 0 && !ritualShowAll)
+                    DrawUnchartedLeylines(drawList, in panelRect, uiScale, mousePos,
+                        routeGraph ?? BuildConnectionGraph(atlasPanelAddr));
+
                 var pendingRoutes = new List<(List<StdTuple2D<int>> path, uint color, float thickness)>();
 
+                this.ritualHoverGrid = null;
                 foreach (var nd in nodeCache)
                 {
                     if (!nd.Drawable)
@@ -1017,12 +1305,21 @@ namespace Atlas
                     bool targetContent = !completed && MatchContentRoute(in nd, out contentEntry, out contentGroup);
                     bool routeTarget = targetUnique || targetLineage || targetArbiter || targetContent || doSearch;
 
-                    if (Settings.HideCompletedMaps && completed)
-                        continue;
-                    if (Settings.HideNotAccessibleMaps && notAccessible && !routeTarget)
-                        continue;
-                    if (Settings.HideAvailableMaps && available && !routeTarget)
-                        continue;
+                    // A predicted candidate keeps its label (candidates are usually fogged/not
+                    // accessible, which the hide toggles would cull).
+                    string ritualPredText = null;
+                    bool ritualCand = Settings.ShowRitualPrediction
+                        && this.ritualPredictions.TryGetValue(nd.GridPosition, out ritualPredText);
+
+                    if (!ritualShowAll)
+                    {
+                        if (Settings.HideCompletedMaps && completed && !ritualCand)
+                            continue;
+                        if (Settings.HideNotAccessibleMaps && notAccessible && !routeTarget && !ritualCand)
+                            continue;
+                        if (Settings.HideAvailableMaps && available && !routeTarget && !ritualCand)
+                            continue;
+                    }
 
                     // Screen position read LIVE per frame (this atlas scrolls by moving the nodes' own
                     // RelativePosition, so a cached leaf would make labels step/jump every cache cycle).
@@ -1034,6 +1331,27 @@ namespace Atlas
                     var nodeSize = new Vector2(uiBase.UnscaledSize.X * nodeScale.X,
                                                uiBase.UnscaledSize.Y * nodeScale.Y);
                     var nodeCenter = nodeTopLeft + nodeSize * 0.5f;
+
+                    // Hypothetical ritual-line start = the node under the cursor. Only nodes the
+                    // line could actually start from: accessible (per RE: start needs the
+                    // accessible state bits) and not a node the line can never include
+                    // (unique / tower / hideout — completed is excluded by `available` already).
+                    // Used next frame by BuildRitualPredictions while no node is committed yet.
+                    if (Settings.ShowRitualPrediction && available
+                        && !string.Equals(nd.MapInfo?.Type, "unique", StringComparison.OrdinalIgnoreCase)
+                        && !(nd.MapInfo?.HasTag("tower") ?? false)
+                        && !(nd.MapInfo?.HasTag("hideout") ?? false)
+                        && mousePos.X >= nodeTopLeft.X && mousePos.X < nodeTopLeft.X + nodeSize.X
+                        && mousePos.Y >= nodeTopLeft.Y && mousePos.Y < nodeTopLeft.Y + nodeSize.Y)
+                        this.ritualHoverGrid = nd.GridPosition;
+
+                    // Ritual focus: while the line is being drawn only rite-relevant labels draw —
+                    // predicted candidates and the hovered start; every other node label/icon is
+                    // noise here. The hover hit-test above already ran, so any accessible node
+                    // still registers as the pre-click start while undrawn.
+                    if (ritualShowAll && !ritualCand
+                        && !(this.ritualHoverGrid is { } rhg && rhg.Equals(nd.GridPosition)))
+                        continue;
 
                     // Coarse off-screen skip BEFORE CalcTextSize (the per-node hot cost). Route/search
                     // targets draw a line even when off-screen, so they're exempt and handled below.
@@ -1145,7 +1463,8 @@ namespace Atlas
                     drawList.ChannelsSetCurrent(ChannelLabels);
                     float rounding = 3f * uiScale;
 
-                    if (Settings.ShowBiomeBorder && Biomes.TryGetValue(nd.BiomeId, out var biome) && biome.Show)
+                    if (Settings.ShowBiomeBorder && !ritualShowAll
+                        && Biomes.TryGetValue(nd.BiomeId, out var biome) && biome.Show)
                     {
                         var biomeColor = biome.BdColor;
                         if (completed)
@@ -1166,7 +1485,7 @@ namespace Atlas
 
                     // DEBUG/RE: node child-index badge, sitting to the LEFT of the name and vertically
                     // centered against it, so a node called out by number is easy to find on-screen.
-                    if (Settings.ShowNodeIndex)
+                    if (Settings.ShowNodeIndex && !ritualShowAll)
                     {
                         string idxLabel = nd.ChildIndex.ToString(CultureInfo.InvariantCulture);
                         var idxSize = ImGui.CalcTextSize(idxLabel);
@@ -1179,12 +1498,43 @@ namespace Atlas
                         drawList.AddText(idxMin + ipad, ImGuiHelper.Color(new Vector4(0.55f, 0.85f, 1f, 1f)), idxLabel);
                     }
 
+                    // Map rating (0 normal … 10 terrible) as a colored number pill to the RIGHT of
+                    // the map name, vertically centered on the label box. Green→yellow→red gradient.
+                    if (Settings.ShowMapRating && nd.Rating >= 0 && !ritualShowAll)
+                    {
+                        string rl = nd.Rating.ToString(CultureInfo.InvariantCulture);
+                        float pillH = 18f * uiScale;
+                        var rlSize = ImGui.CalcTextSize(rl);
+                        float pillW = MathF.Max(pillH, rlSize.X + 8f * uiScale);
+                        var rBg = RatingColor(nd.Rating);
+                        if (completed)
+                            rBg.W *= 0.4f;
+                        DrawPill(drawList, rl,
+                            bgPos.X + bgSize.X + (4f * uiScale) + pillW * 0.5f,
+                            rectCenter.Y - pillH * 0.5f,
+                            rBg, RatingTextColor(rBg), uiScale);
+                    }
+
+                    // Predicted Rite mod of a next-candidate node, BELOW the map name — shown BEFORE
+                    // it is committed (the game only reveals it on click). Green to set it apart from
+                    // the game's own (blue) committed-node mods above.
+                    if (ritualCand && !string.IsNullOrEmpty(ritualPredText))
+                    {
+                        var pmSize = ImGui.CalcTextSize(ritualPredText);
+                        var pmPad = new Vector2(4, 2) * uiScale;
+                        var pmPos = new Vector2(rectCenter.X - pmSize.X * 0.5f,
+                            bgPos.Y + bgSize.Y + 3f * uiScale + pmPad.Y);
+                        drawList.AddRectFilled(pmPos - pmPad, pmPos + pmSize + pmPad,
+                            ImGuiHelper.Color(new Vector4(0.02f, 0.10f, 0.03f, 0.88f)), rounding);
+                        drawList.AddText(pmPos, ImGuiHelper.Color(new Vector4(0.45f, 1f, 0.55f, 1f)), ritualPredText);
+                    }
+
                     // Per-node content shown ABOVE the map name. Two disjoint sources merge into one
                     // name list: the token vector (element+0x350, class-1: atlas/tower content) and the
                     // badge ids (badge+0x188, class-2: boss/corruption/unique). Each name draws as its
                     // in-game icon when available, else as a text chip. See re-findings §2.10.3.
                     if ((Settings.ShowContentTokens || Settings.ShowContentIcons)
-                        && nd.ContentNames is { Length: > 0 })
+                        && !ritualShowAll && nd.ContentNames is { Length: > 0 })
                     {
                         // Suppress our (duplicate) icon where the game already renders the node's native
                         // icon (IsVisible bit 0x800 set), show it only where the game isn't (fog/off-screen).
@@ -1241,6 +1591,11 @@ namespace Atlas
                     }
                 }
 
+                // Selected "Head of the King Rewards" chains: ray to each chain's start + highlighted
+                // route with per-node reward labels.
+                if (wantPlanner)
+                    this.DrawPlannerOverlay(drawList, playerLocation, uiScale);
+
                 // "You are here" marker dot (context only — not the route start).
                 if (wantRoute && markerFound)
                 {
@@ -1268,6 +1623,11 @@ namespace Atlas
                 }
                 ImGui.EndTooltip();
             }
+
+            // "Head of the King Rewards" planner window — after the FontScaleScope so its text stays
+            // normal-sized regardless of the overlay label scale.
+            if (wantPlanner)
+                this.DrawPlannerWindow();
         }
 
         // Rebuild the per-node static-data cache (map id / biome / state / content names). This is
@@ -1281,11 +1641,119 @@ namespace Atlas
         // is stripped (AtlasMaps absent/empty) and we read the nodes ourselves. Access is via
         // reflection so a single plugin binary loads on both builds (the AtlasMapNode type does not
         // exist on the fork, so a compile-time reference would break loading there).
+        // The exact node-eligibility test the game's ritual reach check applies (see the
+        // NodeDatRowPtrOffset comment): special-category maps (uniques, towers, hideouts,
+        // citadels, league bosses, quest nodes…) can never carry the line. Reading it here
+        // (2 reads/node, cache-refresh cadence, ritual toggles only) replaced the maps.json
+        // tag heuristic, which missed citadels/bosses and let the planner draw routes whose
+        // completion ran through them — routes the game then refused.
+        private static bool IsRitualSpecialNode(IntPtr addr)
+        {
+            if (addr == IntPtr.Zero)
+                return true;
+            var row = Read<IntPtr>(IntPtr.Add(addr, NodeDatRowPtrOffset));
+            return row == IntPtr.Zero
+                || Read<int>(IntPtr.Add(row, DatRowSpecialCategoryOffset)) != 0;
+        }
+
+        // "Show Ritual mods (on hover)" (ShowRitualPrediction) also owns the committed-node blue
+        // mod display (the old standalone Show-Ritual-mods toggle was folded into it); the planner
+        // needs the same node data.
+        private bool RitualFeaturesOn => Settings.ShowRitualPrediction || Settings.ShowRitualPlanner;
+
         private void RefreshNodeCache(UiElement atlasUi, int atlasCount)
         {
             if (this.TryRefreshNodeCacheFromCore(atlasCount))
+                this.AppendMistNodesMissedByCore(atlasUi, atlasCount);
+            else
+                this.RefreshNodeCacheSelf(atlasUi, atlasCount);
+            this.RefreshShipCache(atlasUi, atlasCount);
+        }
+
+        // Merge in the mist-shrouded map nodes (fp 0x442EF3) that upstream core's fp filter drops
+        // from AtlasMaps (see AtlasMistNodeFp). Self-read (RefreshNodeCacheSelf) loads every child
+        // and doesn't need this. Costs one u32 read per child per cache refresh. De-duped by grid
+        // so nothing breaks if a future upstream starts including them itself.
+        private void AppendMistNodesMissedByCore(UiElement atlasUi, int atlasCount)
+        {
+            var seen = new HashSet<StdTuple2D<int>>(nodeCache.Count);
+            foreach (var nd in nodeCache)
+                seen.Add(nd.GridPosition);
+
+            for (int i = 0; i < atlasCount; i++)
+            {
+                var addr = atlasUi.GetChildAddress(i);
+                if (addr == IntPtr.Zero)
+                    continue;
+
+                uint f = Read<uint>(IntPtr.Add(addr, 0x180));
+                if ((f & ~IsVisibleMask) != (AtlasMistNodeFp & ~IsVisibleMask))
+                    continue;
+
+                var node = AtlasNode.Load(addr);
+                if (node.GridPosition.X is < -0x8000 or > 0x8000
+                    || node.GridPosition.Y is < -0x8000 or > 0x8000
+                    || !seen.Add(node.GridPosition))
+                    continue;
+
+                var nodeUi = Read<UiElement>(addr);
+                var internalId = NormalizeName(node.MapName);
+                var mapInfo = GetMapInfo(internalId);
+                var contentTokens = GetContentTokens(addr);
+                var badgeIds = GetBadgeContentIds(nodeUi);
+                var mapName = ResolveLocalizedName(internalId, mapInfo, EffectiveLanguage);
+                nodeCache.Add(new NodeData
+                {
+                    Address = addr,
+                    ChildIndex = i,
+                    InternalId = internalId,
+                    MapName = mapName,
+                    Drawable = !string.IsNullOrWhiteSpace(mapName) && IsPrintableUnicode(mapName),
+                    MapInfo = mapInfo,
+                    BiomeId = node.BiomeId,
+                    State = node.State,
+                    RawContents = GetContentName(nodeUi),
+                    ContentCount = GetContentCount(nodeUi),
+                    ContentTokens = contentTokens,
+                    BadgeContentIds = badgeIds,
+                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId),
+                    GridPosition = node.GridPosition,
+                    Rating = GetMapRating(mapInfo),
+                    RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(addr),
+                });
+            }
+        }
+
+        // Scan the atlas children for Uncharted Waters ship buttons. Runs on the node-cache
+        // interval and only while the leyline overlay is on (one extra int read per child).
+        // A chunk spawns up to 4 edge buttons; all chart the same chunk, so duplicates are
+        // fine here — the draw pass keeps one per chunk.
+        private void RefreshShipCache(UiElement atlasUi, int atlasCount)
+        {
+            shipCache.Clear();
+            if (!Settings.ShowUnchartedLeylines && !Settings.ShowShipsInFog)
                 return;
-            this.RefreshNodeCacheSelf(atlasUi, atlasCount);
+
+            for (int i = 0; i < atlasCount; i++)
+            {
+                var addr = atlasUi.GetChildAddress(i);
+                if (addr == IntPtr.Zero)
+                    continue;
+
+                // Cheap discriminator first: map nodes keep zeros at +0x338, the other button
+                // kinds (Breach 0 / Forest 1 / Tower 3) fail the exact Ocean row-index check.
+                if (Read<int>(IntPtr.Add(addr, RegionButtonRowIndexOffset)) != RegionButtonOceanRow)
+                    continue;
+                if (Read<IntPtr>(IntPtr.Add(addr, RegionButtonRowPtrOffset)) == IntPtr.Zero)
+                    continue;
+
+                int bx = Read<int>(IntPtr.Add(addr, RegionButtonGridOffset));
+                int by = Read<int>(IntPtr.Add(addr, RegionButtonGridOffset + 4));
+                if (bx is < -0x80000 or > 0x80000 || by is < -0x80000 or > 0x80000)
+                    continue;
+
+                shipCache.Add((addr, bx, by, bx >> 4, by >> 4)); // arithmetic >> floors negatives too
+            }
         }
 
         private void RefreshNodeCacheSelf(UiElement atlasUi, int atlasCount)
@@ -1335,6 +1803,8 @@ namespace Atlas
                     BadgeContentIds = badgeIds,
                     ContentNames = BuildContentNames(contentTokens, badgeIds, internalId),
                     GridPosition = node.GridPosition,
+                    Rating = GetMapRating(mapInfo),
+                    RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(addr),
                 });
             }
             cachedAtlasCount = atlasCount;
@@ -1385,9 +1855,10 @@ namespace Atlas
                     var tokens = ToUintArray(nTokens?.GetValue(map));
                     var badgeIds = ToUintArray(nBadgeIds?.GetValue(map));
                     var mapName = ResolveLocalizedName(internalId, mapInfo, EffectiveLanguage);
+                    var nodeAddr = (IntPtr)(nAddress.GetValue(map) ?? IntPtr.Zero);
                     newCache.Add(new NodeData
                     {
-                        Address = (IntPtr)(nAddress.GetValue(map) ?? IntPtr.Zero),
+                        Address = nodeAddr,
                         ChildIndex = (int)(nIndex.GetValue(map) ?? 0),
                         InternalId = internalId,
                         MapName = mapName,
@@ -1401,6 +1872,8 @@ namespace Atlas
                         BadgeContentIds = badgeIds,
                         ContentNames = BuildContentNames(tokens, badgeIds, internalId),
                         GridPosition = (StdTuple2D<int>)(nGrid.GetValue(map) ?? default(StdTuple2D<int>)),
+                        Rating = GetMapRating(mapInfo),
+                        RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(nodeAddr),
                     });
                 }
 
@@ -1667,6 +2140,166 @@ namespace Atlas
         }
 
 #endregion
+
+        // ── Uncharted Waters leylines: the connection graph of the HOVERED ship's reveal ────
+        // Every uncharted sea chunk carries ship buttons, so lighting all of them at once melts
+        // into one giant mesh over the whole fog (adjacent uncharted chunks touch). Instead the
+        // overlay follows the game's own UX: hover a ship (its tooltip opens) → highlight the
+        // nodes of THAT ship's 16x16 chunk — exactly what a logbook used there reveals (their
+        // map identities are already assigned client-side). Drawn as the atlas connection edges
+        // between those nodes — same edges as "Show node connections" (panel+0x5A8 graph), just
+        // thicker — plus a dot per node so chunk nodes without an in-chunk edge still show up.
+        // Positions are read live (the atlas scrolls by moving the widgets).
+        private void DrawUnchartedLeylines(ImDrawListPtr drawList, in RectangleF panelRect, float uiScale,
+            Vector2 mousePos, Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> graph)
+        {
+            // The ship under the cursor picks the highlighted chunk (4 edge buttons share one
+            // chunk, so whichever is hovered yields the same reveal set).
+            (int X, int Y) chunk = default;
+            bool hovered = false;
+            foreach (var (addr, _, _, cx, cy) in shipCache)
+            {
+                var ub = ReadBaseCached(addr);
+                // A culled button's own position is stale — only game-rendered ships are
+                // hit-testable here. Fog ships are covered by the fogShipIcons pass below.
+                if ((ub.Flags & IsVisibleMask) == 0)
+                    continue;
+                var sc = ComputeScalePair(in ub);
+                var tl = GetLeafTopLeft(in ub);
+                var sz = new Vector2(ub.UnscaledSize.X * sc.X, ub.UnscaledSize.Y * sc.Y);
+                if (mousePos.X >= tl.X && mousePos.X <= tl.X + sz.X
+                    && mousePos.Y >= tl.Y && mousePos.Y <= tl.Y + sz.Y)
+                {
+                    chunk = (cx, cy);
+                    hovered = true;
+                    break;
+                }
+            }
+
+            // Our fog-ship icons (drawn this frame by DrawFogShips) hit-test by their rect.
+            if (!hovered)
+            {
+                foreach (var (iconChunk, center, half) in fogShipIcons)
+                {
+                    if (mousePos.X >= center.X - half && mousePos.X <= center.X + half
+                        && mousePos.Y >= center.Y - half && mousePos.Y <= center.Y + half)
+                    {
+                        chunk = iconChunk;
+                        hovered = true;
+                        break;
+                    }
+                }
+            }
+            if (!hovered)
+                return;
+
+            // Live screen centers of the hovered chunk's nodes.
+            var centers = new Dictionary<StdTuple2D<int>, Vector2>();
+            foreach (var nd in nodeCache)
+            {
+                if ((nd.GridPosition.X >> 4, nd.GridPosition.Y >> 4) != chunk)
+                    continue;
+                var ub = Read<UiElementBaseOffset>(nd.Address);
+                var sc = ComputeScalePair(in ub);
+                var tl = GetLeafTopLeft(in ub);
+                var center = tl + new Vector2(ub.UnscaledSize.X * sc.X, ub.UnscaledSize.Y * sc.Y) * 0.5f;
+                if (panelRect.Contains(center.X, center.Y))
+                    centers[nd.GridPosition] = center;
+            }
+            if (centers.Count == 0)
+                return;
+
+            drawList.ChannelsSetCurrent(ChannelGrid);
+            uint col = ImGuiHelper.Color(Settings.UnchartedLeylineColor);
+            float th = MathF.Max(1f, uiScale * Settings.UnchartedLeylineThickness);
+            foreach (var kv in centers)
+            {
+                drawList.AddCircleFilled(kv.Value, MathF.Max(2f, th * 0.9f), col);
+                if (!graph.TryGetValue(kv.Key, out var neighbors))
+                    continue;
+                foreach (var nb in neighbors)
+                {
+                    // AddEdge stores both directions; draw each undirected edge once. Both ends
+                    // are in `centers` = the hovered chunk only — no bleed into neighbours.
+                    if (!IsCanonicalEdge(kv.Key, nb))
+                        continue;
+                    if (centers.TryGetValue(nb, out var cb))
+                        drawList.AddLine(kv.Value, cb, col, th);
+                }
+            }
+        }
+
+        // ── Fog ships: mark uncharted-water spots the game isn't rendering yet ──────────────
+        // Ship buttons exist for every streamed uncharted chunk, but the game only renders the
+        // ones near explored water; the rest sit with IsVisible clear AND a stale position (a
+        // culled button's own coordinates can't be trusted — that's why the icon is anchored
+        // differently). Anchor: a button's grid coords equal the grid of the chunk node it
+        // snapped to (createRegionActionButton min-dist snap), and fog NODES do keep live
+        // positions — so the icon is drawn at that node's center. One icon per chunk; chunks
+        // that already show a game-rendered ship are skipped. Icon = icons\UnchartedShip.png
+        // (the game's QuickUseItemIconLogbook asset); fallback ring marker when absent.
+        // Also records this frame's icon rects (fogShipIcons) for the leyline hover.
+        private void DrawFogShips(ImDrawListPtr drawList, in RectangleF panelRect, float uiScale)
+        {
+            fogShipIcons.Clear();
+
+            // Split chunks into "game already shows a ship" vs "wanted": for the latter keep
+            // one button grid per chunk — the icon anchor.
+            var chunkVisible = new HashSet<(int X, int Y)>();
+            var wanted = new Dictionary<(int X, int Y), StdTuple2D<int>>();
+            foreach (var (addr, gx, gy, cx, cy) in shipCache)
+            {
+                if ((Read<uint>(IntPtr.Add(addr, 0x180)) & IsVisibleMask) != 0)
+                    chunkVisible.Add((cx, cy));
+                else if (!wanted.ContainsKey((cx, cy)))
+                    wanted[(cx, cy)] = new StdTuple2D<int> { X = gx, Y = gy };
+            }
+            foreach (var key in chunkVisible)
+                wanted.Remove(key);
+            if (wanted.Count == 0)
+                return;
+
+            // Resolve each anchor grid to its node and read the node's LIVE screen center.
+            var iconPos = new Dictionary<(int X, int Y), Vector2>();
+            foreach (var nd in nodeCache)
+            {
+                var chunk = (nd.GridPosition.X >> 4, nd.GridPosition.Y >> 4);
+                if (!wanted.TryGetValue(chunk, out var anchor) || iconPos.ContainsKey(chunk))
+                    continue;
+                if (nd.GridPosition.X != anchor.X || nd.GridPosition.Y != anchor.Y)
+                    continue;
+                var ub = Read<UiElementBaseOffset>(nd.Address);
+                var sc = ComputeScalePair(in ub);
+                var tl = GetLeafTopLeft(in ub);
+                var center = tl + new Vector2(ub.UnscaledSize.X * sc.X, ub.UnscaledSize.Y * sc.Y) * 0.5f;
+                if (panelRect.Contains(center.X, center.Y))
+                    iconPos[chunk] = center;
+            }
+            if (iconPos.Count == 0)
+                return;
+
+            drawList.ChannelsSetCurrent(ChannelLabels);
+            float h = MathF.Max(8f, Settings.ShipIconSize * uiScale);
+            bool haveIcon = TryGetIcon(DllDirectory, FogShipIconName, out var ptr, out var iw, out var ih)
+                && ptr != IntPtr.Zero && iw > 0 && ih > 0;
+            foreach (var kv in iconPos)
+            {
+                var c = kv.Value;
+                if (haveIcon)
+                {
+                    float w = h * iw / ih;
+                    drawList.AddImage(ptr, c - new Vector2(w, h) * 0.5f, c + new Vector2(w, h) * 0.5f);
+                }
+                else
+                {
+                    // fallback marker until icons\UnchartedShip.png is provided
+                    float r = h * 0.35f;
+                    drawList.AddCircleFilled(c, r, ImGuiHelper.Color(new Vector4(0.04f, 0.08f, 0.12f, 0.9f)));
+                    drawList.AddCircle(c, r, ImGuiHelper.Color(Settings.UnchartedLeylineColor), 0, MathF.Max(1.5f, r * 0.25f));
+                }
+                fogShipIcons.Add((kv.Key, c, h * 0.5f));
+            }
+        }
 
         private void LoadBiomeMap()
         {
@@ -2209,6 +2842,26 @@ namespace Atlas
 
         // Draw a centered rounded pill with a label. centerX/topY = top-center anchor.
         // Returns the pill height (so callers can advance their layout cursor).
+        // Rating for a map by its canonical English display name; -1 when unrated.
+        private int GetMapRating(MapInfo info) =>
+            info?.Name != null && Settings.MapRatings.TryGetValue(info.Name, out var r) ? r : -1;
+
+        // Rating pill background: green (0 = normal) → yellow (5) → red (10 = terrible).
+        private static Vector4 RatingColor(int rating)
+        {
+            float t = Math.Clamp(rating / 10f, 0f, 1f);
+            var green = new Vector4(0.10f, 0.72f, 0.15f, 0.92f);
+            var yellow = new Vector4(0.95f, 0.80f, 0.05f, 0.92f);
+            var red = new Vector4(0.85f, 0.08f, 0.08f, 0.92f);
+            return t < 0.5f ? Vector4.Lerp(green, yellow, t * 2f) : Vector4.Lerp(yellow, red, (t - 0.5f) * 2f);
+        }
+
+        // Black text on light (yellow-ish) pills, white on dark green/red ones.
+        private static Vector4 RatingTextColor(Vector4 bg) =>
+            0.299f * bg.X + 0.587f * bg.Y + 0.114f * bg.Z > 0.55f
+                ? new Vector4(0f, 0f, 0f, 1f)
+                : new Vector4(1f, 1f, 1f, 1f);
+
         private static float DrawPill(ImDrawListPtr drawList, string label, float centerX, float topY,
             Vector4 bg, Vector4 fg, float uiScale)
         {
@@ -2530,6 +3183,1339 @@ namespace Atlas
             return Read<T>(addr);
         }
 
+        // MSVC std::wstring (SSO): length @ +0x10, capacity @ +0x18; chars inline @ +0x00 while
+        // capacity < 8, otherwise +0x00 is the heap buffer pointer. Same layout the game uses for
+        // UI label text (see docs/uitree-guide.md).
+        private static string ReadGameWString(IntPtr address)
+        {
+            if (address == IntPtr.Zero)
+                return string.Empty;
+
+            long len = Read<long>(IntPtr.Add(address, 0x10));
+            long cap = Read<long>(IntPtr.Add(address, 0x18));
+            if (len <= 0 || len > 2048 || cap < len)
+                return string.Empty;
+
+            var src = cap >= 8 ? Read<IntPtr>(address) : address;
+            return src == IntPtr.Zero ? string.Empty : ReadWideString(src, (int)len);
+        }
+
+        // Session-dedup of ritual snapshots already written (signature → skip re-append).
+        private readonly HashSet<string> ritualLogSeen = new();
+        private bool ritualLogHeaderDone;
+
+        // grid -> predicted first Rite mod for the current line's next candidates (see BuildRitualPredictions).
+        private static readonly Dictionary<StdTuple2D<int>, string> EmptyRitualPredictions = new();
+        private Dictionary<StdTuple2D<int>, string> ritualPredictions = EmptyRitualPredictions;
+        // Node under the cursor (accessible/completed only) — the hypothetical START for the
+        // pre-click ritual chain while no node is committed yet. One-frame lag by design:
+        // predictions build before the node pass hit-tests the cursor.
+        private StdTuple2D<int>? ritualHoverGrid;
+
+        // Reads the committed line grids (panel+0x660) as (x,y) int pairs.
+        private static List<StdTuple2D<int>> ReadGridVector(IntPtr vecAddr)
+        {
+            var result = new List<StdTuple2D<int>>();
+            var vec = Read<StdVector>(vecAddr);
+            if (vec.First == IntPtr.Zero || vec.Last == IntPtr.Zero)
+                return result;
+            long bytes = vec.Last.ToInt64() - vec.First.ToInt64();
+            if (bytes <= 0 || bytes % 8 != 0 || bytes > 8 * 64)
+                return result;
+            int n = (int)(bytes / 8);
+            for (int i = 0; i < n; i++)
+                result.Add(Read<StdTuple2D<int>>(IntPtr.Add(vec.First, i * 8)));
+            return result;
+        }
+
+        // Read the panel's precomputed next-candidate table (panel+0x590) into a map
+        // node(x,y) -> its raw candidate list (up to 5, (0,0) sentinels dropped). The table is what
+        // AtlasPanel_ritualLineNextCandidates looks up; the roll's candIdx is a node's rank among the
+        // frontier's candidates. We read the whole span in one cross-process read and parse locally.
+        // Cache: the neighbour table is static per atlas instance, so re-read only when its backing
+        // vector changes (atlas reload). Keyed by the (begin, end) pointer pair — begin alone can
+        // collide when the allocator reuses the base address for a different atlas's table.
+        private static IntPtr candTableCacheBegin = IntPtr.Zero;
+        private static IntPtr candTableCacheEnd = IntPtr.Zero;
+        // Span already re-read once because a frontier lookup missed (see below) — a legit
+        // dead-end frontier must not force a full re-read every frame.
+        private static IntPtr candTableHealedBegin = IntPtr.Zero;
+        private static IntPtr candTableHealedEnd = IntPtr.Zero;
+        private static Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> candTableCache;
+
+        private static Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> ReadCandidateTable(
+            IntPtr panel, StdTuple2D<int>? frontier = null)
+        {
+            var map = new Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>>();
+            if (panel == IntPtr.Zero)
+                return map;
+            var begin = Read<IntPtr>(IntPtr.Add(panel, PanelCandTableBeginOffset));
+            var end = Read<IntPtr>(IntPtr.Add(panel, PanelCandTableEndOffset));
+            if (begin == IntPtr.Zero || end == IntPtr.Zero)
+                return map;
+            if (begin == candTableCacheBegin && end == candTableCacheEnd && candTableCache != null)
+            {
+                // Self-heal a stale cache: the line's frontier node always belongs to its own
+                // atlas's table, so a miss means the cache was filled from another atlas instance
+                // (pointer reuse) or from a not-yet-populated load frame. Drop it and re-read —
+                // at most once per table span.
+                bool healedThisSpan = begin == candTableHealedBegin && end == candTableHealedEnd;
+                if (frontier == null || healedThisSpan || candTableCache.ContainsKey(frontier.Value))
+                    return candTableCache;
+                candTableCache = null;
+                candTableHealedBegin = begin;
+                candTableHealedEnd = end;
+            }
+            long bytes = end.ToInt64() - begin.ToInt64();
+            // The live table is ~4k nodes; allow up to 64k entries. Must be a whole number of entries.
+            if (bytes <= 0 || bytes % CandTableEntryStride != 0 || bytes > CandTableEntryStride * 65536L)
+                return map;
+            int n = (int)(bytes / CandTableEntryStride);
+
+            EnsureProcessHandle();
+            byte[] buf = new byte[bytes];
+            if (!ProcessMemoryUtilities.Managed.NativeWrapper.ReadProcessMemoryArray(Handle, begin, buf))
+                return map;
+
+            bool anyCands = false;
+            for (int e = 0; e < n; e++)
+            {
+                int o = e * CandTableEntryStride;
+                int nx = BitConverter.ToInt32(buf, o + 0);
+                int ny = BitConverter.ToInt32(buf, o + 4);
+                var cands = new List<StdTuple2D<int>>(CandTableMaxCandidates);
+                for (int c = 0; c < CandTableMaxCandidates; c++)
+                {
+                    int co = o + 8 + c * 12;      // ints [2..], 3 per candidate (x,y,extra)
+                    int cx = BitConverter.ToInt32(buf, co + 0);
+                    int cy = BitConverter.ToInt32(buf, co + 4);
+                    if (cx == 0 && cy == 0)
+                        continue;                 // empty slot sentinel
+                    cands.Add(new StdTuple2D<int> { X = cx, Y = cy });
+                }
+                if (cands.Count > 0)
+                    anyCands = true;
+                map[new StdTuple2D<int> { X = nx, Y = ny }] = cands;
+            }
+            // On an atlas-load frame the vector can exist while its entries are still zero-filled —
+            // every slot parses as the (0,0) sentinel. Never cache that: the begin/end pointers
+            // won't change afterwards, so the garbage would stick until a GH restart.
+            if (anyCands)
+            {
+                candTableCacheBegin = begin;
+                candTableCacheEnd = end;
+                candTableCache = map;
+            }
+            return map;
+        }
+
+        // ── Ritual Rite-mod PREDICTION (reversed client-side roll). See obsidian poe2/Ritual.md ──
+        // The game rolls each line node's Rite mods CLIENT-SIDE and deterministically. We reproduce
+        // the roll so a candidate's mods can be shown BEFORE it is committed. Validated exact for the
+        // first mod (single-mod nodes 6/6).
+
+        // TinyMT32 exactly as the game uses it (mat1/mat2/tmat below). init_by_array over 4 u32 seed
+        // words + an 8-step jump; then a tempered draw. Bit-exact vs TinyMT_seedAndJump (14156b620),
+        // next32 (1404e16d0) and randBelow (1404e17a0). NOTE the state transition is the binary's form
+        // (x>>1 / s3<<1), which differs from reference TinyMT (x<<1 / y>>1).
+        private static class TinyMt32
+        {
+            private const uint MAT1 = 0x8f7011eeu, MAT2 = 0xfc78ff1fu, TMAT = 0x3793fdffu;
+
+            // seed+jump; returns the 4-word state [s0,s1,s2,s3] (the binary's counter is unused here).
+            public static uint[] Seed(uint w0, uint w1, uint w2, uint w3)
+            {
+                uint[] s = { 0x40336052u, 0xCFA3723Cu, 0x3CAC5F71u, 0x3793FDFFu }; // post-pre-step consts
+                uint[] w = { w0, w1, w2, w3 };
+                int r = 1;
+                for (int i = 0; i < 4; i++)              // absorb 4 words (ini_func1)
+                {
+                    int a = (r + 1) & 3, b = r & 3, c = (r + 3) & 3;
+                    uint x = s[a] ^ s[c] ^ s[b];
+                    uint h = ((x >> 27) ^ x) * 0x19660Du;
+                    s[a] += h;
+                    uint h2 = h + w[i] + (uint)r;
+                    s[(r + 2) & 3] += h2;
+                    s[b] = h2;
+                    r = a;
+                }
+                for (int k = 0; k < 3; k++)              // 3 mix rounds (ini_func1, no input)
+                {
+                    int a = (r + 1) & 3, b = r & 3, c = (r + 3) & 3;
+                    uint x = s[a] ^ s[c] ^ s[b];
+                    uint h = ((x >> 27) ^ x) * 0x19660Du;
+                    uint h2 = h + (uint)r;
+                    s[a] += h;
+                    s[(r + 2) & 3] += h2;
+                    s[b] = h2;
+                    r = a;
+                }
+                for (int k = 0; k < 4; k++)              // 4 finalization blocks (ini_func2)
+                {
+                    int a = (r + 1) & 3, b = r & 3, c = (r + 3) & 3;
+                    uint x = s[c] + s[a] + s[b];
+                    x = ((x >> 27) ^ x) * 0x5D588B65u;
+                    uint y = x - (uint)r;
+                    s[a] ^= x;
+                    s[(r + 2) & 3] ^= y;
+                    s[b] = y;
+                    r = a;
+                }
+                for (int k = 0; k < 8; k++) NextState(s); // jump
+                return s;
+            }
+
+            private static void NextState(uint[] s)
+            {
+                uint x = (s[0] & 0x7fffffffu) ^ s[1] ^ s[2];
+                uint t = s[3] ^ (s[3] << 1);
+                x = (x >> 1) ^ x ^ t;
+                uint mag = (x & 1) != 0 ? 0xffffffffu : 0u;
+                uint oldS1 = s[1], oldS2 = s[2];
+                s[0] = oldS1;
+                s[1] = (mag & MAT1) ^ oldS2;
+                s[2] = (mag & MAT2) ^ (x << 10) ^ t;
+                s[3] = x;
+            }
+
+            // one tempered 32-bit output; advances the state (== next32 inner body).
+            public static uint Draw(uint[] s)
+            {
+                uint oldS1 = s[1], oldS2 = s[2];
+                uint x = (s[0] & 0x7fffffffu) ^ s[1] ^ s[2];
+                uint t = s[3] ^ (s[3] << 1);
+                x = (x >> 1) ^ x ^ t;
+                uint mag = (x & 1) != 0 ? 0xffffffffu : 0u;
+                uint newS2 = (mag & MAT2) ^ (x << 10) ^ t;
+                s[0] = oldS1;
+                s[1] = (mag & MAT1) ^ oldS2;
+                s[2] = newS2;
+                s[3] = x;
+                uint v = (newS2 >> 8) + oldS1;
+                uint magt = (v & 1) != 0 ? 0xffffffffu : 0u;
+                return (magt & TMAT) ^ v ^ x;
+            }
+
+            // unbiased r in [0,n) with the binary's rejection (bits=32, mask=0xffffffff).
+            public static uint RandBelow(uint[] s, uint n)
+            {
+                if (n <= 1) return 0;
+                const uint M = 0xffffffffu;
+                while (true)
+                {
+                    uint r = Draw(s);
+                    if (M / n <= r / n && M % n != n - 1) continue;
+                    return r % n;
+                }
+            }
+        }
+
+        private sealed class RitualRow
+        {
+            public int Row { get; set; }
+            public int W { get; set; }       // weighting
+            public int Cond { get; set; }    // ConditionStat FK (0 = none); binary id = Cond-1
+            public int Stat { get; set; }    // granted Stat1 FK — 2nd-pick dup exclusion (0 = none)
+            public string Text { get; set; }
+        }
+        private sealed class RitualPoolFile { public List<RitualRow> Rows { get; set; } }
+        private static List<RitualRow> ritualPool;
+
+        private void EnsureRitualPool()
+        {
+            if (ritualPool != null) return;
+            try
+            {
+                var path = Path.Join(DllDirectory, "json", "ritualmods.json");
+                ritualPool = File.Exists(path)
+                    ? (JsonConvert.DeserializeObject<RitualPoolFile>(File.ReadAllText(path))?.Rows ?? new())
+                    : new();
+            }
+            catch { ritualPool = new(); }
+        }
+
+        // Read the panel's active atlas stats (id -> value, value!=0 only). Chain from
+        // ritualLineToggleNode: panel+0x320 -> +0x1b0 -> +0x3a20 -> vector [+0x408 begin, +0x410 end],
+        // stride 0x28 (10 int32): stat id @ +0x00, value @ +0x08. Gates the reservoir pool and gives
+        // the line length (5 + map_ritual_rite_additional_maps, binary id 0x670b).
+        private static Dictionary<int, int> ReadRitualStats(IntPtr panel)
+        {
+            var stats = new Dictionary<int, int>();
+            var o1 = Read<IntPtr>(IntPtr.Add(panel, 0x320));
+            if (o1 == IntPtr.Zero) return stats;
+            var o2 = Read<IntPtr>(IntPtr.Add(o1, 0x1b0));
+            if (o2 == IntPtr.Zero) return stats;
+            var holder = Read<IntPtr>(IntPtr.Add(o2, 0x3a20));
+            if (holder == IntPtr.Zero) return stats;
+            var begin = Read<IntPtr>(IntPtr.Add(holder, 0x408));
+            var end = Read<IntPtr>(IntPtr.Add(holder, 0x410));
+            if (begin == IntPtr.Zero || end == IntPtr.Zero) return stats;
+            long bytes = end.ToInt64() - begin.ToInt64();
+            if (bytes <= 0 || bytes % 0x28 != 0 || bytes > 0x28 * 8192L) return stats;
+            int n = (int)(bytes / 0x28);
+            EnsureProcessHandle();
+            byte[] buf = new byte[bytes];
+            if (!ProcessMemoryUtilities.Managed.NativeWrapper.ReadProcessMemoryArray(Handle, begin, buf))
+                return stats;
+            for (int e = 0; e < n; e++)
+            {
+                int id = BitConverter.ToInt32(buf, e * 0x28 + 0);
+                int val = BitConverter.ToInt32(buf, e * 0x28 + 8);
+                if (val != 0) stats[id] = val;
+            }
+            return stats;
+        }
+
+        // Whether a line node ALSO gets a second Rite mod: rand(100) < chance stat 0x670C
+        // (map_ritual_rite_additional_modifier_chance_%), on a separate deterministic stream
+        // seeded [lineId, committedCount, candIdx, salt] — the salt appears ONLY in this coin
+        // flip, never in the mod-pick seed.
+        private const int StatSecondModChance = 0x670c;
+        private const uint SecondModCoinSalt = 0x91DA3AD9;
+        private const string TwoModFilterOption = "[2 mods]";  // pseudo-entry in the reward dropdown
+
+        private static bool PredictSecondModFlip(uint lineId, uint committedCount, uint candIdx, int chance)
+        {
+            if (chance <= 0)
+                return false;
+            if (chance >= 100)
+                return true;
+            var s = TinyMt32.Seed(lineId, committedCount, candIdx, SecondModCoinSalt);
+            return TinyMt32.RandBelow(s, 100) < (uint)chance;
+        }
+
+        // One reservoir pass (seed modCount = 0 first mod / 1 second). The 2nd pass SKIPS —
+        // no weight added, no draw — every row whose granted Stat the 1st pick already granted
+        // (binary dup check FUN_14064cdc0 on the out-vector; currency trios share one stat so a
+        // currency 1st mod blocks its whole trio). Validated 6/6 on logged two-mod nodes.
+        private static RitualRow PredictModPass(uint lineId, uint committedCount, uint candIdx,
+            uint modCount, List<RitualRow> pool, int grantedStat)
+        {
+            var s = TinyMt32.Seed(lineId, committedCount, candIdx, modCount);
+            long total = 0; RitualRow sel = null;
+            foreach (var row in pool)
+            {
+                if (grantedStat != 0 && row.Stat == grantedStat)
+                    continue;
+                total += row.W;
+                if (TinyMt32.RandBelow(s, (uint)total) < (uint)row.W)
+                    sel = row;
+            }
+            return sel;
+        }
+
+        // Game's AtlasPanel_ritualLineReachCheck (140b775f0), ported: a node may join the line
+        // only if FROM it the line can still be extended to its full length through eligible
+        // nodes (not committed / not already on the path / not blocked). The game refuses the
+        // click otherwise — so dead-end branches must never be offered or rolled. `need` =
+        // picks still required AFTER taking the node; first success short-circuits.
+        private static bool RitualCanComplete(
+            Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> candTable,
+            HashSet<StdTuple2D<int>> blocked,
+            StdTuple2D<int> node,
+            HashSet<StdTuple2D<int>> visited,
+            int need)
+        {
+            if (need <= 0)
+                return true;
+            if (!candTable.TryGetValue(node, out var raw))
+                return false;
+            foreach (var c in raw)
+            {
+                if (blocked.Contains(c) || visited.Contains(c))
+                    continue;
+                visited.Add(c);
+                bool ok = RitualCanComplete(candTable, blocked, c, visited, need - 1);
+                visited.Remove(c);
+                if (ok)
+                    return true;
+            }
+
+            return false;
+        }
+
+        // Both Rite mods for a candidate: first pick, then the deterministic coin flip, then the
+        // second pick with the stat-dup exclusion. Second is null on single-mod nodes.
+        private static (string First, string Second) PredictMods(uint lineId, uint committedCount,
+            uint candIdx, List<RitualRow> pool, int secondChance)
+        {
+            var first = PredictModPass(lineId, committedCount, candIdx, 0, pool, 0);
+            if (first == null)
+                return (null, null);
+            if (!PredictSecondModFlip(lineId, committedCount, candIdx, secondChance))
+                return (first.Text, null);
+            var second = PredictModPass(lineId, committedCount, candIdx, 1, pool, first.Stat);
+            return (first.Text, second?.Text);
+        }
+
+        // ── "Select N maps" pick counter ─────────────────────────────────────────────────
+        // While drawing the ritual line the game shows a header with how many maps can still
+        // be picked (the first pick — the start node — consumes one). Authoritative live value,
+        // so it overrides the computed 5 + additional-maps stat when readable.
+        // GameUi → [22] → [2] → [0], leaf fp 0x502EE1, wstring at +0x4C0 (found via UiExplorer).
+        private static readonly int[] RitualPickCounterPath = { 22, 2, 0 };
+        private const uint RitualPickCounterFp = 0x502EE1;
+
+        // Reads the counter as the first integer in the label text (locale-independent).
+        // False when the element is absent/hidden/moved (index path or fp drifted) or the
+        // number is implausible — callers fall back to the stat-derived line length.
+        private static bool TryReadRitualPickCounter(out int remaining)
+        {
+            remaining = 0;
+            var addr = Core.States.InGameStateObject.GameUi.Address;
+            if (addr == IntPtr.Zero)
+                return false;
+            foreach (var idx in RitualPickCounterPath)
+            {
+                addr = Read<UiElement>(addr).GetChildAddress(idx);
+                if (addr == IntPtr.Zero)
+                    return false;
+            }
+
+            var leaf = Read<UiElement>(addr);
+            if ((leaf.Flags & ~IsVisibleMask) != (RitualPickCounterFp & ~IsVisibleMask)
+                || (leaf.Flags & IsVisibleMask) == 0)
+                return false;
+
+            var text = ReadGameWString(IntPtr.Add(addr, TextElementTextOffset));
+            if (string.IsNullOrEmpty(text))
+                return false;
+            int n = 0;
+            bool seen = false;
+            foreach (var ch in text)
+            {
+                if (ch >= '0' && ch <= '9') { n = (n * 10) + (ch - '0'); seen = true; }
+                else if (seen) break;
+            }
+
+            if (!seen || n <= 0 || n > 30)
+                return false;
+            remaining = n;
+            return true;
+        }
+
+        // Line-length atlas stat (binary id = tsv id - 1). map_ritual_rite_additional_maps.
+        private const int StatAdditionalMaps = 0x670b;
+        private const int RitualBaseLineLength = 5;   // AtlasPanel_ritualLineToggleNode: stat + 5
+        private const int RitualMaxLookaheadDepth = 16;
+        private const int RitualMaxPredictNodes = 4000;
+
+        // Cache: predictions only change when the line state (id + committed set) changes.
+        private string ritualPredSig;
+        private Dictionary<StdTuple2D<int>, string> ritualPredCache = EmptyRitualPredictions;
+
+        // Predict the Rite mods for EVERY node the ritual line can still reach from its current
+        // frontier, up to the line's max length.
+        // Each node's mod is rolled for the path that reaches it (committedCount = base + depth;
+        // candIdx = its rank among the frontier's candidates minus the committed path). Returns
+        // grid -> predicted first-mod text. Cached per line-state.
+        private Dictionary<StdTuple2D<int>, string> BuildRitualPredictions(IntPtr panel)
+        {
+            if (panel == IntPtr.Zero) return EmptyRitualPredictions;
+            EnsureRitualPool();
+            if (ritualPool == null || ritualPool.Count == 0) return EmptyRitualPredictions;
+
+            // Hover preview ONLY, and only BEFORE the first node is picked: once the line has a
+            // start (committed, or clicked-but-unconfirmed pending), the planner window owns the
+            // route display and the always-on green chain would just be noise on the atlas.
+            var committed = ReadGridVector(IntPtr.Add(panel, PanelCommittedVecOffset));
+            int committedReal = committed.Count;   // before a hypothetical start is inserted
+            if (committed.Count > 0)
+                return EmptyRitualPredictions;
+            // Pre-click chain. The first click adds no randomness: lineId and the candidate
+            // table exist before the line starts, and the start node itself is never rolled
+            // (ritualLineToggleNode's empty-committed branch just adds it to pending). So the
+            // whole chain from a hypothetical (hovered) start is already determined. Only while
+            // the game is actually in ritual line mode.
+            if (Read<byte>(IntPtr.Add(panel, PanelLineModeOffset)) == 0)
+                return EmptyRitualPredictions;
+            if (ReadGridVector(IntPtr.Add(panel, PanelPendingVecOffset)).Count > 0)
+                return EmptyRitualPredictions;
+            if (this.ritualHoverGrid is { } start)
+                committed.Add(start);
+            else
+                return EmptyRitualPredictions;
+
+            uint lineId = Read<uint>(IntPtr.Add(panel, PanelLineIdOffset));
+
+            // Signature — reuse the cached chain unless the line changed.
+            var sb = new StringBuilder();
+            sb.Append(lineId);
+            foreach (var g in committed) sb.Append(';').Append(g.X).Append(',').Append(g.Y);
+            var sig = sb.ToString();
+            if (sig == ritualPredSig && ritualPredCache != null)
+                return ritualPredCache;
+
+            var result = new Dictionary<StdTuple2D<int>, string>();
+            var candTable = ReadCandidateTable(panel, committed[committed.Count - 1]);
+            var stats = ReadRitualStats(panel);
+
+            var pool = new List<RitualRow>(ritualPool.Count);
+            foreach (var row in ritualPool)
+            {
+                if (row.W <= 0) continue;
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                    pool.Add(row);
+            }
+
+            int addlMaps = stats.TryGetValue(StatAdditionalMaps, out var am) ? am
+                         : stats.TryGetValue(StatAdditionalMaps + 1, out var am2) ? am2 : 0;
+            int lineLen = RitualBaseLineLength + Math.Max(0, addlMaps);
+            int secondChance = stats.TryGetValue(StatSecondModChance, out var sc) ? sc
+                             : stats.TryGetValue(StatSecondModChance + 1, out var sc2) ? sc2 : 0;
+            // The in-game "Select N maps" header is the authoritative remaining-picks count
+            // (assumed to decrement as nodes commit — the roll log records it for verification);
+            // when readable it overrides the stat-derived length.
+            if (TryReadRitualPickCounter(out var picksLeft))
+                lineLen = committedReal + picksLeft;
+            int maxDepth = Math.Min(RitualMaxLookaheadDepth, Math.Max(0, lineLen - committed.Count));
+
+            // Nodes the line can never be drawn onto — the game's own reach-check rule:
+            // completed (widget state ∉ {0,1}) or special-category map (RitualSpecial: the
+            // dat-row field the game tests; uniques/towers/hideouts/citadels/bosses). The
+            // maps.json tags stay as a fallback for a cache built before the toggle came on.
+            // Blocked nodes KEEP their slot in the candidate rank space — the validated candIdx
+            // model ranks the raw table minus committed only — but they get no predicted label
+            // and the chain is not extended through them.
+            var blocked = new HashSet<StdTuple2D<int>>();
+            foreach (var nd in nodeCache)
+            {
+                if (nd.State == AtlasNodeState.CompletedBase
+                    || nd.RitualSpecial
+                    || string.Equals(nd.MapInfo?.Type, "unique", StringComparison.OrdinalIgnoreCase)
+                    || (nd.MapInfo?.HasTag("tower") ?? false)
+                    || (nd.MapInfo?.HasTag("hideout") ?? false))
+                    blocked.Add(nd.GridPosition);
+            }
+
+            if (pool.Count > 0 && maxDepth > 0)
+            {
+                var frontier = committed[committed.Count - 1];
+                var visited = new HashSet<StdTuple2D<int>>(committed);   // never revisit committed
+                int budget = RitualMaxPredictNodes;
+                // BFS by depth so each node is reached via its shallowest (most direct) path, giving
+                // the committedCount/candIdx of that path. Recomputed live as the line is drawn, so the
+                // chosen path stays exact; branches are a guide.
+                var queue = new Queue<(StdTuple2D<int> node, HashSet<StdTuple2D<int>> cset, int depth)>();
+                queue.Enqueue((frontier, new HashSet<StdTuple2D<int>>(committed), 0));
+                while (queue.Count > 0 && budget > 0)
+                {
+                    var (node, cset, depth) = queue.Dequeue();
+                    if (depth >= maxDepth) continue;
+                    if (!candTable.TryGetValue(node, out var raw) || raw.Count == 0) continue;
+                    var cands = raw.Where(c => !cset.Contains(c))
+                                   .OrderBy(c => c.X).ThenBy(c => c.Y).ToList();
+                    uint cc = (uint)cset.Count;   // = committed.Count + depth
+                    for (int i = 0; i < cands.Count; i++)
+                    {
+                        if (budget <= 0) break;
+                        var cand = cands[i];
+                        if (visited.Contains(cand)) continue;   // reached already via a shallower path
+                        if (blocked.Contains(cand)) { visited.Add(cand); continue; }  // holds rank i, can't join
+                        // Game reach check (ritualLineReachCheck 140b775f0): a node is clickable
+                        // only if the line can still be COMPLETED through it — a dead-end branch
+                        // is refused by the game and must not be labeled (its roll never happens).
+                        var reachSet = new HashSet<StdTuple2D<int>>(cset) { cand };
+                        if (!RitualCanComplete(candTable, blocked, cand, reachSet, maxDepth - depth - 1))
+                            continue;
+                        visited.Add(cand);
+                        var (first, second) = PredictMods(lineId, cc, (uint)i, pool, secondChance);
+                        if (!string.IsNullOrEmpty(first))
+                        {
+                            result[cand] = second == null ? first : first + "\n" + second;
+                            budget--;
+                        }
+                        var childSet = new HashSet<StdTuple2D<int>>(cset) { cand };
+                        queue.Enqueue((cand, childSet, depth + 1));
+                    }
+                }
+            }
+
+            ritualPredSig = sig;
+            ritualPredCache = result;
+            return result;
+        }
+
+        // ── "Head of the King Rewards" planner (ritual line mode, page mode 6) ────────────────────────
+        // Enumerates every chain the ritual line can take from EVERY eligible start node at once
+        // (or only from the committed frontier while a line is being drawn), with each node's
+        // predicted first Rite mod (exact, same roll as BuildRitualPredictions but per-path).
+        // Shown as a window with a persisted multi-select reward filter (a chain matches when ANY
+        // selected reward is in it); a ticked chain draws a ray from the player to its start plus
+        // the highlighted route with reward labels — that's how you find WHERE the rewards you
+        // filtered for are. See obsidian poe2/Ritual.md.
+        private sealed class PlannerChain
+        {
+            public string Key;                    // stable id: root-onward grids joined
+            public List<StdTuple2D<int>> Nodes;   // root (start/frontier) + picked nodes
+            public List<string> ShortMods;        // 1st mod per picked node (aligned with Nodes[i+1])
+            public List<string> ShortMods2;       // 2nd mod per picked node (null = single-mod)
+            public string PathLine;               // "Bastille  >  Headland  >  …"
+            public string ModsLine;               // "+25% Tribute   -   Exalted Orbs x2 + Omen: … "
+            public int Weight;                    // sum of user reward weights over the chain's mods
+        }
+
+        private readonly List<PlannerChain> plannerChains = new();
+        private string plannerSig;
+        private int plannerStartCount;                 // eligible start nodes in the last rebuild
+        private bool plannerLineActive;                // committed non-empty: root = the line's frontier
+        private readonly Dictionary<string, int> plannerSelected = new();  // chain key -> palette slot
+        private int plannerEnumerated;                 // paths found (incl. beyond the caps)
+        private bool plannerCapped;
+        private static List<string> plannerRewardOptions;  // distinct ShortModLabel values of the pool
+        // Reward-weight edits bump the version; the planner re-weighs + re-sorts its cached
+        // chains when the versions diverge (so edits apply live without a full re-enumeration).
+        private int plannerWeightsVersion;
+        private int plannerChainsWeightsVersion = -1;
+
+        private static readonly Vector4[] PlannerPalette =
+        {
+            new(1f, 0.85f, 0.2f, 1f),   // yellow
+            new(1f, 0.5f, 0.15f, 1f),   // orange
+            new(1f, 0.3f, 0.3f, 1f),    // red
+            new(0.3f, 0.85f, 1f, 1f),   // cyan
+            new(0.45f, 1f, 0.45f, 1f),  // green
+            new(0.9f, 0.45f, 1f, 1f),   // violet
+        };
+        private const int PlannerMaxPaths = 8192;  // global enumeration cap, fair-shared across starts
+        private const int PlannerMaxRows = 200;    // rows drawn per frame (matches beyond it still counted)
+
+        // Compact reward label for chain rows / route pills ("4 Exalted Orbs" → "Exalted Orbs x4").
+        // Pattern-based over the known RitualAtlasLineMods texts; unknown texts pass through.
+        private static readonly Dictionary<string, string> shortModCache = new();
+
+        private static string ShortModLabel(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+            if (shortModCache.TryGetValue(text, out var cached))
+                return cached;
+
+            string r;
+            var m = System.Text.RegularExpressions.Regex.Match(text, @"^(\d+) (.+?Orbs?.*)$");
+            if (m.Success)
+                r = $"{m.Groups[2].Value} x{m.Groups[1].Value}";
+            else if (text.StartsWith("Omen of ", StringComparison.OrdinalIgnoreCase))
+                r = "Omen: " + text["Omen of ".Length..];
+            else if (text.StartsWith("Contains a very rare Unique", StringComparison.OrdinalIgnoreCase))
+                r = "Very Rare Unique";
+            else if (text.StartsWith("Contains ", StringComparison.OrdinalIgnoreCase))
+                r = text["Contains ".Length..];
+            else if (text.Contains("additional pack", StringComparison.OrdinalIgnoreCase))
+                r = "+Monster Packs";
+            else if (text.Contains("no Cost the first time", StringComparison.OrdinalIgnoreCase))
+                r = "+Free Reroll";
+            else if (text.Contains("additional Favour reroll", StringComparison.OrdinalIgnoreCase))
+                r = "+1 Reroll";
+            else if (text.Contains("reduced Tribute", StringComparison.OrdinalIgnoreCase))
+                r = "-Reroll Cost";
+            else if (text.Contains("increased Tribute", StringComparison.OrdinalIgnoreCase))
+                r = "+25% Tribute";
+            else if (text.Contains("increased number of Favours", StringComparison.OrdinalIgnoreCase))
+                r = "+Favours";
+            else
+                r = text;
+            shortModCache[text] = r;
+            return r;
+        }
+
+        private string GridDisplayName(StdTuple2D<int> g)
+        {
+            foreach (var nd in nodeCache)
+                if (nd.GridPosition.Equals(g))
+                    return nd.Drawable ? nd.MapName : $"({g.X},{g.Y})";
+            return $"({g.X},{g.Y})";
+        }
+
+        // Every distinct reward the pool can roll, as the short labels the rows display —
+        // the option list for the filter dropdown. Built once (the json pool is static).
+        private void EnsureRewardOptions()
+        {
+            if (plannerRewardOptions != null)
+                return;
+            EnsureRitualPool();
+            var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in ritualPool)
+                if (row.W > 0 && !string.IsNullOrEmpty(row.Text))
+                    set.Add(ShortModLabel(row.Text));
+            plannerRewardOptions = set.ToList();
+            // Pseudo-entry: match chains containing a two-mod node (both mods are predicted).
+            plannerRewardOptions.Insert(0, TwoModFilterOption);
+        }
+
+        // Settings-window table of per-reward weights (shown while the planner toggle is on).
+        // The planner sorts its route list by the summed weight of each chain's mods, highest
+        // first, so weighted rewards float the best routes to the top. 0 (the default) keeps a
+        // reward neutral; negatives push routes down. Stored sparsely (only nonzero).
+        private void DrawRewardWeightsTable()
+        {
+            EnsureRewardOptions();
+            ImGui.Indent();
+            ImGui.TextUnformatted(this.L("atlas.ritual_weights", "Reward weights"));
+            ImGuiHelper.ToolTip(this.L("atlas.ritual_weights_hint",
+                "Planner routes are sorted by the sum of these weights over the route's predicted " +
+                "rewards, highest first. 0 = neutral; negative pushes a route down the list."));
+            if (ImGui.BeginChild("##ritualWeights", new Vector2(0, 240), ImGuiChildFlags.Borders))
+            {
+                if (ImGui.BeginTable("##ritualWeightsTable", 2,
+                    ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+                {
+                    ImGui.TableSetupColumn(this.L("atlas.weights_reward_col", "Reward"), ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn(this.L("atlas.weights_weight_col", "Weight"), ImGuiTableColumnFlags.WidthFixed, 220f);
+                    ImGui.TableHeadersRow();
+                    foreach (var opt in plannerRewardOptions)
+                    {
+                        if (opt == TwoModFilterOption)
+                            continue;   // filter pseudo-entry, not a rollable reward
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn();
+                        ImGui.TextUnformatted(opt);
+                        ImGui.TableNextColumn();
+                        int w = Settings.RitualRewardWeights.TryGetValue(opt, out var cur) ? cur : 0;
+                        ImGui.SetNextItemWidth(-1);
+                        if (ImGui.InputInt($"##rw_{opt}", ref w))
+                        {
+                            if (w == 0)
+                                Settings.RitualRewardWeights.Remove(opt);
+                            else
+                                Settings.RitualRewardWeights[opt] = w;
+                            plannerWeightsVersion++;
+                        }
+                    }
+
+                    ImGui.EndTable();
+                }
+            }
+
+            ImGui.EndChild();
+            ImGui.Unindent();
+        }
+
+        // Chain weight = sum of the user's reward weights over every predicted mod on the chain
+        // (both mods of a two-mod node count). Recomputed + re-sorted only when the weights or
+        // the chain set change; ordering is weight DESC, then the path text for stability.
+        private void SortPlannerChains()
+        {
+            var weights = Settings.RitualRewardWeights;
+            foreach (var c in plannerChains)
+            {
+                int w = 0;
+                for (int k = 0; k < c.ShortMods.Count; k++)
+                {
+                    if (weights.TryGetValue(c.ShortMods[k], out var w1))
+                        w += w1;
+                    if (c.ShortMods2[k] != null && weights.TryGetValue(c.ShortMods2[k], out var w2))
+                        w += w2;
+                }
+
+                c.Weight = w;
+            }
+
+            plannerChains.Sort((a, b) => a.Weight != b.Weight
+                ? b.Weight.CompareTo(a.Weight)
+                : string.Compare(a.PathLine, b.PathLine, StringComparison.OrdinalIgnoreCase));
+            plannerChainsWeightsVersion = plannerWeightsVersion;
+        }
+
+        // Enumerate all chains from every root. Cached by (lineId, depth, committed, roots);
+        // rebuilt when the committed line or the eligible-start set changes.
+        private void BuildPlannerChains(IntPtr panel)
+        {
+            if (panel == IntPtr.Zero)
+                return;
+            EnsureRitualPool();
+            if (ritualPool == null || ritualPool.Count == 0)
+                return;
+
+            // Roots: while a line is being drawn its committed frontier is the only root; before
+            // the first pick EVERY node the line could start from (accessible, not blocked) is a
+            // root, so the window lists the whole atlas worth of options at once — no hover
+            // needed, the selected row's ray shows where that start is.
+            var committed = ReadGridVector(IntPtr.Add(panel, PanelCommittedVecOffset));
+            int committedReal = committed.Count;
+            plannerLineActive = committedReal > 0;
+
+            // Ineligible nodes (same game-rule set as BuildRitualPredictions — completed state
+            // or special-category dat row): they keep their candIdx rank but can't join the
+            // line — nor start it. Also grid → display name.
+            var blocked = new HashSet<StdTuple2D<int>>();
+            var gridName = new Dictionary<StdTuple2D<int>, string>(nodeCache.Count);
+            var roots = new List<StdTuple2D<int>>();
+            foreach (var nd in nodeCache)
+            {
+                gridName[nd.GridPosition] = nd.Drawable ? nd.MapName : "???";
+                if (nd.State == AtlasNodeState.CompletedBase
+                    || nd.RitualSpecial
+                    || string.Equals(nd.MapInfo?.Type, "unique", StringComparison.OrdinalIgnoreCase)
+                    || (nd.MapInfo?.HasTag("tower") ?? false)
+                    || (nd.MapInfo?.HasTag("hideout") ?? false))
+                    blocked.Add(nd.GridPosition);
+                else if (!plannerLineActive && nd.State == AtlasNodeState.AccessibleNow)
+                    roots.Add(nd.GridPosition);
+            }
+
+            if (plannerLineActive)
+                roots.Add(committed[^1]);
+            roots.Sort((a, b) => a.X != b.X ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
+            plannerStartCount = roots.Count;
+            if (roots.Count == 0)
+            {
+                plannerChains.Clear();
+                plannerSig = null;
+                return;
+            }
+
+            int prefixCount = plannerLineActive ? committedReal : 1;
+            uint lineId = Read<uint>(IntPtr.Add(panel, PanelLineIdOffset));
+
+            var stats = ReadRitualStats(panel);
+            int addl = stats.TryGetValue(StatAdditionalMaps, out var am) ? am
+                     : stats.TryGetValue(StatAdditionalMaps + 1, out var am2) ? am2 : 0;
+            int lineLen = RitualBaseLineLength + Math.Max(0, addl);
+            if (TryReadRitualPickCounter(out var picksLeft))
+                lineLen = committedReal + picksLeft;
+            int maxDepth = Math.Max(0, lineLen - prefixCount);
+            int secondChance = stats.TryGetValue(StatSecondModChance, out var sc) ? sc
+                             : stats.TryGetValue(StatSecondModChance + 1, out var sc2) ? sc2 : 0;
+
+            var sigSb = new StringBuilder();
+            sigSb.Append(lineId).Append('#').Append(maxDepth);
+            foreach (var g in committed)
+                sigSb.Append(';').Append(g.X).Append(',').Append(g.Y);
+            foreach (var g in roots)
+                sigSb.Append('|').Append(g.X).Append(',').Append(g.Y);
+            var sig = sigSb.ToString();
+            if (sig == plannerSig)
+                return;
+            plannerSig = sig;
+            plannerChains.Clear();
+            plannerEnumerated = 0;
+            plannerCapped = false;
+
+            var candTable = ReadCandidateTable(panel,
+                plannerLineActive ? committed[^1] : (StdTuple2D<int>?)null);
+
+            var pool = new List<RitualRow>(ritualPool.Count);
+            foreach (var row in ritualPool)
+            {
+                if (row.W <= 0) continue;
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                    pool.Add(row);
+            }
+
+            if (pool.Count == 0 || maxDepth <= 0)
+            {
+                PrunePlannerSelection();
+                return;
+            }
+
+            // Every start shares the same lineId + pool, and a roll depends only on
+            // (committedCount, candIdx) — memoized, the whole enumeration rolls ≤ ~40 times.
+            var rollMemo = new Dictionary<(uint cc, uint ci), (string First, string Second)>();
+            (string First, string Second) Roll(uint cc, uint ci)
+            {
+                if (!rollMemo.TryGetValue((cc, ci), out var t))
+                    rollMemo[(cc, ci)] = t = PredictMods(lineId, cc, ci, pool, secondChance);
+                return t;
+            }
+
+            // Fair share of the global cap per start, so a branchy early start can't starve
+            // the rest of the atlas out of the list.
+            int perStart = Math.Max(32, PlannerMaxPaths / roots.Count);
+            int startEmitted = 0;
+
+            var path = new List<StdTuple2D<int>>(prefixCount + maxDepth);
+            var mods = new List<(string First, string Second)>();
+            var visited = new HashSet<StdTuple2D<int>>();
+
+            void Emit()
+            {
+                // Game reach check (ritualLineReachCheck 140b775f0): a node is clickable only if
+                // the line can still be completed through it — so a branch that dead-ends short
+                // of full length can never be walked in-game and must not be listed.
+                if (mods.Count < maxDepth)
+                    return;
+                plannerEnumerated++;
+                if (plannerChains.Count >= PlannerMaxPaths || startEmitted >= perStart)
+                {
+                    plannerCapped = true;
+                    return;
+                }
+
+                startEmitted++;
+
+                var nodes = path.GetRange(prefixCount - 1, path.Count - prefixCount + 1);
+                var keySb = new StringBuilder();
+                var nameSb = new StringBuilder();
+                foreach (var g in nodes)
+                {
+                    keySb.Append(g.X).Append(',').Append(g.Y).Append('|');
+                    if (nameSb.Length > 0) nameSb.Append("  >  ");
+                    nameSb.Append(gridName.TryGetValue(g, out var nm) ? nm : "???");
+                }
+
+                var shorts = new List<string>(mods.Count);
+                var shorts2 = new List<string>(mods.Count);
+                var modSb = new StringBuilder();
+                for (int k = 0; k < mods.Count; k++)
+                {
+                    var s = ShortModLabel(mods[k].First);
+                    var s2 = mods[k].Second == null ? null : ShortModLabel(mods[k].Second);
+                    shorts.Add(s);
+                    shorts2.Add(s2);
+                    if (modSb.Length > 0) modSb.Append("   -   ");
+                    modSb.Append(s);
+                    if (s2 != null) modSb.Append(" + ").Append(s2);
+                }
+
+                plannerChains.Add(new PlannerChain
+                {
+                    Key = keySb.ToString(),
+                    Nodes = nodes,
+                    ShortMods = shorts,
+                    ShortMods2 = shorts2,
+                    PathLine = nameSb.ToString(),
+                    ModsLine = modSb.ToString(),
+                });
+            }
+
+            void Dfs(StdTuple2D<int> node, int depth)
+            {
+                if (depth >= maxDepth || plannerChains.Count >= PlannerMaxPaths
+                    || startEmitted >= perStart)
+                {
+                    Emit();
+                    return;
+                }
+
+                if (!candTable.TryGetValue(node, out var raw) || raw.Count == 0)
+                {
+                    Emit();
+                    return;
+                }
+
+                var cands = raw.Where(c => !visited.Contains(c))
+                               .OrderBy(c => c.X).ThenBy(c => c.Y).ToList();
+                uint cc = (uint)(prefixCount + depth);
+                bool any = false;
+                for (int i = 0; i < cands.Count && plannerChains.Count < PlannerMaxPaths
+                    && startEmitted < perStart; i++)
+                {
+                    var cand = cands[i];
+                    if (blocked.Contains(cand))
+                        continue;                 // holds rank i, but can't join the line
+                    var roll = Roll(cc, (uint)i);
+                    if (string.IsNullOrEmpty(roll.First))
+                        continue;
+                    any = true;
+                    path.Add(cand);
+                    mods.Add(roll);
+                    visited.Add(cand);
+                    Dfs(cand, depth + 1);
+                    visited.Remove(cand);
+                    mods.RemoveAt(mods.Count - 1);
+                    path.RemoveAt(path.Count - 1);
+                }
+
+                if (!any)
+                    Emit();
+            }
+
+            foreach (var root in roots)
+            {
+                path.Clear();
+                mods.Clear();
+                visited.Clear();
+                if (plannerLineActive)
+                {
+                    path.AddRange(committed);
+                    visited.UnionWith(committed);
+                }
+                else
+                {
+                    path.Add(root);
+                    visited.Add(root);
+                }
+
+                startEmitted = 0;
+                Dfs(root, 0);
+                if (plannerChains.Count >= PlannerMaxPaths)
+                    break;
+            }
+
+            this.SortPlannerChains();
+            PrunePlannerSelection();
+        }
+
+        // Re-home selections whose chain key vanished. When the line advances ALONG a selected
+        // route, the re-enumeration roots at the new frontier so the same remaining route gets a
+        // shorter key (the old key minus its walked prefix) — carry the palette slot onto that
+        // suffix chain instead of dropping it, so the highlight survives drawing the line.
+        // Selections with no suffix heir (different start / route broken) are dropped.
+        private void PrunePlannerSelection()
+        {
+            if (plannerSelected.Count == 0)
+                return;
+            var alive = new HashSet<string>(plannerChains.Count);
+            foreach (var c in plannerChains)
+                alive.Add(c.Key);
+            var dead = plannerSelected.Keys.Where(k => !alive.Contains(k)).ToList();
+            foreach (var k in dead)
+            {
+                var slot = plannerSelected[k];
+                plannerSelected.Remove(k);
+
+                string heir = null;
+                foreach (var c in plannerChains)
+                {
+                    // Suffix match on whole "x,y|" tokens (guard against "12,3|" vs "2,3|").
+                    if (c.Key.Length >= k.Length || !k.EndsWith(c.Key, StringComparison.Ordinal))
+                        continue;
+                    if (k[k.Length - c.Key.Length - 1] != '|')
+                        continue;
+                    if (plannerSelected.ContainsKey(c.Key))
+                        continue;
+                    if (heir == null || c.Key.Length > heir.Length)
+                        heir = c.Key;
+                }
+
+                if (heir != null)
+                    plannerSelected[heir] = slot;
+            }
+        }
+
+        private int NextPaletteSlot()
+        {
+            var used = new HashSet<int>(plannerSelected.Values);
+            for (int s = 0; ; s++)
+                if (!used.Contains(s))
+                    return s;
+        }
+
+        // Map overlay for the selected chains: a ray from the player marker to the chain's start,
+        // the route polyline, and a reward pill at every picked node.
+        private void DrawPlannerOverlay(ImDrawListPtr drawList, Vector2 playerLocation, float uiScale)
+        {
+            if (plannerSelected.Count == 0 || plannerChains.Count == 0)
+                return;
+
+            var needed = new HashSet<StdTuple2D<int>>();
+            foreach (var c in plannerChains)
+                if (plannerSelected.ContainsKey(c.Key))
+                    foreach (var g in c.Nodes)
+                        needed.Add(g);
+            if (needed.Count == 0)
+                return;
+
+            var centers = new Dictionary<StdTuple2D<int>, Vector2>(needed.Count);
+            foreach (var nd in nodeCache)
+            {
+                if (!needed.Contains(nd.GridPosition))
+                    continue;
+                var ub = Read<UiElementBaseOffset>(nd.Address);
+                var sc = ComputeScalePair(in ub);
+                var tl = GetLeafTopLeft(in ub);
+                centers[nd.GridPosition] = tl + new Vector2(
+                    ub.UnscaledSize.X * sc.X, ub.UnscaledSize.Y * sc.Y) * 0.5f;
+            }
+
+            drawList.ChannelsSetCurrent(ChannelLines);
+            float th = MathF.Max(2f, 2.5f * uiScale);
+            // The ray is a "where to go" pointer for far-off starts; once the start is near
+            // (< 70% of the screen away — the route lines themselves are already in view)
+            // it is just clutter, so only long rays draw.
+            var disp = ImGui.GetIO().DisplaySize;
+            float rayMinLen = 0.7f * MathF.Min(disp.X, disp.Y);
+            foreach (var c in plannerChains)
+            {
+                if (!plannerSelected.TryGetValue(c.Key, out var slot))
+                    continue;
+                var col = ImGuiHelper.Color(PlannerPalette[slot % PlannerPalette.Length]);
+                if (!centers.TryGetValue(c.Nodes[0], out var startC))
+                    continue;
+                if (Vector2.Distance(playerLocation, startC) >= rayMinLen)
+                    drawList.AddLine(playerLocation, startC, col, th);   // ray to the chain's start
+
+                // Ring on the start node — otherwise the route polyline has no readable direction.
+                drawList.AddCircle(startC, 16f * uiScale, col, 0, th);
+                drawList.AddCircle(startC, 20f * uiScale, col, 0, MathF.Max(1f, th * 0.5f));
+                var prev = startC;
+                for (int i = 1; i < c.Nodes.Count; i++)
+                {
+                    if (!centers.TryGetValue(c.Nodes[i], out var pc))
+                        continue;
+                    drawList.AddLine(prev, pc, col, th);
+                    prev = pc;
+                }
+            }
+
+            drawList.ChannelsSetCurrent(ChannelLabels);
+            var pillBg = ImGuiHelper.Color(new Vector4(0.05f, 0.05f, 0.05f, 0.92f));
+            foreach (var c in plannerChains)
+            {
+                if (!plannerSelected.TryGetValue(c.Key, out var slot))
+                    continue;
+                var colV = PlannerPalette[slot % PlannerPalette.Length];
+                var col = ImGuiHelper.Color(colV);
+                for (int i = 1; i < c.Nodes.Count; i++)
+                {
+                    if (!centers.TryGetValue(c.Nodes[i], out var pc))
+                        continue;
+                    var label = c.ShortMods2[i - 1] == null
+                        ? c.ShortMods[i - 1]
+                        : c.ShortMods[i - 1] + " + " + c.ShortMods2[i - 1];
+                    var ts = ImGui.CalcTextSize(label);
+                    var pad = new Vector2(4, 2) * uiScale;
+                    var pos = new Vector2(pc.X - ts.X * 0.5f, pc.Y - ts.Y - 12f * uiScale);
+                    drawList.AddRectFilled(pos - pad, pos + ts + pad, pillBg, 3f * uiScale);
+                    drawList.AddRect(pos - pad, pos + ts + pad, col, 3f * uiScale);
+                    drawList.AddText(pos, col, label);
+                }
+            }
+        }
+
+        // The planner window itself (normal-sized font — drawn outside the FontScaleScope).
+        private void DrawPlannerWindow()
+        {
+            ImGui.SetNextWindowSize(new Vector2(760, 500), ImGuiCond.FirstUseEver);
+            bool open = true;
+            if (!ImGui.Begin(this.Loc.Title("atlas.planner_title", "Head of the king Rewards", "AtlasRitualPlanner"), ref open))
+            {
+                ImGui.End();
+                return;
+            }
+
+            if (!open)
+                Settings.ShowRitualPlanner = false;   // X closes until re-enabled in settings
+
+            // Persisted reward filter: a multi-select dropdown over every reward the pool can
+            // roll; a chain matches when ANY selected reward is in it. Stored as '|'-joined
+            // short labels so it survives restarts.
+            EnsureRewardOptions();
+            if (plannerChainsWeightsVersion != plannerWeightsVersion)
+                this.SortPlannerChains();   // weights edited in settings — re-rank the cached chains
+            var selected = new HashSet<string>(
+                (Settings.RitualRewardFilter ?? string.Empty)
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                StringComparer.OrdinalIgnoreCase);
+            string preview = selected.Count == 0
+                ? this.L("atlas.planner_filter_hint", "filter by desired rewards (any match shows the path)…")
+                : string.Join(", ", plannerRewardOptions.Where(selected.Contains));
+            ImGui.SetNextItemWidth(MathF.Max(120f, ImGui.GetContentRegionAvail().X - 70f));
+            bool filterChanged = false;
+            if (ImGui.BeginCombo("##plannerFilter", preview, ImGuiComboFlags.HeightLargest))
+            {
+                foreach (var opt in plannerRewardOptions)
+                {
+                    bool on = selected.Contains(opt);
+                    if (ImGui.Checkbox(opt, ref on))
+                    {
+                        if (on) selected.Add(opt);
+                        else selected.Remove(opt);
+                        filterChanged = true;
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button(this.L("atlas.planner_clear", "Clear")) && selected.Count > 0)
+            {
+                selected.Clear();
+                filterChanged = true;
+            }
+
+            if (filterChanged)
+                Settings.RitualRewardFilter = string.Join("|", plannerRewardOptions.Where(selected.Contains));
+
+            // Root summary: the drawn line's frontier, or how many possible starts are listed.
+            if (plannerLineActive && plannerChains.Count > 0)
+                ImGui.TextUnformatted($"{this.L("atlas.planner_start", "Start:")} {GridDisplayName(plannerChains[0].Nodes[0])}");
+            else
+                ImGui.TextDisabled($"{this.L("atlas.planner_starts", "Possible starts:")} {plannerStartCount}");
+
+            // Filter + count, then rows.
+            var visible = new List<PlannerChain>(Math.Min(plannerChains.Count, PlannerMaxRows));
+            int matchTotal = 0;
+            foreach (var c in plannerChains)
+            {
+                // Ticked chains always stay listed — a route being walked must not drop out when
+                // the reward that matched the filter was on an already-committed node.
+                bool isSelected = plannerSelected.ContainsKey(c.Key);
+                if (!isSelected && selected.Count > 0)
+                {
+                    bool wantTwo = selected.Contains(TwoModFilterOption);
+                    bool ok = false;
+                    for (int k = 0; k < c.ShortMods.Count && !ok; k++)
+                        ok = selected.Contains(c.ShortMods[k])
+                            || (c.ShortMods2[k] != null
+                                && (wantTwo || selected.Contains(c.ShortMods2[k])));
+
+                    if (!ok)
+                        continue;
+                }
+
+                matchTotal++;
+                if (visible.Count < PlannerMaxRows)
+                    visible.Add(c);
+                else if (isSelected)
+                    visible.Add(c);   // never row-cap a ticked chain out of sight
+            }
+
+            var counts = $"{this.L("atlas.planner_shown", "Shown:")} {visible.Count}"
+                + (matchTotal > visible.Count ? $" ({this.L("atlas.planner_of", "of")} {matchTotal})" : string.Empty)
+                + $"  |  {this.L("atlas.planner_chains", "chains:")} {plannerChains.Count}"
+                + (plannerCapped ? $" ({this.L("atlas.planner_capped", "capped")})" : string.Empty);
+            ImGui.TextDisabled(counts);
+            ImGui.Separator();
+
+            ImGui.BeginChild("##plannerRows");
+            var modColor = new Vector4(0.45f, 0.75f, 1f, 1f);
+            for (int i = 0; i < visible.Count; i++)
+            {
+                var c = visible[i];
+                bool sel = plannerSelected.ContainsKey(c.Key);
+                if (ImGui.Checkbox($"##plannerSel{i}", ref sel))
+                {
+                    if (sel)
+                        plannerSelected[c.Key] = NextPaletteSlot();
+                    else
+                        plannerSelected.Remove(c.Key);
+                }
+
+                ImGui.SameLine();
+                if (plannerSelected.TryGetValue(c.Key, out var slot))
+                {
+                    ImGui.ColorButton($"##plannerCol{i}", PlannerPalette[slot % PlannerPalette.Length],
+                        ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoDragDrop, new Vector2(14, 14));
+                    ImGui.SameLine();
+                }
+
+                ImGui.BeginGroup();
+                ImGui.TextUnformatted(c.PathLine);
+                if (c.Weight != 0)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($"[{c.Weight:+0;-0}]");
+                }
+
+                ImGui.TextColored(modColor, c.ModsLine);
+                ImGui.EndGroup();
+                ImGui.Separator();
+            }
+
+            ImGui.EndChild();
+            ImGui.End();
+        }
+
+        // RE ground-truth collector: snapshot the ritual atlas line to config/ritual_roll_log.jsonl.
+        // One JSON line per distinct (lineId + committed grids + each line-node's rolled mod text)
+        // state. Committed nodes carry posIdx = their index; the pending set are the next candidates
+        // (posIdx = committed count). Only runs while a line exists, so idle frames cost one read.
+        private void LogRitualSnapshot(IntPtr panel)
+        {
+            if (panel == IntPtr.Zero)
+                return;
+
+            var committed = ReadGridVector(IntPtr.Add(panel, PanelCommittedVecOffset));
+            var pending = ReadGridVector(IntPtr.Add(panel, PanelPendingVecOffset));
+            if (committed.Count == 0 && pending.Count == 0)
+                return; // no active line — nothing to log
+
+            uint lineId = Read<uint>(IntPtr.Add(panel, PanelLineIdOffset));
+
+            // Precomputed next-candidate table: node(x,y) -> its raw ≤5 candidates. Lets the offline
+            // solver reconstruct the exact candIdx (rank among a frontier's candidates), which the
+            // clicked-only pending set can't (an unclicked candidate still shifts every rank).
+            var candTable = ReadCandidateTable(panel,
+                committed.Count > 0 ? committed[committed.Count - 1] : (StdTuple2D<int>?)null);
+            List<int[]> CandsOf(StdTuple2D<int> g) =>
+                candTable.TryGetValue(g, out var cs)
+                    ? cs.Select(c => new[] { c.X, c.Y }).ToList()
+                    : new List<int[]>();
+
+            // grid → node address (from the already-built cache).
+            var gridToAddr = new Dictionary<StdTuple2D<int>, IntPtr>(nodeCache.Count);
+            foreach (var nd in nodeCache)
+                gridToAddr[nd.GridPosition] = nd.Address;
+
+            var entries = new List<object>();
+            void Collect(List<StdTuple2D<int>> grids, string vecName, int basePos)
+            {
+                for (int i = 0; i < grids.Count; i++)
+                {
+                    var g = grids[i];
+                    string text = null;
+                    if (gridToAddr.TryGetValue(g, out var addr) && addr != IntPtr.Zero)
+                    {
+                        var child = Read<IntPtr>(IntPtr.Add(addr, RitualModsChildOffset));
+                        if (child != IntPtr.Zero)
+                            text = ReadGameWString(IntPtr.Add(child, TextElementTextOffset));
+                    }
+                    entries.Add(new
+                    {
+                        vec = vecName,
+                        idx = i,
+                        posIdx = basePos + i,
+                        x = g.X,
+                        y = g.Y,
+                        text = string.IsNullOrWhiteSpace(text) ? null : text,
+                        cands = CandsOf(g),
+                    });
+                }
+            }
+
+            Collect(committed, "committed", 0);
+            Collect(pending, "pending", committed.Count);
+
+            // Only snapshots where at least one node has rolled text are useful ground truth.
+            if (!entries.Any(e => ((dynamic)e).text != null))
+                return;
+
+            // The frontier ritualLineToggleNode enumerates from = the LAST committed node; its raw
+            // candidate set is what the next clicked node is ranked within.
+            var frontierCands = committed.Count > 0 ? CandsOf(committed[committed.Count - 1])
+                                                    : new List<int[]>();
+
+            // "Select N maps" header — logged to verify it really decrements per committed pick
+            // (the prediction depth override assumes it does).
+            int? pickCounter = TryReadRitualPickCounter(out var pc) ? pc : null;
+
+            var snapshot = new
+            {
+                lineId,
+                committedCount = committed.Count,
+                pendingCount = pending.Count,
+                pickCounter,
+                frontierCands,
+                entries,
+            };
+
+            // Signature = lineId + every (posIdx,x,y,text): dedup identical states across frames.
+            var sig = new StringBuilder();
+            sig.Append(lineId).Append('|').Append(committed.Count).Append('|').Append(pickCounter ?? -1);
+            foreach (dynamic e in entries)
+                sig.Append(';').Append(e.posIdx).Append(',').Append(e.x).Append(',').Append(e.y)
+                   .Append('=').Append((string)e.text ?? "");
+            if (!ritualLogSeen.Add(sig.ToString()))
+                return;
+
+            try
+            {
+                var dir = Path.GetDirectoryName(RitualRollLogPathname);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+                if (!ritualLogHeaderDone && !File.Exists(RitualRollLogPathname))
+                    File.AppendAllText(RitualRollLogPathname,
+                        "// Ritual Rite-mod roll ground-truth. One JSON snapshot per line state.\n");
+                ritualLogHeaderDone = true;
+                File.AppendAllText(RitualRollLogPathname,
+                    JsonConvert.SerializeObject(snapshot) + "\n");
+            }
+            catch { /* logging must never break the overlay */ }
+        }
+
         public static string ReadWideString(nint address, int stringLength)
         {
             if (address == IntPtr.Zero || stringLength <= 0)
@@ -2660,8 +4646,13 @@ namespace Atlas
 
         private static IntPtr WalkFp(IntPtr parentAddr, uint[] fps, int gateStep, int step)
         {
+            // Terminal step: the fp triplet Panel→Gate→NodeList is NOT unique to the endgame
+            // atlas — the campaign world-map screen has a same-shaped visible branch whose leaf
+            // holds a few non-node children, and reading atlas state (e.g. the ritual line-mode
+            // byte at +0x637) off that stranger container yields garbage (planner window popping
+            // up on an act map). A real atlas node list is recognized by its children.
             if (step == fps.Length)
-                return parentAddr;
+                return HasAtlasNodeChild(parentAddr) ? parentAddr : IntPtr.Zero;
 
             var parent = Read<UiElement>(parentAddr);
             int n = parent.Length;
@@ -2696,6 +4687,28 @@ namespace Atlas
                 }
             }
             return IntPtr.Zero;
+        }
+
+        // True when the container holds at least one atlas map node (fp 0x542EF3) or mist node
+        // (fp 0x442EF3) among its first children — the leaf check that tells the real endgame
+        // atlas node list apart from same-fp-shaped containers on other world-map pages. The
+        // real list is ~470+ nodes, so scanning a small prefix is enough (and a loading-frame
+        // list with no nodes yet is correctly rejected until it fills).
+        private static bool HasAtlasNodeChild(IntPtr containerAddr)
+        {
+            var container = Read<UiElement>(containerAddr);
+            int n = Math.Min(container.Length, 64);
+            for (int i = 0; i < n; i++)
+            {
+                var childAddr = container.GetChildAddress(i);
+                if (childAddr == IntPtr.Zero)
+                    continue;
+                uint f = Read<uint>(IntPtr.Add(childAddr, 0x180)) & ~IsVisibleMask;
+                if (f == (AtlasMapNodeFp & ~IsVisibleMask) || f == (AtlasMistNodeFp & ~IsVisibleMask))
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool InventoryPanel()

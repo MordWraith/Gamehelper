@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <Version>0.2.0</Version>
+    <Version>0.3.1</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -39,6 +39,12 @@
     <None Update="json\maps.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="json\mapratings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="json\ritualmods.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="icons\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>icons\%(Filename)%(Extension)</Link>
@@ -55,7 +61,7 @@
 
   <Target Name="CopyFiles" AfterTargets="Build">
     <Copy SourceFiles="$(OutDir)$(TargetName)$(TargetExt);$(OutDir)$(TargetName).pdb;" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(OutDir)json\biome.json;$(OutDir)json\content.json;$(OutDir)json\mapcontent.json;$(OutDir)json\maps.json" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\json" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutDir)json\biome.json;$(OutDir)json\content.json;$(OutDir)json\mapcontent.json;$(OutDir)json\maps.json;$(OutDir)json\mapratings.json;$(OutDir)json\ritualmods.json" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\json" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OutDir)fonts\DejaVuSans.ttf;$(OutDir)fonts\unifont.ttf" DestinationFolder="..\..\GameHelper\$(OutDir)Plugins\$(ProjectName)\fonts" SkipUnchangedFiles="true" />
     <ItemGroup>
       <DeployIcons Include="$(OutDir)icons\*.png" />

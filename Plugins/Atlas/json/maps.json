@@ -3,7 +3,7 @@
       "name": "Alpine Ridge",
       "type": "normal",
       "group": "map",
-      "tags": [],
+      "tags": ["tower"],
       "translates": {
          "english": "Alpine Ridge",
          "french": "Crête alpine",
@@ -185,7 +185,7 @@
       "name": "Bluff",
       "type": "normal",
       "group": "map",
-      "tags": [],
+      "tags": ["tower"],
       "translates": {
          "english": "Bluff",
          "french": "Falaise",
@@ -961,7 +961,7 @@
       "name": "Mesa",
       "type": "normal",
       "group": "map",
-      "tags": [],
+      "tags": ["tower"],
       "translates": {
          "english": "Mesa",
          "french": "Mesa",
@@ -1955,7 +1955,7 @@
       "name": "Sinking Spire",
       "type": "normal",
       "group": "map",
-      "tags": [],
+      "tags": ["tower"],
       "translates": {
          "english": "Sinking Spire",
          "french": "Cîme engloutie",
@@ -2510,7 +2510,7 @@
          "japanese": "航海",
          "korean": "항해",
          "portuguese": "A Jornada",
-         "russian": "«Путешествие»",
+         "russian": "Путешествие",
          "spanish": "El viaje",
          "thai": "การเดินทาง",
          "traditional chinese": "航程"

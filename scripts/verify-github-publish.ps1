@@ -75,7 +75,6 @@ else {
 $requiredPaths = @(
     "GameHelper/GameHelper.csproj",
     "Launcher",
-    "Plugins/Atlas",
     "scripts/build.ps1",
     "CREDITS.md",
     "SECURITY.md",
@@ -89,6 +88,40 @@ foreach ($path in $requiredPaths) {
     $pathOk = ($LASTEXITCODE -eq 0)
     $ErrorActionPreference = $prevEap
     Test-Check "main: $path" $pathOk
+}
+
+# Alle Plugins prüfen: aus plugins-sources.json + lokale Plugins-Ordner (Gordin-Plugins)
+$scriptRoot    = Split-Path $PSScriptRoot -Parent
+$sourcesPath   = Join-Path $PSScriptRoot "plugins-sources.json"
+$pluginsDir    = Join-Path $scriptRoot "Plugins"
+$knownPlugins  = [System.Collections.Generic.HashSet[string]]@()
+
+if (Test-Path $sourcesPath) {
+    $sources = Get-Content $sourcesPath -Raw | ConvertFrom-Json
+    foreach ($cat in $sources.PSObject.Properties) {
+        if ($cat.Name -eq "_comment") { continue }
+        foreach ($p in $cat.Value.PSObject.Properties) {
+            [void]$knownPlugins.Add($p.Name)
+        }
+    }
+}
+
+# Lokale Plugins-Ordner hinzufügen (Gordin-Plugins die nicht in plugins-sources sind)
+if (Test-Path $pluginsDir) {
+    Get-ChildItem $pluginsDir -Directory | ForEach-Object {
+        [void]$knownPlugins.Add($_.Name)
+    }
+}
+
+Write-Host ""
+Write-Host "  Prüfe $($knownPlugins.Count) Plugins auf GitHub..." -ForegroundColor DarkGray
+foreach ($plugin in ($knownPlugins | Sort-Object)) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    gh api "repos/$Repository/contents/Plugins/$plugin?ref=$Branch" 2>$null | Out-Null
+    $ok = ($LASTEXITCODE -eq 0)
+    $ErrorActionPreference = $prevEap
+    Test-Check "Plugin: $plugin" $ok
 }
 
 $prevEap = $ErrorActionPreference

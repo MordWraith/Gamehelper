@@ -3,7 +3,7 @@ param(
     [string]$TargetRoot = (Split-Path $PSScriptRoot -Parent),
     [ValidateSet("CoreOnly", "Plugins", "AllGordinPlugins")]
     [string]$Mode = "CoreOnly",
-    [string[]]$PluginNames = @("AutoHotKeyTrigger", "Radar", "HealthBars", "PreloadAlert", "LootValue")
+    [string[]]$PluginNames = @("AutoHotKeyTrigger", "Radar", "HealthBars", "PreloadAlert", "LootValue", "PickupHelper")  # nur fuer Mode=Plugins relevant
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,10 +67,18 @@ if ($savedVersion -and (Test-Path $csprojPath)) {
 }
 
 if ($Mode -eq "AllGordinPlugins") {
-    $PluginNames = @("AutoHotKeyTrigger", "Radar", "HealthBars", "PreloadAlert", "LootValue")
+    # Automatisch alle Plugins aus Gordins Repo erkennen
+    $PluginNames = @(Get-ChildItem (Join-Path $upstream "Plugins") -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Get-ChildItem $_.FullName -Filter "*.csproj" -ErrorAction SilentlyContinue } |
+        Select-Object -ExpandProperty Name)
+    Write-Host "Gordin Plugins erkannt: $($PluginNames -join ', ')" -ForegroundColor DarkGray
 }
 
 if ($Mode -eq "Plugins" -or $Mode -eq "AllGordinPlugins") {
+    $slnPath    = Join-Path $TargetRoot "GameOverlay.sln"
+    $pluginsVF  = "{9FA3D6BD-1EC1-3BA5-80CB-CE02773A58D5}"
+    $projType   = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}"
+
     foreach ($name in $PluginNames) {
         $src = Join-Path $upstream "Plugins\$name"
         $dst = Join-Path $TargetRoot "Plugins\$name"
@@ -80,6 +88,29 @@ if ($Mode -eq "Plugins" -or $Mode -eq "AllGordinPlugins") {
         }
         Invoke-RobocopyMirror -Source $src -Destination $dst
         Write-Host "Synced plugin $name from Gordin"
+
+        # Automatisch in SLN eintragen wenn noch nicht vorhanden
+        if (Test-Path $slnPath) {
+            $slnContent = [System.IO.File]::ReadAllText($slnPath)
+            $relPath = "Plugins\$name\$name.csproj"
+            if ($slnContent -notmatch [regex]::Escape($relPath)) {
+                $csprojActual = Get-ChildItem $dst -Filter "*.csproj" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($csprojActual) {
+                    $csprojName = [System.IO.Path]::GetFileNameWithoutExtension($csprojActual.Name)
+                    $relPath    = "Plugins\$name\$csprojName.csproj"
+                    $guid       = [System.Guid]::NewGuid().ToString("B").ToUpper()
+                    $block      = "Project(`"$projType`") = `"$csprojName`", `"$relPath`", `"$guid`"`r`nEndProject`r`n"
+                    $cfgBlock   = "		$guid.Debug|Any CPU.ActiveCfg = Debug|Any CPU`r`n		$guid.Debug|Any CPU.Build.0 = Debug|Any CPU`r`n		$guid.Release|Any CPU.ActiveCfg = Release|Any CPU`r`n		$guid.Release|Any CPU.Build.0 = Release|Any CPU`r`n"
+                    $nested     = "`t`t$guid = $pluginsVF`r`n"
+                    $insertPos  = $slnContent.IndexOf("`nProject(`"")
+                    $slnContent = $slnContent.Insert($insertPos + 1, $block)
+                    $slnContent = $slnContent.Replace("GlobalSection(ProjectConfigurationPlatforms) = postSolution`r`n", "GlobalSection(ProjectConfigurationPlatforms) = postSolution`r`n$cfgBlock")
+                    $slnContent = $slnContent.Replace("GlobalSection(NestedProjects) = preSolution`r`n", "GlobalSection(NestedProjects) = preSolution`r`n$nested")
+                    [System.IO.File]::WriteAllText($slnPath, $slnContent)
+                    Write-Host "  -> SLN: $csprojName eingetragen" -ForegroundColor Cyan
+                }
+            }
+        }
     }
 }
 
