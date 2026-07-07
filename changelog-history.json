@@ -1,6 +1,14 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.6",
+                         "published":  "2026-07-07T14:32:49.4336390Z",
+                         "changelog":  [
+                                           "New: PickupHelper (Gordin)",
+                                           "Atlas: 0.3.0 (yokkenUA)"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.5",
                          "published":  "2026-07-05T04:46:46.1503054Z",
                          "changelog":  [
