@@ -1,0 +1,114 @@
+{
+  "PowerfulMapBoss": {
+    "Label": "Map Boss",
+    "Abbrev": "B",
+    "BackgroundColor": [ 0.6, 0.6, 0.3, 0.9 ],
+    "FontColor": [ 0.0, 0.0, 0.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "DeadlyMapBoss": {
+    "Label": "Deadly Map Boss",
+    "Abbrev": "DB",
+    "BackgroundColor": [ 0.9, 0.0, 0.0, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "+1": {
+    "Label": "Irradiated",
+    "Abbrev": "+1",
+    "BackgroundColor": [ 0.8, 0.7, 0.2, 0.9 ],
+    "FontColor": [ 0.0, 0.0, 0.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsAbyss": {
+    "Label": "Abyssal",
+    "Abbrev": "A",
+    "BackgroundColor": [ 0.0, 0.9, 0.0, 0.9 ],
+    "FontColor": [ 0.0, 0.0, 0.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsBreach": {
+    "Label": "Breach",
+    "Abbrev": "Br",
+    "BackgroundColor": [ 0.6, 0.0, 0.8, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsDelirium": {
+    "Label": "Delirium",
+    "Abbrev": "D",
+    "BackgroundColor": [ 0.0, 0.3, 0.7, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsExpedition": {
+    "Label": "Expedition",
+    "Abbrev": "E",
+    "BackgroundColor": [ 0.1, 0.6, 0.7, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsRitual": {
+    "Label": "Ritual",
+    "Abbrev": "R",
+    "BackgroundColor": [ 0.7, 0.0, 0.0, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "CoalescedCorruption": {
+    "Label": "Corruption",
+    "Abbrev": "C",
+    "BackgroundColor": [ 0.5, 0.0, 0.0, 0.9 ],
+    "FontColor": [ 1.0, 0.8, 0.8, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "Corrupted Boss": {
+    "Label": "Corrupted Nexus",
+    "Abbrev": "CN",
+    "BackgroundColor": [ 0.9, 0.2, 0.2, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "Cleansed": {
+    "Label": "Cleansed",
+    "Abbrev": "CL",
+    "BackgroundColor": [ 0.0, 0.7, 0.9, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsUniqueMap": {
+    "Label": "Unique Map",
+    "Abbrev": "U",
+    "BackgroundColor": [ 1.0, 0.5, 0.0, 0.9 ],
+    "FontColor": [ 0.0, 0.0, 0.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsHideout": {
+    "Label": "Hideout",
+    "Abbrev": "H",
+    "BackgroundColor": [ 0.0, 0.6, 0.3, 0.9 ],
+    "FontColor": [ 1.0, 1.0, 1.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  },
+  "ContainsWanderingTrader": {
+    "Label": "Wandering Trader",
+    "Abbrev": "WT",
+    "BackgroundColor": [ 0.8, 0.8, 0.0, 0.9 ],
+    "FontColor": [ 0.0, 0.0, 0.0, 1.0 ],
+    "IsFlag": true,
+    "Show": true
+  }
+}

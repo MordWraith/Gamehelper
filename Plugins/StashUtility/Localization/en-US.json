@@ -47,6 +47,7 @@
   "stashutility.criteria.MonsterRarity": "Monster Rarity",
   "stashutility.criteria.MonsterEffectiveness": "Monster Effectiveness",
   "stashutility.criteria.DropChance": "Waystone Drop Chance",
+  "stashutility.criteria.ExplicitMods": "Explicit Mods",
   "stashutility.min": "Min",
   "stashutility.max": "Max",
   "stashutility.waystone_mod_manager_header": "Waystone Mod Filter Manager",
@@ -68,6 +69,10 @@
   "stashutility.min_great_monster_effectiveness": "Min Great Effectiveness (%)",
   "stashutility.filter_great_waystone_drop_chance": "Filter Great Waystone Drop Chance",
   "stashutility.min_great_waystone_drop_chance": "Min Great Drop Chance (%)",
+  "stashutility.filter_great_explicit_mods": "Filter Great Min Explicit Mods Count",
+  "stashutility.min_great_explicit_mods": "Min Great Explicit Mods",
+  "stashutility.filter_great_max_explicit_mods": "Filter Great Max Explicit Mods Count",
+  "stashutility.max_great_explicit_mods": "Max Great Explicit Mods",
   "stashutility.enable_tablet_manager": "Enable Tablet Manager",
   "stashutility.enable_tablet_manager_tooltip": "Enables or disables highlighting of precursor/breach tablets.",
   "stashutility.tablet_mod_manager_header": "Tablet Mod Filter Manager",
@@ -114,5 +119,7 @@
   "stashutility.normal_color": "Normal Rarity Color",
   "stashutility.list_empty": "   (List empty)",
   "stashutility.set_good": "Set GOOD",
-  "stashutility.set_bad": "Set BAD"
+  "stashutility.set_bad": "Set BAD",
+  "stashutility.enable_merchant_purchase": "Enable Merchant Purchase Panel Overlay",
+  "stashutility.enable_merchant_purchase_tooltip": "When checked, waystones and tablets in the active merchant purchase panel tab will be highlighted based on your criteria."
 }

@@ -23,11 +23,40 @@ namespace StashUtility
     {
         private object handleObj;
         private MethodInfo readStdWStringMethod;
-        private object uiParentsObj;
+        private object uiParentsObj;   // Parent cache for P1 / Single-Player slots
+        private object uiParentsObjP2; // Separate parent cache for P2 slots (avoids cross-panel position corruption)
+        private object currentUiParentsObj; // Points to either uiParentsObj or uiParentsObjP2 during processing
+        private MethodInfo updateCacheMethod;
 
         private readonly Dictionary<Type, MethodInfo> readMemoryMethods = new();
         private readonly Dictionary<Type, MethodInfo> readStdVectorMethods = new();
         private readonly Dictionary<Type, MethodInfo> tryReadMemoryMethods = new();
+
+        private struct CoopDebugInfo
+        {
+            public bool IsCoopMode;
+            public IntPtr P1LeftPanel;
+            public IntPtr P1StashTabsContainer;
+            public IntPtr P1ActiveTab;
+            public string P1Status;
+            public List<string> P1TabsInfo;
+            public IntPtr P2RightPanel;
+            public IntPtr P2StashTabsContainer;
+            public IntPtr P2ActiveTab;
+            public string P2Status;
+            public List<string> P2TabsInfo;
+        }
+        private CoopDebugInfo coopDebug = new() { P1TabsInfo = new(), P2TabsInfo = new() };
+
+        private struct SinglePlayerDebugInfo
+        {
+            public IntPtr LeftPanel;
+            public string StashTabsPath;
+            public IntPtr StashTabsContainer;
+            public IntPtr ActiveTab;
+            public string Status;
+        }
+        private SinglePlayerDebugInfo spDebug = new();
 
         private readonly List<string> probeLog = new();
         private string waystoneSearchTerm = string.Empty;
@@ -80,7 +109,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.BadModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -95,7 +124,7 @@ namespace StashUtility
                 {
                     var pattern = Settings.GoodModPatterns[i];
                     var normalizedPat = NormalizeForMatching(pattern);
-                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod =>
+                    var match = Data.ModDatabase.AllWaystoneMods.FirstOrDefault(dbMod => 
                         NormalizeForMatching(dbMod.Name) == normalizedPat ||
                         dbMod.Id.Equals(pattern, StringComparison.OrdinalIgnoreCase));
                     if (match != null)
@@ -165,11 +194,63 @@ namespace StashUtility
             ImGui.Checkbox(PluginText.T("stashutility.show_in_bg", "Show Overlay When Game in Background"), ref Settings.ShowOverlayInBackground);
             ImGuiHelper.ToolTip(PluginText.T("stashutility.show_in_bg_tooltip", "If checked, the waystone highlights will remain visible even when the game window is in the background."));
 
+            ImGui.Checkbox(PluginText.T("stashutility.enable_merchant_purchase", "Enable Merchant Purchase Panel Overlay"), ref Settings.EnableMerchantPurchasePanel);
+            ImGuiHelper.ToolTip(PluginText.T("stashutility.enable_merchant_purchase_tooltip", "When checked, waystones and tablets in the active merchant purchase panel tab will be highlighted based on your criteria."));
+
             ImGui.Checkbox(PluginText.T("stashutility.enable_debug", "Enable Debug Settings"), ref Settings.EnableDebugProbe);
             ImGuiHelper.ToolTip(PluginText.T("stashutility.enable_debug_tooltip", "Enables advanced debugging options, interactive explorer, and hovered item inspector."));
 
             if (Settings.EnableDebugProbe)
             {
+                var settingsGameUi = Core.States.InGameStateObject.GameUi;
+                if (settingsGameUi != null && settingsGameUi.Address != IntPtr.Zero)
+                {
+                    ImGui.SeparatorText("Active Stash Processing Debug Info");
+                    bool isCoopMode = Core.GHSettings.EnableControllerMode && settingsGameUi.LeftPanel.Address != IntPtr.Zero;
+                    if (isCoopMode)
+                    {
+                        ImGui.Text($"Coop Mode: TRUE");
+                        ImGui.Text($"P1 LeftPanel: 0x{coopDebug.P1LeftPanel.ToInt64():X}");
+                        ImGui.Text($"P1 StashTabsContainer: 0x{coopDebug.P1StashTabsContainer.ToInt64():X}");
+                        ImGui.Text($"P1 ActiveTab: 0x{coopDebug.P1ActiveTab.ToInt64():X}");
+                        ImGui.Text($"P1 Status: {coopDebug.P1Status}");
+                        
+                        if (coopDebug.P1TabsInfo != null && coopDebug.P1TabsInfo.Count > 0 && ImGui.TreeNode("P1 Tabs List Details"))
+                        {
+                            foreach (var info in coopDebug.P1TabsInfo)
+                            {
+                                ImGui.Text(info);
+                            }
+                            ImGui.TreePop();
+                        }
+
+                        ImGui.Separator();
+                        ImGui.Text($"P2 RightPanel: 0x{coopDebug.P2RightPanel.ToInt64():X}");
+                        ImGui.Text($"P2 StashTabsContainer: 0x{coopDebug.P2StashTabsContainer.ToInt64():X}");
+                        ImGui.Text($"P2 ActiveTab: 0x{coopDebug.P2ActiveTab.ToInt64():X}");
+                        ImGui.Text($"P2 Status: {coopDebug.P2Status}");
+
+                        if (coopDebug.P2TabsInfo != null && coopDebug.P2TabsInfo.Count > 0 && ImGui.TreeNode("P2 Tabs List Details"))
+                        {
+                            foreach (var info in coopDebug.P2TabsInfo)
+                            {
+                                ImGui.Text(info);
+                            }
+                            ImGui.TreePop();
+                        }
+                    }
+                    else
+                    {
+                        ImGui.Text($"Coop Mode: FALSE (Single Player)");
+                        ImGui.Text($"LeftPanel: 0x{spDebug.LeftPanel.ToInt64():X}");
+                        ImGui.Text($"StashTabsPath: {spDebug.StashTabsPath}");
+                        ImGui.Text($"StashTabsContainer: 0x{spDebug.StashTabsContainer.ToInt64():X}");
+                        ImGui.Text($"ActiveTab: 0x{spDebug.ActiveTab.ToInt64():X}");
+                        ImGui.Text($"Status: {spDebug.Status}");
+                    }
+                    ImGui.Spacing();
+                }
+
                 debugHoveredCurrentElement = false;
                 debugHoveredAllChildren = false;
                 debugHoveredChildIndex = -1;
@@ -387,15 +468,15 @@ namespace StashUtility
 
                         if (lastHoveredWaystone.TryGetComponent<Base>(out var baseComp))
                         {
-                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.base_name", "Base Name: {0}", baseComp.BaseItemName), baseComp.BaseItemName);
-                            ImGuiHelper.DisplayTextAndCopyOnClick(this.PluginText.F("debug.internal_name", "Internal Name: {0}", baseComp.InternalName), baseComp.InternalName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick($"Base Name: {baseComp.BaseItemName}", baseComp.BaseItemName);
+                            ImGuiHelper.DisplayTextAndCopyOnClick($"Internal Name: {baseComp.InternalName}", baseComp.InternalName);
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsComp))
                         {
-                            ImGui.Text(this.PluginText.F("debug.rarity", "Rarity: {0}", modsComp.Rarity));
+                            ImGui.Text($"Rarity: {modsComp.Rarity}");
 
-                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.implicit_mods", "Implicit Mods", "StashUtilityImplicitMods")))
+                            if (modsComp.ImplicitMods.Count > 0 && ImGui.TreeNode("Implicit Mods"))
                             {
                                 foreach (var mod in modsComp.ImplicitMods)
                                 {
@@ -403,7 +484,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.explicit_mods", "Explicit Mods", "StashUtilityExplicitMods")))
+                            if (modsComp.ExplicitMods.Count > 0 && ImGui.TreeNode("Explicit Mods"))
                             {
                                 foreach (var mod in modsComp.ExplicitMods)
                                 {
@@ -411,7 +492,7 @@ namespace StashUtility
                                 }
                                 ImGui.TreePop();
                             }
-                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.enchant_mods", "Enchant Mods", "StashUtilityEnchantMods")))
+                            if (modsComp.EnchantMods.Count > 0 && ImGui.TreeNode("Enchant Mods"))
                             {
                                 foreach (var mod in modsComp.EnchantMods)
                                 {
@@ -422,7 +503,7 @@ namespace StashUtility
                             var statsFromMods = GetStatsFromMods(modsComp);
                             if (statsFromMods.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(statsFromMods, this.PluginText.T("debug.stats_from_mods", "Stats From Mods"));
+                                ImGuiHelper.StatsWidget(statsFromMods, "Stats From Mods");
                             }
                         }
 
@@ -430,18 +511,18 @@ namespace StashUtility
                         {
                             if (omp.ModStats.Count > 0)
                             {
-                                ImGuiHelper.StatsWidget(omp.ModStats, this.PluginText.T("debug.stats_from_magic_properties", "Stats From Magic Properties"));
+                                ImGuiHelper.StatsWidget(omp.ModStats, "Stats From Magic Properties");
                             }
                         }
 
                         if (lastHoveredWaystone.TryGetComponent<Mods>(out var modsCompForDebug))
                         {
                             var allRawMods = modsCompForDebug.ImplicitMods.Concat(modsCompForDebug.ExplicitMods).Concat(modsCompForDebug.EnchantMods).ToList();
-                            if (allRawMods.Count > 0 && ImGui.TreeNode(this.PluginText.Label("debug.raw_memory_mods", "Raw Game Memory Mods (For Matching)", "StashUtilityRawMemoryMods")))
+                            if (allRawMods.Count > 0 && ImGui.TreeNode("Raw Game Memory Mods (For Matching)"))
                             {
                                 foreach (var mod in allRawMods)
                                 {
-                                    ImGui.Text(this.PluginText.F("debug.raw_id", "Raw ID: {0}", mod.name));
+                                    ImGui.Text($"Raw ID: {mod.name}");
                                 }
                                 ImGui.TreePop();
                             }
@@ -458,7 +539,7 @@ namespace StashUtility
                         {
                             if (field.GetValue(lastHoveredWaystone) is System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> dict)
                             {
-                                if (ImGui.TreeNode(this.PluginText.Label("debug.all_components", "All Components (Raw Addresses)", "StashUtilityAllComponents")))
+                                if (ImGui.TreeNode("All Components (Raw Addresses)"))
                                 {
                                     foreach (var kv in dict)
                                     {
@@ -502,6 +583,7 @@ namespace StashUtility
                         ImGui.TableSetupColumn(PluginText.T("stashutility.table.min_limit", "Minimum Limit"), ImGuiTableColumnFlags.WidthFixed, 190f);
                         ImGui.TableSetupColumn(PluginText.T("stashutility.table.max_limit", "Maximum Limit"), ImGuiTableColumnFlags.WidthFixed, 190f);
 
+                        DrawMinMaxFilterTableRow("Explicit Mods", "ExplicitMods", 10, ref Settings.FilterMinExplicitMods, ref Settings.MinExplicitMods, ref Settings.FilterMaxExplicitMods, ref Settings.MaxExplicitMods);
                         DrawMinMaxFilterTableRow("Item Rarity", "ItemRarity", 200, ref Settings.FilterMinItemRarity, ref Settings.MinItemRarity, ref Settings.FilterMaxItemRarity, ref Settings.MaxItemRarity);
                         DrawMinMaxFilterTableRow("Pack Size", "PackSize", 100, ref Settings.FilterMinPackSize, ref Settings.MinPackSize, ref Settings.FilterMaxPackSize, ref Settings.MaxPackSize);
                         DrawMinMaxFilterTableRow("Monster Rarity", "MonsterRarity", 100, ref Settings.FilterMinMonsterRarity, ref Settings.MinMonsterRarity, ref Settings.FilterMaxMonsterRarity, ref Settings.MaxMonsterRarity);
@@ -539,12 +621,30 @@ namespace StashUtility
                         ImGui.EndCombo();
                     }
 
-                    DrawModListUI(PluginText.T("stashutility.bad_mods_title", "BAD WAYSTONE MODS (RED HIGHLIGHT)"), "bad_waystone", Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
-                    DrawModListUI(PluginText.T("stashutility.good_mods_title", "GOOD WAYSTONE MODS (GREEN HIGHLIGHT)"), "good_waystone", Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
+                    DrawModListUI(PluginText.T("stashutility.bad_mods_title", "BAD WAYSTONE MODS (RED HIGHLIGHT)"), Settings.BadModPatterns, Settings.GoodModPatterns, new Vector4(1f, 0.4f, 0.4f, 1f), true);
+                    DrawModListUI(PluginText.T("stashutility.good_mods_title", "GOOD WAYSTONE MODS (GREEN HIGHLIGHT)"), Settings.GoodModPatterns, Settings.BadModPatterns, new Vector4(0.4f, 1f, 0.4f, 1f), false);
                 }
 
                 if (ImGui.CollapsingHeader(PluginText.T("stashutility.waystone_great_conditions_header", "Waystone GREAT Highlight Conditions")))
                 {
+                    ImGui.Checkbox(PluginText.T("stashutility.filter_great_explicit_mods", "Filter Great Min Explicit Mods Count"), ref Settings.FilterGreatExplicitMods);
+                    if (Settings.FilterGreatExplicitMods)
+                    {
+                        ImGui.SameLine();
+                        ImGui.SetCursorPosX(300f);
+                        ImGui.SetNextItemWidth(150f);
+                        ImGui.SliderInt(PluginText.T("stashutility.min_great_explicit_mods", "Min Great Explicit Mods"), ref Settings.MinGreatExplicitMods, 0, 10);
+                    }
+
+                    ImGui.Checkbox(PluginText.T("stashutility.filter_great_max_explicit_mods", "Filter Great Max Explicit Mods Count"), ref Settings.FilterGreatMaxExplicitMods);
+                    if (Settings.FilterGreatMaxExplicitMods)
+                    {
+                        ImGui.SameLine();
+                        ImGui.SetCursorPosX(300f);
+                        ImGui.SetNextItemWidth(150f);
+                        ImGui.SliderInt(PluginText.T("stashutility.max_great_explicit_mods", "Max Great Explicit Mods"), ref Settings.MaxGreatExplicitMods, 0, 10);
+                    }
+
                     ImGui.Checkbox(PluginText.T("stashutility.filter_great_rarity", "Filter Great Item Rarity"), ref Settings.FilterGreatRarity);
                     if (Settings.FilterGreatRarity)
                     {
@@ -595,30 +695,53 @@ namespace StashUtility
 
             ImGui.Checkbox(PluginText.T("stashutility.enable_tablet_manager", "Enable Tablet Manager"), ref Settings.EnableTabletManager);
             ImGuiHelper.ToolTip(PluginText.T("stashutility.enable_tablet_manager_tooltip", "Enables or disables highlighting of precursor/breach tablets."));
+            if (Settings.EnableTabletManager)
+            {
+                ImGui.Indent();
+                ImGui.Checkbox(PluginText.T("stashutility.disable_bad_tablet_highlight", "Disable Bad Tablet Highlight"), ref Settings.DisableBadTabletHighlight);
+                ImGui.Unindent();
+            }
 
             if (Settings.EnableTabletManager)
             {
                 ImGui.Indent();
                 if (ImGui.CollapsingHeader(PluginText.T("stashutility.tablet_mod_manager_header", "Tablet Mod Filter Manager")))
                 {
+                    ImGui.SetNextItemWidth(150f);
+                    if (ImGui.SliderInt(PluginText.T("stashutility.min_tablet_mods_to_highlight", "Min Good Mods To Highlight"), ref Settings.MinTabletGoodModsToHighlight, 1, 5)) SaveSettings();
+                    
+                    ImGui.SetNextItemWidth(150f);
+                    if (ImGui.SliderInt(PluginText.T("stashutility.min_good_mods_to_ignore_bad", "Min Good Mods To Ignore Bad"), ref Settings.MinGoodModsToIgnoreBad, 0, 6)) SaveSettings();
+                    ImGuiHelper.ToolTip(PluginText.T("stashutility.min_good_mods_to_ignore_bad_tooltip", "If a tablet has this many good mods, it will ignore any bad mods and still be highlighted as Good/Great."));
+
+                    if (ImGui.Checkbox(PluginText.T("stashutility.filter_tablet_great", "Filter Tablet Great Status"), ref Settings.FilterTabletGreat)) SaveSettings();
+                    if (Settings.FilterTabletGreat)
+                    {
+                        ImGui.SameLine();
+                        ImGui.SetCursorPosX(300f);
+                        ImGui.SetNextItemWidth(150f);
+                        if (ImGui.SliderInt(PluginText.T("stashutility.min_good_tablet_mods", "Min Good Tablet Mods Count"), ref Settings.MinTabletGoodMods, 1, 5)) SaveSettings();
+                    }
+                    ImGui.Spacing();
+
                     if (ImGui.BeginTabBar("TabletMechanicsTabs"))
                     {
-                        var categories = new Dictionary<string, (string Label, Func<Models.TabletMod, bool> Filter)>
+                        var categories = new Dictionary<string, Func<Models.TabletMod, bool>>
                         {
-                            { "Breach", (this.PluginText.T("tablet.category.breach", "Breach"), m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase)) },
-                            { "Expedition", (this.PluginText.T("tablet.category.expedition", "Expedition"), m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase)) },
-                            { "Delirium", (this.PluginText.T("tablet.category.delirium", "Delirium"), m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase)) },
-                            { "Abyss", (this.PluginText.T("tablet.category.abyss", "Abyss"), m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase)) },
-                            { "Incursion", (this.PluginText.T("tablet.category.incursion", "Incursion"), m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase)) },
-                            { "Ritual", (this.PluginText.T("tablet.category.ritual", "Ritual"), m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) },
-                            { "General", (this.PluginText.T("tablet.category.general", "General"), m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)) }
+                            { "Breach", m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) },
+                            { "Expedition", m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) },
+                            { "Delirium", m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) },
+                            { "Abyss", m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) },
+                            { "Incursion", m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) },
+                            { "Ritual", m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) },
+                            { "General", m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) }
                         };
 
                         foreach (var kvp in categories)
                         {
                             if (ImGui.BeginTabItem(PluginText.T($"stashutility.tablet.category.{kvp.Key}", kvp.Key)))
                             {
-                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value.Filter).ToList();
+                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value).ToList();
                                 
                                 ImGui.InputTextWithHint($"##search{kvp.Key}", PluginText.F("stashutility.tablet.search_category", "Search {0} Mods...", kvp.Key), ref tabletSearchTerm, 64);
                                 var filtered = tabMods.Where(m => m.Name.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -653,6 +776,24 @@ namespace StashUtility
                                             else { Settings.TabletGodModPatterns.Remove(mod.Id); }
                                             SaveSettings();
                                         }
+                                        ImGuiHelper.ToolTip(PluginText.T("stashutility.tablet.god_tooltip", "A God mod immediately flags the tablet as Good/Great, ignoring any Bad mods."));
+
+                                        if ((isGood || isGod) && mod.MinRoll != mod.MaxRoll)
+                                        {
+                                            if (!Settings.TabletModRequiredMinRolls.ContainsKey(mod.Id))
+                                                Settings.TabletModRequiredMinRolls[mod.Id] = mod.MinRoll;
+                                            float requiredRoll = Settings.TabletModRequiredMinRolls[mod.Id];
+                                            ImGui.Indent(20f);
+                                            int intRoll = (int)requiredRoll;
+                                            ImGui.SetNextItemWidth(150f);
+                                            string formatStr = mod.Name.Contains("%") ? "%d%%" : "%d";
+                                            if (ImGui.SliderInt($"Req. Min Roll##min_{mod.Id}", ref intRoll, (int)mod.MinRoll, (int)mod.MaxRoll, formatStr))
+                                            {
+                                                Settings.TabletModRequiredMinRolls[mod.Id] = (float)intRoll;
+                                                SaveSettings();
+                                            }
+                                            ImGui.Unindent(20f);
+                                        }
                                         ImGui.Separator();
                                     }
                                 }
@@ -664,26 +805,13 @@ namespace StashUtility
                     }
                 }
 
-                if (ImGui.CollapsingHeader(PluginText.T("stashutility.tablet_great_conditions_header", "Tablet GREAT Highlight Conditions")))
-                {
-                    ImGui.Checkbox(PluginText.T("stashutility.filter_tablet_great", "Filter Tablet Great Status"), ref Settings.FilterTabletGreat);
-                    if (Settings.FilterTabletGreat)
-                    {
-                        ImGui.SameLine();
-                        ImGui.SetCursorPosX(300f);
-                        ImGui.SetNextItemWidth(150f);
-                        ImGui.SliderInt(PluginText.T("stashutility.min_good_tablet_mods", "Min Good Tablet Mods Count"), ref Settings.MinTabletGoodMods, 1, 5);
-                    }
-                    ImGui.SetNextItemWidth(150f);
-                    ImGui.SliderInt(PluginText.T("stashutility.min_good_mods_to_ignore_bad", "Min Good Mods To Ignore Bad"), ref Settings.MinGoodModsToIgnoreBad, 1, 6);
-                    ImGuiHelper.ToolTip(PluginText.T("stashutility.min_good_mods_to_ignore_bad_tooltip", "If a tablet has this many good mods, it will ignore any bad mods and still be highlighted as Good/Great."));
-                }
                 ImGui.Unindent();
             }
 
             if (ImGui.CollapsingHeader(PluginText.T("stashutility.visual_settings_header", "Overlay Visual Settings")))
             {
-                ImGui.Checkbox(PluginText.T("stashutility.show_mod_border", "Show Mod Highlight Border"), ref Settings.ShowModBorder);
+                ImGui.Checkbox(PluginText.T("stashutility.show_waystone_mod_border", "Show Waystone Mod Highlight Border"), ref Settings.ShowModBorder);
+                ImGui.Checkbox(PluginText.T("stashutility.show_tablet_mod_border", "Show Tablet Mod Highlight Border"), ref Settings.ShowTabletModBorder);
                 ImGui.Checkbox(PluginText.T("stashutility.show_rarity_border", "Show Rarity Corner Indicator"), ref Settings.ShowRarityBorder);
                 if (Settings.ShowRarityBorder)
                 {
@@ -713,9 +841,12 @@ namespace StashUtility
                 ImGui.SliderFloat(PluginText.T("stashutility.great_arrow_size", "GREAT Arrow Size"), ref Settings.GreatIndicatorSize, 5f, 40f);
 
                 ImGui.SeparatorText(PluginText.T("stashutility.colors_section", "Colors"));
-                ImGui.ColorEdit4(PluginText.T("stashutility.good_color", "Good Highlight Color"), ref Settings.GoodColor);
-                ImGui.ColorEdit4(PluginText.T("stashutility.bad_color", "Bad Highlight Color"), ref Settings.BadColor);
-                ImGui.ColorEdit4(PluginText.T("stashutility.great_color", "GREAT Arrow Color"), ref Settings.ColorGreat);
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.good_color", "Waystone Good Highlight Color"), ref Settings.GoodColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.bad_color", "Waystone Bad Highlight Color"), ref Settings.BadColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_good_color", "Tablet Good Highlight Color"), ref Settings.TabletGoodColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_bad_color", "Tablet Bad Highlight Color"), ref Settings.TabletBadColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.waystone_great_color", "Waystone GREAT Arrow Color"), ref Settings.ColorGreat)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_great_color", "Tablet GREAT Arrow Color"), ref Settings.TabletColorGreat)) SaveSettings();
                 ImGui.ColorEdit4(PluginText.T("stashutility.rare_color", "Rare Rarity Color"), ref Settings.RareRarityColor);
                 ImGui.ColorEdit4(PluginText.T("stashutility.magic_color", "Magic Rarity Color"), ref Settings.MagicRarityColor);
                 ImGui.ColorEdit4(PluginText.T("stashutility.normal_color", "Normal Rarity Color"), ref Settings.NormalRarityColor);
@@ -766,11 +897,92 @@ namespace StashUtility
             return true;
         }
 
+        private bool IsTabVisible(IntPtr address)
+        {
+            if (address == IntPtr.Zero) return false;
+            var off = ReadMemory<UiElementBaseOffset>(address);
+            if (off.Self != IntPtr.Zero && off.Self != address)
+            {
+                return false;
+            }
+            return UiElementBaseFuncs.IsVisibleChecker(off.Flags);
+        }
+
+        private bool IsActiveTab(IntPtr tab, out string tabType)
+        {
+            // IMPORTANT: Do NOT call CreateUiElement anywhere in this method.
+            // CreateUiElement calls parents.AddIfNotExists() on its parent pointer, which contaminates
+            // the shared uiParentsObj parent cache. When item slots are later created with CreateUiElement
+            // they walk the poisoned cache and compute wrong absolute positions => overlay offset.
+            // We check visibility and size exclusively through raw memory (UiElementBaseOffset).
+
+            tabType = "Unknown";
+            if (tab == IntPtr.Zero) return false;
+
+            // First check if the tab itself is visible
+            if (!IsElementVisible(tab)) return false;
+
+            // Helper: check if a resolved address is visible with non-zero UnscaledSize.X
+            bool HasNonZeroSize(IntPtr addr)
+            {
+                if (addr == IntPtr.Zero) return false;
+                var off = ReadMemory<UiElementBaseOffset>(addr);
+                return UiElementBaseFuncs.IsVisibleChecker(off.Flags) && off.UnscaledSize.X > 0f;
+            }
+
+            // 1. Check Waystone tab: tab -> 0 -> 1 has 16 children (tiers)
+            var child01 = ResolvePath(tab, new int[] { 0, 1 });
+            if (child01 != IntPtr.Zero)
+            {
+                var off01 = ReadMemory<UiElementBaseOffset>(child01);
+                var kids01 = ReadStdVector<IntPtr>(off01.ChildrensPtr);
+                if (kids01.Length == 16 && HasNonZeroSize(child01))
+                {
+                    tabType = "Waystone";
+                    return true;
+                }
+            }
+
+            // 2. Check Fragment tab: tab -> 0 -> 0 -> 0 -> 1 has 6 children (pages)
+            var childFrag = ResolvePath(tab, new int[] { 0, 0, 0, 1 });
+            if (childFrag != IntPtr.Zero)
+            {
+                var offFrag = ReadMemory<UiElementBaseOffset>(childFrag);
+                var kidsFrag = ReadStdVector<IntPtr>(offFrag.ChildrensPtr);
+                if (kidsFrag.Length == 6 && HasNonZeroSize(childFrag))
+                {
+                    tabType = "Fragment";
+                    return true;
+                }
+            }
+
+            // 4. Check normal grid: tab -> 0 -> 0 visible and non-zero size
+            var child00 = ResolvePath(tab, new int[] { 0, 0 });
+            if (child00 != IntPtr.Zero && HasNonZeroSize(child00))
+            {
+                tabType = "Normal/Quad (0->0)";
+                return true;
+            }
+
+            // 5. In coop mode, a normal grid might be flatter: tab -> 0 directly
+            var child0 = ResolvePath(tab, new int[] { 0 });
+            if (child0 != IntPtr.Zero && HasNonZeroSize(child0))
+            {
+                var off0 = ReadMemory<UiElementBaseOffset>(child0);
+                var slots = ReadStdVector<IntPtr>(off0.ChildrensPtr);
+                if (slots.Length > 0 && slots.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                {
+                    tabType = "Normal/Quad (Flat 0)";
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public override void DrawUI()
         {
-            if (Core.States.GameCurrentState != GameStateTypes.InGameState) return;
-
-            if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableDebugProbe) return;
+            if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableDebugProbe && !Settings.EnableMerchantPurchasePanel) return;
 
             if (!Settings.ShowOverlayInBackground && !Core.Process.Foreground)
             {
@@ -786,119 +998,228 @@ namespace StashUtility
             var gameUi = Core.States.InGameStateObject.GameUi;
             if (gameUi == null || gameUi.Address == IntPtr.Zero) return;
 
+            // Update the parent caches every frame to refresh stale parent positions/coordinates.
+            // This is extremely fast (parallel memory reads) and avoids GC allocations from clearing the cache.
+            if (this.updateCacheMethod != null)
+            {
+                if (this.uiParentsObj != null) this.updateCacheMethod.Invoke(this.uiParentsObj, null);
+                if (this.uiParentsObjP2 != null) this.updateCacheMethod.Invoke(this.uiParentsObjP2, null);
+            }
+
             if (Settings.EnableDebugProbe)
             {
                 DrawDebugOverlay();
             }
 
-            if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager) return;
+            if (Settings.EnableWaystoneManager || Settings.EnableTabletManager)
+            {
+                bool isCoopMode = Core.GHSettings.EnableControllerMode && gameUi.LeftPanel.Address != IntPtr.Zero;
 
-            // Resolve Path
-            int[] pathIndices;
-            try
-            {
-                pathIndices = Settings.PathString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(int.Parse)
-                    .ToArray();
-            }
-            catch
-            {
-                lock (probeLog)
+                if (isCoopMode)
                 {
-                    probeLog.Clear();
-                    probeLog.Add("Error: Path String is not in a valid format (must be comma-separated integers)");
-                }
-                return;
-            }
+                    coopDebug.IsCoopMode = true;
+                    coopDebug.P1LeftPanel = gameUi.LeftPanel.Address;
+                    coopDebug.P2RightPanel = gameUi.RightPanel.Address;
 
-            int[] stashTabsContainerPath;
-            if (pathIndices.Length >= 12 && pathIndices[pathIndices.Length - 4] == 0 && pathIndices[pathIndices.Length - 3] == 0 && pathIndices[pathIndices.Length - 2] == 0 && pathIndices[pathIndices.Length - 1] == 1)
-            {
-                // Fragment stash tab layout (e.g. 2,0,0,0,0,1,1,40,0,0,0,1)
-                stashTabsContainerPath = pathIndices.Take(pathIndices.Length - 5).ToArray();
-            }
-            else if (pathIndices.Length >= 9 && pathIndices[pathIndices.Length - 2] == 0 && pathIndices[pathIndices.Length - 1] == 1)
-            {
-                // Waystone stash tab layout (e.g. 2,0,0,0,1,1,45,0,1)
-                stashTabsContainerPath = pathIndices.Take(pathIndices.Length - 3).ToArray();
-            }
-            else
-            {
-                // Fallback / default behavior
-                stashTabsContainerPath = pathIndices.Length >= 6
-                    ? pathIndices.Take(6).ToArray()
-                    : new int[] { 2, 0, 0, 0, 1, 1 };
-            }
-
-            var stashTabsContainer = ResolvePath(gameUi.LeftPanel.Address, stashTabsContainerPath);
-            if (stashTabsContainer != IntPtr.Zero)
-            {
-                var tabsOffsets = ReadMemory<UiElementBaseOffset>(stashTabsContainer);
-                var tabs = ReadStdVector<IntPtr>(tabsOffsets.ChildrensPtr);
-
-                IntPtr activeTabAddr = IntPtr.Zero;
-                foreach (var tab in tabs)
-                {
-                    if (tab == IntPtr.Zero) continue;
-                    if (IsElementVisible(tab))
+                    // Player 1 (LeftPanel)
+                    if (gameUi.LeftPanel.Address != IntPtr.Zero && IsElementVisible(gameUi.LeftPanel.Address))
                     {
-                        activeTabAddr = tab;
-                        break;
-                    }
-                }
+                        this.currentUiParentsObj = this.uiParentsObj;
 
-                if (activeTabAddr != IntPtr.Zero)
-                {
-                    // 1. Check if it's the Waystone stash tab: activeTabAddr -> 0 -> 1 has 16 children (tiers)
-                    bool processedAsWaystone = false;
-                    var waystonesTabRoot = ResolvePath(activeTabAddr, new int[] { 0, 1 });
-                    if (waystonesTabRoot != IntPtr.Zero)
-                    {
-                        var waystoneOffsets = ReadMemory<UiElementBaseOffset>(waystonesTabRoot);
-                        var waystoneKids = ReadStdVector<IntPtr>(waystoneOffsets.ChildrensPtr);
-                        if (waystoneKids.Length == 16)
+                        // 1. Player 1 inventory: LeftPanel -> 3 -> 0 -> 0 -> 1 -> 0 -> 2
+                        // Check inventory panel container (3 -> 0 -> 0 -> 1) is visible first
+                        var invPanelContainerP1 = ResolvePath(gameUi.LeftPanel.Address, new int[] { 3, 0, 0, 1 });
+                        var inventoryGridRoot = (invPanelContainerP1 != IntPtr.Zero && IsElementVisible(invPanelContainerP1))
+                            ? ResolvePath(invPanelContainerP1, new int[] { 0, 2 })
+                            : IntPtr.Zero;
+                        if (inventoryGridRoot != IntPtr.Zero)
                         {
-                            ProcessWaystoneTab(waystoneKids);
-                            processedAsWaystone = true;
+                            ProcessNormalTab(inventoryGridRoot);
+                        }
+
+                        // 2. Player 1 stash tabs: LeftPanel -> 3 -> 0 -> 0 -> 0 -> 2
+                        // Check the stash panel container (3 -> 0 -> 0 -> 0) is visible before processing stash tabs
+                        var stashPanelContainerP1 = ResolvePath(gameUi.LeftPanel.Address, new int[] { 3, 0, 0, 0 });
+                        var stashTabsContainer = (stashPanelContainerP1 != IntPtr.Zero && IsElementVisible(stashPanelContainerP1))
+                            ? ResolvePath(stashPanelContainerP1, new int[] { 2 })
+                            : IntPtr.Zero;
+                        if (stashTabsContainer != IntPtr.Zero)
+                        {
+                            ProcessCoopStashTabs(stashTabsContainer, 1);
+                        }
+                        else
+                        {
+                            coopDebug.P1StashTabsContainer = IntPtr.Zero;
+                            coopDebug.P1Status = stashPanelContainerP1 == IntPtr.Zero
+                                ? "Stash panel container path resolution failed (LeftPanel -> 3 -> 0 -> 0 -> 0)"
+                                : "Stash panel is not visible (closed)";
                         }
                     }
-
-                    if (!processedAsWaystone)
+                    else
                     {
-                        // 2. Check if it's a Fragment stash tab with tablets: activeTabAddr -> 0 -> 0 -> 0 -> 1 has 6 children (pages)
-                        bool processedAsFragmentTablets = false;
-                        var fragmentTabletsRoot = ResolvePath(activeTabAddr, new int[] { 0, 0, 0, 1 });
-                        if (fragmentTabletsRoot != IntPtr.Zero)
+                        coopDebug.P1Status = gameUi.LeftPanel.Address == IntPtr.Zero ? "LeftPanel address is null" : "LeftPanel is not visible";
+                    }
+
+                    // Player 2 (RightPanel)
+                    if (gameUi.RightPanel.Address != IntPtr.Zero && IsElementVisible(gameUi.RightPanel.Address))
+                    {
+                        this.currentUiParentsObj = this.uiParentsObjP2;
+
+                        // 1. Player 2 inventory: RightPanel -> 3 -> 0 -> 0 -> 1 -> 0 -> 2
+                        // Check inventory panel container (3 -> 0 -> 0 -> 1) is visible first
+                        var invPanelContainerP2 = ResolvePath(gameUi.RightPanel.Address, new int[] { 3, 0, 0, 1 });
+                        var inventoryGridRoot = (invPanelContainerP2 != IntPtr.Zero && IsElementVisible(invPanelContainerP2))
+                            ? ResolvePath(invPanelContainerP2, new int[] { 0, 2 })
+                            : IntPtr.Zero;
+                        if (inventoryGridRoot != IntPtr.Zero)
                         {
-                            var fragmentOffsets = ReadMemory<UiElementBaseOffset>(fragmentTabletsRoot);
-                            var fragmentKids = ReadStdVector<IntPtr>(fragmentOffsets.ChildrensPtr);
-                            if (fragmentKids.Length == 6)
+                            ProcessNormalTab(inventoryGridRoot);
+                        }
+
+                        // 2. Player 2 stash tabs: RightPanel -> 3 -> 0 -> 0 -> 0 -> 2
+                        // Check the stash panel container (3 -> 0 -> 0 -> 0) is visible before processing stash tabs
+                        var stashPanelContainerP2 = ResolvePath(gameUi.RightPanel.Address, new int[] { 3, 0, 0, 0 });
+                        var stashTabsContainerP2 = (stashPanelContainerP2 != IntPtr.Zero && IsElementVisible(stashPanelContainerP2))
+                            ? ResolvePath(stashPanelContainerP2, new int[] { 2 })
+                            : IntPtr.Zero;
+                        if (stashTabsContainerP2 != IntPtr.Zero)
+                        {
+                            ProcessCoopStashTabs(stashTabsContainerP2, 2);
+                        }
+                        else
+                        {
+                            coopDebug.P2StashTabsContainer = IntPtr.Zero;
+                            coopDebug.P2Status = stashPanelContainerP2 == IntPtr.Zero
+                                ? "Stash panel container path resolution failed (RightPanel -> 3 -> 0 -> 0 -> 0)"
+                                : "Stash panel is not visible (closed)";
+                        }
+                    }
+                    else
+                    {
+                        coopDebug.P2Status = gameUi.RightPanel.Address == IntPtr.Zero ? "RightPanel address is null" : "RightPanel is not visible";
+                    }
+                }
+                else
+                {
+                    coopDebug.IsCoopMode = false;
+                    spDebug.LeftPanel = gameUi.LeftPanel.Address;
+                    this.currentUiParentsObj = this.uiParentsObj;
+
+                    // Resolve Path
+                    int[] pathIndices;
+                    try
+                    {
+                        pathIndices = Settings.PathString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Select(int.Parse)
+                            .ToArray();
+                    }
+                    catch
+                    {
+                        lock (probeLog)
+                        {
+                            probeLog.Clear();
+                            probeLog.Add("Error: Path String is not in a valid format (must be comma-separated integers)");
+                        }
+                        return;
+                    }
+
+                    int[] stashTabsContainerPath;
+                    if (pathIndices.Length >= 12 && pathIndices[pathIndices.Length - 4] == 0 && pathIndices[pathIndices.Length - 3] == 0 && pathIndices[pathIndices.Length - 2] == 0 && pathIndices[pathIndices.Length - 1] == 1)
+                    {
+                        // Fragment stash tab layout (e.g. 2,0,0,0,0,1,1,40,0,0,0,1)
+                        stashTabsContainerPath = pathIndices.Take(pathIndices.Length - 5).ToArray();
+                    }
+                    else if (pathIndices.Length >= 9 && pathIndices[pathIndices.Length - 2] == 0 && pathIndices[pathIndices.Length - 1] == 1)
+                    {
+                        // Waystone stash tab layout (e.g. 2,0,0,0,1,1,45,0,1)
+                        stashTabsContainerPath = pathIndices.Take(pathIndices.Length - 3).ToArray();
+                    }
+                    else
+                    {
+                        // Fallback / default behavior
+                        stashTabsContainerPath = pathIndices.Length >= 6 
+                            ? pathIndices.Take(6).ToArray() 
+                            : new int[] { 2, 0, 0, 0, 1, 1 };
+                    }
+
+                    spDebug.StashTabsPath = string.Join(",", stashTabsContainerPath);
+                    var stashTabsContainer = ResolvePath(gameUi.LeftPanel.Address, stashTabsContainerPath);
+                    if (stashTabsContainer == IntPtr.Zero)
+                    {
+                        // Fallback 1: Try default waystone/normal stash tabs container path (2,0,0,0,1,1)
+                        var fbPath1 = new int[] { 2, 0, 0, 0, 1, 1 };
+                        stashTabsContainer = ResolvePath(gameUi.LeftPanel.Address, fbPath1);
+                        if (stashTabsContainer != IntPtr.Zero)
+                        {
+                            stashTabsContainerPath = fbPath1;
+                            spDebug.StashTabsPath = string.Join(",", fbPath1) + " (Fallback Waystone/Normal)";
+                        }
+                        else
+                        {
+                            // Fallback 2: Try default fragment stash tabs container path (2,0,0,0,0,1,1)
+                            var fbPath2 = new int[] { 2, 0, 0, 0, 0, 1, 1 };
+                            stashTabsContainer = ResolvePath(gameUi.LeftPanel.Address, fbPath2);
+                            if (stashTabsContainer != IntPtr.Zero)
                             {
-                                ProcessFragmentTabletsTab(fragmentKids);
-                                processedAsFragmentTablets = true;
+                                stashTabsContainerPath = fbPath2;
+                                spDebug.StashTabsPath = string.Join(",", fbPath2) + " (Fallback Fragment)";
                             }
                         }
+                    }
 
-                        if (!processedAsFragmentTablets)
+                    if (stashTabsContainer != IntPtr.Zero)
+                    {
+                        ProcessStashTabs(stashTabsContainer);
+                    }
+                    else
+                    {
+                        spDebug.StashTabsContainer = IntPtr.Zero;
+                        spDebug.Status = $"StashTabsContainer path resolution failed for path: {spDebug.StashTabsPath}";
+                    }
+
+                    // 3. Process Character Inventory Panel if open: RightPanel -> 5 -> 36
+                    if (gameUi.RightPanel.Address != IntPtr.Zero && IsElementVisible(gameUi.RightPanel.Address))
+                    {
+                        var inventoryPanelSP = ResolvePath(gameUi.RightPanel.Address, new int[] { 5 });
+                        var inventoryGridRoot = (inventoryPanelSP != IntPtr.Zero && IsElementVisible(inventoryPanelSP))
+                            ? ResolvePath(inventoryPanelSP, new int[] { 36 })
+                            : IntPtr.Zero;
+                        if (inventoryGridRoot != IntPtr.Zero)
                         {
-                            // 3. Otherwise, check if it's a normal/quad stash tab: activeTabAddr -> 0 -> 0 has slots directly
-                            var normalGridRoot = ResolvePath(activeTabAddr, new int[] { 0, 0 });
-                            if (normalGridRoot != IntPtr.Zero)
-                            {
-                                ProcessNormalTab(normalGridRoot);
-                            }
+                            ProcessNormalTab(inventoryGridRoot);
                         }
                     }
                 }
             }
 
-            // 3. Process Character Inventory Panel if open: RightPanel -> 5 -> 36
-            if (gameUi.RightPanel.Address != IntPtr.Zero && IsElementVisible(gameUi.RightPanel.Address))
+            // 4. Process Merchant Purchase Panel if open
+            if (Settings.EnableMerchantPurchasePanel)
             {
-                var inventoryGridRoot = ResolvePath(gameUi.RightPanel.Address, new int[] { 5, 36 });
-                if (inventoryGridRoot != IntPtr.Zero)
+                var merchantPanelParent = ResolvePath(gameUi.Address, new int[] { 80, 8, 1 });
+                if (merchantPanelParent != IntPtr.Zero)
                 {
-                    ProcessNormalTab(inventoryGridRoot);
+                    var parentOff = ReadMemory<UiElementBaseOffset>(merchantPanelParent);
+                    var tabs = ReadStdVector<IntPtr>(parentOff.ChildrensPtr);
+
+                    IntPtr activeTabAddr = IntPtr.Zero;
+                    foreach (var tab in tabs)
+                    {
+                        if (tab == IntPtr.Zero) continue;
+                        if (IsElementVisible(tab))
+                        {
+                            activeTabAddr = tab;
+                            break;
+                        }
+                    }
+
+                    if (activeTabAddr != IntPtr.Zero)
+                    {
+                        var itemsContainer = ResolvePath(activeTabAddr, new int[] { 0 });
+                        if (itemsContainer != IntPtr.Zero)
+                        {
+                            ProcessNormalTab(itemsContainer);
+                        }
+                    }
                 }
             }
         }
@@ -948,7 +1269,7 @@ namespace StashUtility
                         if (!UiElementBaseFuncs.IsVisibleChecker(slotOff.Flags)) continue;
 
                         // Retrieve screen bounds for slot
-                        var el = PluginUiElementReflection.CreateUiElement(slot, this.uiParentsObj);
+                        var el = PluginUiElementReflection.CreateUiElement(slot, this.currentUiParentsObj);
                         if (el == null) continue;
 
                         var pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(el)!;
@@ -994,7 +1315,7 @@ namespace StashUtility
                     if (!UiElementBaseFuncs.IsVisibleChecker(slotOff.Flags)) continue;
 
                     // Retrieve screen bounds for slot
-                    var el = PluginUiElementReflection.CreateUiElement(slot, this.uiParentsObj);
+                    var el = PluginUiElementReflection.CreateUiElement(slot, this.currentUiParentsObj);
                     if (el == null) continue;
 
                     var pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(el)!;
@@ -1028,7 +1349,7 @@ namespace StashUtility
                 if (!UiElementBaseFuncs.IsVisibleChecker(slotOff.Flags)) continue;
 
                 // Retrieve screen bounds for slot
-                var el = PluginUiElementReflection.CreateUiElement(slot, this.uiParentsObj);
+                var el = PluginUiElementReflection.CreateUiElement(slot, this.currentUiParentsObj);
                 if (el == null) continue;
 
                 var pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(el)!;
@@ -1047,6 +1368,318 @@ namespace StashUtility
                 }
             }
         }
+
+        private void ProcessStashTabs(IntPtr stashTabsContainer)
+        {
+            spDebug.StashTabsContainer = stashTabsContainer;
+            spDebug.ActiveTab = IntPtr.Zero;
+            spDebug.Status = "No active tab found";
+
+            if (stashTabsContainer == IntPtr.Zero) return;
+
+            var tabsOffsets = ReadMemory<UiElementBaseOffset>(stashTabsContainer);
+            var tabs = ReadStdVector<IntPtr>(tabsOffsets.ChildrensPtr);
+
+            IntPtr activeTabAddr = IntPtr.Zero;
+            int activeTabIdx = -1;
+            string activeTabType = "None";
+
+            // 1. Try to find the tab that is visible and has active/non-zero size children
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                var tab = tabs[i];
+                if (tab == IntPtr.Zero) continue;
+                if (IsActiveTab(tab, out string detectedType))
+                {
+                    activeTabAddr = tab;
+                    activeTabIdx = i;
+                    activeTabType = detectedType;
+                    break;
+                }
+            }
+
+            // 2. Fallback to old behavior if no active tab found by size/structure
+            if (activeTabAddr == IntPtr.Zero)
+            {
+                for (int i = 0; i < tabs.Length; i++)
+                {
+                    var tab = tabs[i];
+                    if (tab == IntPtr.Zero) continue;
+                    if (IsElementVisible(tab))
+                    {
+                        activeTabAddr = tab;
+                        activeTabIdx = i;
+                        activeTabType = "Fallback (Visible)";
+                        break;
+                    }
+                }
+            }
+
+            spDebug.ActiveTab = activeTabAddr;
+            if (activeTabAddr != IntPtr.Zero)
+            {
+                spDebug.Status = $"Active tab index {activeTabIdx} ({activeTabType}) at 0x{activeTabAddr.ToInt64():X}";
+            }
+
+            if (activeTabAddr != IntPtr.Zero)
+            {
+                // 1. Check if it's the Waystone stash tab: activeTabAddr -> 0 -> 1 has 16 children (tiers)
+                bool processedAsWaystone = false;
+                var waystonesTabRoot = ResolvePath(activeTabAddr, new int[] { 0, 1 });
+                if (waystonesTabRoot != IntPtr.Zero)
+                {
+                    var waystoneOffsets = ReadMemory<UiElementBaseOffset>(waystonesTabRoot);
+                    var waystoneKids = ReadStdVector<IntPtr>(waystoneOffsets.ChildrensPtr);
+                    if (waystoneKids.Length == 16)
+                    {
+                        ProcessWaystoneTab(waystoneKids);
+                        processedAsWaystone = true;
+                        spDebug.Status += " | Processed: Waystone Tab";
+                    }
+                }
+
+                if (!processedAsWaystone)
+                {
+                    // 2. Check if it's a Fragment stash tab with tablets: activeTabAddr -> 0 -> 0 -> 0 -> 1 has 6 children (pages)
+                    bool processedAsFragmentTablets = false;
+                    var fragmentTabletsRoot = ResolvePath(activeTabAddr, new int[] { 0, 0, 0, 1 });
+                    if (fragmentTabletsRoot != IntPtr.Zero)
+                    {
+                        var fragmentOffsets = ReadMemory<UiElementBaseOffset>(fragmentTabletsRoot);
+                        var fragmentKids = ReadStdVector<IntPtr>(fragmentOffsets.ChildrensPtr);
+                        if (fragmentKids.Length == 6)
+                        {
+                            ProcessFragmentTabletsTab(fragmentKids);
+                            processedAsFragmentTablets = true;
+                            spDebug.Status += " | Processed: Fragment Tab";
+                        }
+                    }
+
+                    if (!processedAsFragmentTablets)
+                    {
+                        // 3. Otherwise, check if it's a normal/quad stash tab: activeTabAddr -> 0 -> 0 has slots directly
+                        var normalGridRoot = ResolvePath(activeTabAddr, new int[] { 0, 0 });
+                        if (normalGridRoot != IntPtr.Zero)
+                        {
+                            ProcessNormalTab(normalGridRoot);
+                            spDebug.Status += " | Processed: Normal/Quad Tab (0->0)";
+                        }
+                        else
+                        {
+                            spDebug.Status += " | Failed: Not Waystone/Fragment, and 0->0 resolved to null";
+                        }
+                    }
+                }
+            }
+        }
+
+
+        private void ProcessCoopStashTabs(IntPtr stashTabsContainer, int playerNumber)
+        {
+            if (playerNumber == 1)
+            {
+                coopDebug.P1StashTabsContainer = stashTabsContainer;
+                coopDebug.P1ActiveTab = IntPtr.Zero;
+                coopDebug.P1Status = "No active tab found";
+            }
+            else
+            {
+                coopDebug.P2StashTabsContainer = stashTabsContainer;
+                coopDebug.P2ActiveTab = IntPtr.Zero;
+                coopDebug.P2Status = "No active tab found";
+            }
+
+            if (stashTabsContainer == IntPtr.Zero) return;
+
+            var tabsOffsets = ReadMemory<UiElementBaseOffset>(stashTabsContainer);
+            var tabs = ReadStdVector<IntPtr>(tabsOffsets.ChildrensPtr);
+
+            var debugTabsList = new List<string>();
+            IntPtr activeTabAddr = IntPtr.Zero;
+            int activeTabIdx = -1;
+
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                var tab = tabs[i];
+                if (tab == IntPtr.Zero)
+                {
+                    debugTabsList.Add($"[{i}] Null");
+                    continue;
+                }
+
+                var off = ReadMemory<UiElementBaseOffset>(tab);
+                bool localVis = UiElementBaseFuncs.IsVisibleChecker(off.Flags);
+                bool fullVis = IsElementVisible(tab);
+
+                var el = PluginUiElementReflection.CreateUiElement(tab, this.currentUiParentsObj);
+                Vector2 size = Vector2.Zero;
+                Vector2 pos = Vector2.Zero;
+                if (el != null)
+                {
+                    size = (Vector2)PluginUiElementReflection.UiElementSizeProperty!.GetValue(el)!;
+                    pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(el)!;
+                }
+
+                debugTabsList.Add($"[{i}] 0x{tab.ToInt64():X} | LVis:{localVis} | FVis:{fullVis} | Sz:{(int)size.X}x{(int)size.Y} | Pos:{(int)pos.X},{(int)pos.Y}");
+
+                // Try to find the active tab using IsActiveTab helper
+            }
+
+            string activeTabType = "None";
+
+            // 1. Try to find the tab that is visible and has active/non-zero size children
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                var tab = tabs[i];
+                if (tab == IntPtr.Zero) continue;
+                if (IsActiveTab(tab, out string detectedType))
+                {
+                    activeTabAddr = tab;
+                    activeTabIdx = i;
+                    activeTabType = detectedType;
+                    break;
+                }
+            }
+
+            // 2. Fallback to old behavior if no active tab found by size/structure
+            if (activeTabAddr == IntPtr.Zero)
+            {
+                for (int i = 0; i < tabs.Length; i++)
+                {
+                    var tab = tabs[i];
+                    if (tab == IntPtr.Zero) continue;
+                    var off = ReadMemory<UiElementBaseOffset>(tab);
+                    if (UiElementBaseFuncs.IsVisibleChecker(off.Flags))
+                    {
+                        activeTabAddr = tab;
+                        activeTabIdx = i;
+                        activeTabType = "Fallback (Visible)";
+                        break;
+                    }
+                }
+            }
+
+            if (playerNumber == 1)
+            {
+                coopDebug.P1TabsInfo = debugTabsList;
+                coopDebug.P1ActiveTab = activeTabAddr;
+                if (activeTabAddr != IntPtr.Zero)
+                {
+                    coopDebug.P1Status = $"Active tab index {activeTabIdx} ({activeTabType}) at 0x{activeTabAddr.ToInt64():X}";
+                }
+            }
+            else
+            {
+                coopDebug.P2TabsInfo = debugTabsList;
+                coopDebug.P2ActiveTab = activeTabAddr;
+                if (activeTabAddr != IntPtr.Zero)
+                {
+                    coopDebug.P2Status = $"Active tab index {activeTabIdx} ({activeTabType}) at 0x{activeTabAddr.ToInt64():X}";
+                }
+            }
+
+            if (activeTabAddr != IntPtr.Zero)
+            {
+                // 1. Check if the active tab itself, activeTabAddr -> 0, or activeTabAddr -> 0 -> 0 contains item slots directly.
+                // In coop/controller mode, POE2 often flattens the UI tree layout, rendering item slots directly under the active tab node.
+                bool processedAsGrid = false;
+
+                // Let's check activeTabAddr itself first
+                var selfOffsets = ReadMemory<UiElementBaseOffset>(activeTabAddr);
+                var selfKids = ReadStdVector<IntPtr>(selfOffsets.ChildrensPtr);
+                if (selfKids.Length > 0 && selfKids.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                {
+                    ProcessNormalTab(activeTabAddr);
+                    processedAsGrid = true;
+                    if (playerNumber == 1) coopDebug.P1Status += " | Processed: Flat Grid (Self)";
+                    else coopDebug.P2Status += " | Processed: Flat Grid (Self)";
+                }
+
+                // Next check activeTabAddr -> 0
+                if (!processedAsGrid)
+                {
+                    var coopGridRoot = ResolvePath(activeTabAddr, new int[] { 0 });
+                    if (coopGridRoot != IntPtr.Zero)
+                    {
+                        var gridOffsets = ReadMemory<UiElementBaseOffset>(coopGridRoot);
+                        var slots = ReadStdVector<IntPtr>(gridOffsets.ChildrensPtr);
+                        if (slots.Length > 0 && slots.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                        {
+                            ProcessNormalTab(coopGridRoot);
+                            processedAsGrid = true;
+                            if (playerNumber == 1) coopDebug.P1Status += " | Processed: Flat Grid (Self->0)";
+                            else coopDebug.P2Status += " | Processed: Flat Grid (Self->0)";
+                        }
+                    }
+                }
+
+                // Next check activeTabAddr -> 0 -> 0
+                if (!processedAsGrid)
+                {
+                    var normalGridRoot = ResolvePath(activeTabAddr, new int[] { 0, 0 });
+                    if (normalGridRoot != IntPtr.Zero)
+                    {
+                        var gridOffsets = ReadMemory<UiElementBaseOffset>(normalGridRoot);
+                        var slots = ReadStdVector<IntPtr>(gridOffsets.ChildrensPtr);
+                        if (slots.Length > 0 && slots.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                        {
+                            ProcessNormalTab(normalGridRoot);
+                            processedAsGrid = true;
+                            if (playerNumber == 1) coopDebug.P1Status += " | Processed: Flat Grid (Self->0->0)";
+                            else coopDebug.P2Status += " | Processed: Flat Grid (Self->0->0)";
+                        }
+                    }
+                }
+
+                if (!processedAsGrid)
+                {
+                    // 2. If not a flattened grid, check nested/special structures
+                    // Check if it's the Waystone stash tab: activeTabAddr -> 0 -> 1 has 16 children (tiers)
+                    bool processedAsWaystone = false;
+                    var waystonesTabRoot = ResolvePath(activeTabAddr, new int[] { 0, 1 });
+                    if (waystonesTabRoot != IntPtr.Zero)
+                    {
+                        var waystoneOffsets = ReadMemory<UiElementBaseOffset>(waystonesTabRoot);
+                        var waystoneKids = ReadStdVector<IntPtr>(waystoneOffsets.ChildrensPtr);
+                        if (waystoneKids.Length == 16)
+                        {
+                            ProcessWaystoneTab(waystoneKids);
+                            processedAsWaystone = true;
+                            if (playerNumber == 1) coopDebug.P1Status += " | Processed: Waystone Tab (16 tiers)";
+                            else coopDebug.P2Status += " | Processed: Waystone Tab (16 tiers)";
+                        }
+                    }
+
+                    if (!processedAsWaystone)
+                    {
+                        // Check if it's a Fragment stash tab with tablets in coop mode: activeTabAddr -> 0 -> 0 -> 0 -> 1 has 6 children (pages)
+                        var fragmentTabletsRoot = ResolvePath(activeTabAddr, new int[] { 0, 0, 0, 1 });
+                        if (fragmentTabletsRoot != IntPtr.Zero)
+                        {
+                            var fragmentOffsets = ReadMemory<UiElementBaseOffset>(fragmentTabletsRoot);
+                            var fragmentKids = ReadStdVector<IntPtr>(fragmentOffsets.ChildrensPtr);
+                            if (fragmentKids.Length == 6)
+                            {
+                                ProcessFragmentTabletsTab(fragmentKids);
+                                if (playerNumber == 1) coopDebug.P1Status += " | Processed: Fragment Tab (6 pages)";
+                                else coopDebug.P2Status += " | Processed: Fragment Tab (6 pages)";
+                            }
+                            else
+                            {
+                                if (playerNumber == 1) coopDebug.P1Status += $" | Failed: Path 0->0->0->1 resolved but has {fragmentKids.Length} children instead of 6";
+                                else coopDebug.P2Status += $" | Failed: Path 0->0->0->1 resolved but has {fragmentKids.Length} children instead of 6";
+                            }
+                        }
+                        else
+                        {
+                            if (playerNumber == 1) coopDebug.P1Status += " | Failed: Not grid, and no nested 0->0->0->1 child found";
+                            else coopDebug.P2Status += " | Failed: Not grid, and no nested 0->0->0->1 child found";
+                        }
+                    }
+                }
+            }
+        }
+
 
         private void DrawDebugOverlay()
         {
@@ -1073,7 +1706,7 @@ namespace StashUtility
             if (address == IntPtr.Zero) return;
             try
             {
-                var el = PluginUiElementReflection.CreateUiElement(address, this.uiParentsObj);
+                var el = PluginUiElementReflection.CreateUiElement(address, this.currentUiParentsObj ?? this.uiParentsObj);
                 if (el != null)
                 {
                     var pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(el)!;
@@ -1165,12 +1798,14 @@ namespace StashUtility
             int sumEffect = 0;
             int sumDropChance = 0;
             int revives = 5;
+            int explicitModsCount = 0;
 
             int tabletGoodCount = 0;
 
             if (modsComponent != null)
             {
-                revives = Math.Max(0, Math.Min(5, 6 - modsComponent.ExplicitMods.Count));
+                explicitModsCount = modsComponent.ExplicitMods.Count;
+                revives = Math.Max(0, Math.Min(5, 6 - explicitModsCount));
                 var statsFromMods = GetStatsFromMods(modsComponent);
                 bool hasMemoryStats = statsFromMods.Count > 0;
                 if (statsFromMods.TryGetValue((GameStats)8210, out var rawDropChance)) sumDropChance = rawDropChance;
@@ -1249,7 +1884,19 @@ namespace StashUtility
 
                         if (def != null)
                         {
-                            if (Settings.TabletGodModPatterns.Contains(def.Id))
+                            bool passesRollCheck = true;
+                            if (def.MinRoll != def.MaxRoll && Settings.TabletModRequiredMinRolls.TryGetValue(def.Id, out float reqMin))
+                            {
+                                float val0 = float.IsNaN(mod.vals.v0) ? 0f : mod.vals.v0;
+                                float val1 = float.IsNaN(mod.vals.v1) ? 0f : mod.vals.v1;
+                                float val = Math.Abs(val0 != 0f ? val0 : val1);
+                                if (val > 0 && val < reqMin)
+                                {
+                                    passesRollCheck = false;
+                                }
+                            }
+
+                            if (Settings.TabletGodModPatterns.Contains(def.Id) && passesRollCheck)
                             {
                                 isGod = true;
                             }
@@ -1257,7 +1904,7 @@ namespace StashUtility
                             {
                                 isBad = true;
                             }
-                            if (Settings.TabletGoodModPatterns.Contains(def.Id))
+                            if (Settings.TabletGoodModPatterns.Contains(def.Id) && passesRollCheck)
                             {
                                 isGood = true;
                                 tabletGoodCount++;
@@ -1276,6 +1923,8 @@ namespace StashUtility
                     if (Settings.FilterGreatMonstRarity) { activeFilters++; if (sumMonstRarity < Settings.MinGreatMonstRarity) candidate = false; }
                     if (Settings.FilterGreatEffect) { activeFilters++; if (sumEffect < Settings.MinGreatEffect) candidate = false; }
                     if (Settings.FilterGreatDropChance) { activeFilters++; if (sumDropChance < Settings.MinGreatDropChance) candidate = false; }
+                    if (Settings.FilterGreatExplicitMods) { activeFilters++; if (explicitModsCount < Settings.MinGreatExplicitMods) candidate = false; }
+                    if (Settings.FilterGreatMaxExplicitMods) { activeFilters++; if (explicitModsCount > Settings.MaxGreatExplicitMods) candidate = false; }
 
                     isGreat = activeFilters > 0 && candidate;
                 }
@@ -1285,6 +1934,11 @@ namespace StashUtility
                     {
                         isBad = false;
                         isGood = true;
+                    }
+
+                    if (!isGod && tabletGoodCount < Settings.MinTabletGoodModsToHighlight)
+                    {
+                        isGood = false;
                     }
 
                     if (Settings.FilterTabletGreat)
@@ -1308,6 +1962,8 @@ namespace StashUtility
                 if (Settings.FilterMaxMonsterEffectiveness && sumEffect > Settings.MaxMonsterEffectiveness) passesNumericalFilters = false;
                 if (Settings.FilterMinWaystoneDropChance && sumDropChance < Settings.MinWaystoneDropChance) passesNumericalFilters = false;
                 if (Settings.FilterMaxWaystoneDropChance && sumDropChance > Settings.MaxWaystoneDropChance) passesNumericalFilters = false;
+                if (Settings.FilterMinExplicitMods && explicitModsCount < Settings.MinExplicitMods) passesNumericalFilters = false;
+                if (Settings.FilterMaxExplicitMods && explicitModsCount > Settings.MaxExplicitMods) passesNumericalFilters = false;
             }
 
             if (isTablet && !isBad && !isGood) return;
@@ -1320,9 +1976,18 @@ namespace StashUtility
             float margin = Settings.BorderMargin * scale; // Adaptive margin for 4K scaling where bounding boxes overlap
             float activeBorderThickness = 0f;
 
-            if (Settings.ShowModBorder && (isBad || isGood || passesNumericalFilters))
+            bool showModBorder = (isWaystone && Settings.ShowModBorder) || (isTablet && Settings.ShowTabletModBorder);
+
+            if (isTablet && isBad && Settings.DisableBadTabletHighlight)
             {
-                Vector4 borderCol = isBad ? Settings.BadColor : Settings.GoodColor;
+                return;
+            }
+
+            if (showModBorder && (isBad || isGood || passesNumericalFilters))
+            {
+                Vector4 borderCol = isTablet 
+                    ? (isBad ? Settings.TabletBadColor : Settings.TabletGoodColor)
+                    : (isBad ? Settings.BadColor : Settings.GoodColor);
                 float thickness = isBad ? Settings.BorderThickness : Math.Max(1.5f, Settings.BorderThickness - 0.5f);
                 int style = isBad ? Settings.FrameStyleBad : Settings.FrameStyleGood;
 
@@ -1370,7 +2035,8 @@ namespace StashUtility
                 };
 
                 var dl = ImGui.GetBackgroundDrawList();
-                dl.AddTriangleFilled(topTip, topTip + new Vector2(-arrowSize / 2, arrowSize), topTip + new Vector2(arrowSize / 2, arrowSize), ImGuiHelper.Color(Settings.ColorGreat));
+                Vector4 arrowCol = isTablet ? Settings.TabletColorGreat : Settings.ColorGreat;
+                dl.AddTriangleFilled(topTip, topTip + new Vector2(-arrowSize / 2, arrowSize), topTip + new Vector2(arrowSize / 2, arrowSize), ImGuiHelper.Color(arrowCol));
                 dl.AddTriangle(topTip, topTip + new Vector2(-arrowSize / 2, arrowSize), topTip + new Vector2(arrowSize / 2, arrowSize), 0xFF000000, Math.Max(1.0f, 1.5f * scale));
             }
         }
@@ -1408,7 +2074,7 @@ namespace StashUtility
             }
         }
 
-        private void DrawModListUI(string title, string idPrefix, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
+        private void DrawModListUI(string title, List<string> currentList, List<string> targetList, Vector4 color, bool isCurrentlyBad)
         {
             ImGui.TextColored(color, title);
             if (currentList.Count == 0) ImGui.TextDisabled(PluginText.T("stashutility.list_empty", "   (List empty)"));
@@ -1420,8 +2086,8 @@ namespace StashUtility
                 var defT = Data.ModDatabase.AllTabletMods.FirstOrDefault(m => m.Id == id);
                 string name = defW?.Name ?? defT?.Name ?? id;
 
-                ImGui.PushID(idPrefix + id);
-                if (ImGui.Button(this.PluginText.Label("button.remove_short", "X", "RemoveMod")))
+                ImGui.PushID(title + id);
+                if (ImGui.Button("X"))
                 {
                     currentList.RemoveAt(i);
                     SaveSettings();
@@ -1715,7 +2381,16 @@ namespace StashUtility
 
                 var methods = this.handleObj.GetType().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                 this.readStdWStringMethod = methods.First(m => m.Name == "ReadStdWString" && m.GetParameters().Length == 1);
-                this.uiParentsObj = PluginUiElementReflection.CreateParents();
+                this.uiParentsObj          = PluginUiElementReflection.CreateParents("p1");
+                this.uiParentsObjP2        = PluginUiElementReflection.CreateParents("p2");
+                this.currentUiParentsObj   = this.uiParentsObj;
+                
+                var uiParentsType = PluginUiElementReflection.UiElementParentsType;
+                if (uiParentsType != null)
+                {
+                    this.updateCacheMethod = uiParentsType.GetMethod("UpdateAllParentsParallel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                }
+                
                 return true;
             }
             catch
@@ -1800,7 +2475,7 @@ namespace StashUtility
                     list[i] = val;
                 }
                 ImGui.SameLine();
-                if (ImGui.Button(this.PluginText.Label("button.remove", "Remove", "RemoveString")))
+                if (ImGui.Button("Remove"))
                 {
                     toRemove = i;
                 }
@@ -1823,7 +2498,7 @@ namespace StashUtility
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"UI Tree Dump from root: 0x{address.ToInt64():X}");
             DumpUiTreeRecursive(address, "", 0, sb);
-
+            
             try
             {
                 var dir = Path.Combine(DllDirectory, "config");
@@ -1844,7 +2519,7 @@ namespace StashUtility
 
             var off = ReadMemory<UiElementBaseOffset>(address);
             var kids = ReadStdVector<IntPtr>(off.ChildrensPtr);
-
+            
             sb.AppendLine($"{prefix}Addr: 0x{address.ToInt64():X}, Vis: {UiElementBaseFuncs.IsVisibleChecker(off.Flags)}, Kids: {kids.Length}, Size: <{off.UnscaledSize.X},{off.UnscaledSize.Y}>");
 
             // Look for any string starting with "Metadata/" by dereferencing pointers
@@ -2037,34 +2712,34 @@ namespace StashUtility
             return rawName;
         }
 
-        private static readonly System.Text.RegularExpressions.Regex RangeRegex =
+        private static readonly System.Text.RegularExpressions.Regex RangeRegex = 
             new System.Text.RegularExpressions.Regex(@"\([^)]*\)", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-        private static readonly System.Text.RegularExpressions.Regex DigitsRegex =
+        
+        private static readonly System.Text.RegularExpressions.Regex DigitsRegex = 
             new System.Text.RegularExpressions.Regex(@"\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-        private static readonly System.Text.RegularExpressions.Regex CleanRegex =
+        
+        private static readonly System.Text.RegularExpressions.Regex CleanRegex = 
             new System.Text.RegularExpressions.Regex(@"[^a-zA-Z%\s]", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-        private static readonly System.Text.RegularExpressions.Regex SpacesRegex =
+        
+        private static readonly System.Text.RegularExpressions.Regex SpacesRegex = 
             new System.Text.RegularExpressions.Regex(@"\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private string NormalizeForMatching(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
-
+            
             // Remove ranges in parentheses like (36-40) or (-8--6)
             var result = RangeRegex.Replace(input, "");
-
+            
             // Remove digits
             result = DigitsRegex.Replace(result, "");
-
+            
             // Remove everything except letters, % and whitespace
             result = CleanRegex.Replace(result, "");
-
+            
             // Normalize spaces to single spaces and lowercase
             result = SpacesRegex.Replace(result, " ").Trim().ToLowerInvariant();
-
+            
             return result;
         }
     }

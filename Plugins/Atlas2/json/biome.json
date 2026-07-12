@@ -1,0 +1,67 @@
+{
+  "0": {
+    "Label": "Water",
+    "BorderColor": [ 0.028, 0.0, 0.911, 0.9 ],
+    "Show": true
+  },
+  "1": {
+    "Label": "Mountain",
+    "BorderColor": [ 0.842, 0.842, 0.842, 0.9 ],
+    "Show": true
+  },
+  "2": {
+    "Label": "Grass",
+    "BorderColor": [ 0.0, 0.923, 0.335, 0.9 ],
+    "Show": true
+  },
+  "3": {
+    "Label": "Forest",
+    "BorderColor": [ 0.0, 0.266, 0.097, 0.9 ],
+    "Show": true
+  },
+  "4": {
+    "Label": "Swamp",
+    "BorderColor": [ 0.028, 0.0, 0.911, 0.9 ],
+    "Show": true
+  },
+  "5": {
+    "Label": "Desert",
+    "BorderColor": [ 0.799, 0.518, 0.0, 0.9 ],
+    "Show": true
+  },
+  "6": {
+    "Label": "Ezomyte City",
+    "BorderColor": [ 1.0, 1.0, 1.0, 0.9 ],
+    "Show": true
+  },
+  "7": {
+    "Label": "Faridun City",
+    "BorderColor": [ 1.0, 1.0, 1.0, 0.9 ],
+    "Show": true
+  },
+  "8": {
+    "Label": "Vaal City",
+    "BorderColor": [ 0.87058824, 0.65490196, 0.0, 1.0 ],
+    "Show": true
+  },
+  "9": {
+    "Label": "Breach City",
+    "BorderColor": [ 1.0, 0.2, 0.7411765, 1.0 ],
+    "Show": true
+  },
+  "10": {
+    "Label": "Ocean",
+    "BorderColor": [ 0.0, 0.4, 0.8, 0.9 ],
+    "Show": true
+  },
+  "11": {
+    "Label": "Island",
+    "BorderColor": [ 0.2, 0.7, 0.6, 0.9 ],
+    "Show": true
+  },
+  "12": {
+    "Label": "Oriath City",
+    "BorderColor": [ 1.0, 1.0, 1.0, 0.9 ],
+    "Show": true
+  }
+}

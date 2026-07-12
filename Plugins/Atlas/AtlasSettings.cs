@@ -115,6 +115,10 @@ namespace Atlas
         // in the filter dropdown, OR-matched (a chain is shown when ANY selected reward is in it).
         public string RitualRewardFilter = string.Empty;
 
+        // Font scale for the "Head of the king Rewards" planner window (ImGui.SetWindowFontScale).
+        // 1.0 = normal; the settings slider ranges 0.5–3.0.
+        public float RitualPlannerFontScale = 1.0f;
+
         // Per-reward weights (short label → weight, sparse: only nonzero saved) edited in the
         // table under the planner toggle. Planner routes are sorted by the summed weight of
         // their predicted rewards, highest first; negative pushes a route down. The initializer

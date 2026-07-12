@@ -1,4 +1,4 @@
-﻿// <copyright file="ImportantUiElements.cs" company="None">
+// <copyright file="ImportantUiElements.cs" company="None">
 // Copyright (c) None. All rights reserved.
 // </copyright>
 
@@ -41,6 +41,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly int[] InterludePanelChildPath = { 22, 0, 5 };
         private static readonly int[] AtlasPanelChildPath = { 22, 0, 6 };
         private static readonly int[] AtlasSkillsPanelChildPath = { 25, 0 };
+        private static readonly int[] LeftPanelCoopPath = { 22 };
+        private static readonly int[] RightPanelCoopPath = { 23 };
+        private static readonly int[] TempleConsoleChildPath = { 64, 0 };
         private const int AtlasMapCacheRefreshFrames = 20;
         private const int AtlasNodeBiomeIdOffset = 0x2CE;
         private const int AtlasNodeStatusByteOffset = 0x2CF;
@@ -110,6 +113,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Interlude = new(IntPtr.Zero, this.rootCache);
             this.Atlas = new(IntPtr.Zero, this.rootCache);
             this.AtlasSkillsPanel = new(IntPtr.Zero, this.rootCache);
+            this.TempleConsole = new(IntPtr.Zero, this.rootCache);
             this.LeftPanel = new(IntPtr.Zero, this.rootCache);
             this.RightPanel = new(IntPtr.Zero, this.rootCache);
             this.ChatParent = new(IntPtr.Zero, this.rootCache);
@@ -184,6 +188,13 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public UiElementBase AtlasSkillsPanel { get; }
 
         /// <summary>
+        ///     Gets the Temple Console panel UiElement.
+        ///     It is only <see cref="UiElementBase.IsVisible" /> while that panel is open.
+        ///     GameUi -> child 64 -> child 0.
+        /// </summary>
+        public UiElementBase TempleConsole { get; }
+
+        /// <summary>
         ///     Gets the current Atlas map nodes exposed for plugins.
         /// </summary>
         public IReadOnlyList<AtlasMapNode> AtlasMaps => this.atlasMaps;
@@ -221,6 +232,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.RightPanel.IsVisible ||
             this.WorldMapPanel.IsVisible ||
             this.AtlasSkillsPanel.IsVisible ||
+            this.TempleConsole.IsVisible ||
             this.SekhemasTrialMapPanel.IsVisible ||
             this.IsPassiveSkillTreeOpen;
 
@@ -289,8 +301,30 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         }
 
                         ImGui.Text($"Content Tokens: {map.ContentTokens.Count}");
+                        string? deliriousContent = null;
+                        foreach (var content in map.GetContentDisplayNames(includeUnmapped: true))
+                        {
+                            if (content.Contains("Delirious", StringComparison.Ordinal))
+                            {
+                                deliriousContent = content;
+                                break;
+                            }
+                        }
+
+                        var displayedDeliriousContent = false;
                         foreach (var token in map.ContentTokens)
                         {
+                            if ((token & 0xFFFFu) == 0x685Au)
+                            {
+                                if (!displayedDeliriousContent && deliriousContent != null)
+                                {
+                                    ImGui.Text($"- {deliriousContent}");
+                                    displayedDeliriousContent = true;
+                                }
+
+                                continue;
+                            }
+
                             var tokenName = AtlasMapNode.GetContentTokenName(token);
                             ImGui.Text(tokenName != null ? $"- {tokenName} (0x{token:X8})" : $"- 0x{token:X8}");
                         }
@@ -363,6 +397,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Interlude.Address = IntPtr.Zero;
             this.Atlas.Address = IntPtr.Zero;
             this.AtlasSkillsPanel.Address = IntPtr.Zero;
+            this.TempleConsole.Address = IntPtr.Zero;
             this.LeftPanel.Address = IntPtr.Zero;
             this.RightPanel.Address = IntPtr.Zero;
             this.ChatParent.Address = IntPtr.Zero;
@@ -384,8 +419,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 this.LargeMap.Address = data2.LargeMapPtr;
                 this.MiniMap.Address = data2.MiniMapPtr;
                 this.UpdateWorldMapPanelAddresses();
-                this.LeftPanel.Address = IntPtr.Zero;
-                this.RightPanel.Address = IntPtr.Zero;
+                if (this.IsCoopMode())
+                {
+                    this.LeftPanel.Address = ResolveChildAddress(this.Address, LeftPanelCoopPath);
+                    this.RightPanel.Address = ResolveChildAddress(this.Address, RightPanelCoopPath);
+                }
+                else
+                {
+                    this.LeftPanel.Address = IntPtr.Zero;
+                    this.RightPanel.Address = IntPtr.Zero;
+                }
                 this.ChatParent.Address = IntPtr.Zero;
                 this.passiveskilltreenodes.Address = IntPtr.Zero;
                 this.sekhemasTrialMapPanel.Address = IntPtr.Zero;
@@ -427,6 +470,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.Interlude.Address = ResolveChildAddress(this.Address, InterludePanelChildPath);
             this.Atlas.Address = ResolveChildAddress(this.Address, AtlasPanelChildPath);
             this.AtlasSkillsPanel.Address = ResolveChildAddress(this.Address, AtlasSkillsPanelChildPath);
+            this.TempleConsole.Address = ResolveChildAddress(this.Address, TempleConsoleChildPath);
         }
 
         private void UpdateAtlasMapData()
@@ -723,6 +767,36 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                     contentNames.Add(contentName);
                 }
             }
+        }
+
+        private bool IsCoopMode()
+        {
+            if (!Core.GHSettings.EnableControllerMode)
+            {
+                return false;
+            }
+
+            var inGameState = Core.States.InGameStateObject;
+            if (inGameState == null)
+            {
+                return false;
+            }
+
+            var currentArea = inGameState.CurrentAreaInstance;
+            if (currentArea == null || currentArea.Address == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            foreach (var entity in currentArea.AwakeEntities.Values)
+            {
+                if (entity.EntitySubtype == GameHelper.RemoteEnums.Entity.EntitySubtypes.PlayerOther)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static IntPtr ResolveChildAddress(IntPtr rootAddress, int[] childPath)

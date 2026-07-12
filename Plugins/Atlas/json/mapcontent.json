@@ -733,7 +733,7 @@
   "117": {
     "name": "Nature Shrines",
     "icon": "HybridShrineAzmeriSpirit",
-    "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated",
+    "desc": "Contains 2 additional Shrines Shrines release an Azmeri Spirit when activated",
     "translates": {
       "french": {
         "name": "Nature Shrines",
@@ -776,7 +776,7 @@
   "118": {
     "name": "Crystalised Twinning",
     "icon": "EssenceNotable1",
-    "desc": "Contains 3 additional Essence Packs\nEssence Packs have an additional Rare Monster",
+    "desc": "Contains 3 additional Essence Packs Essence Packs have an additional Rare Monster",
     "translates": {
       "french": {
         "name": "Crystalised Twinning",
@@ -819,7 +819,7 @@
   "119": {
     "name": "Indomitable Essence",
     "icon": "EssenceNotable2",
-    "desc": "Contains 3 additional Essence\nEssences transfer to a random Unique Monster on death",
+    "desc": "Contains 3 additional Essence Essences transfer to a random Unique Monster on death",
     "translates": {
       "french": {
         "name": "Indomitable Essence",
@@ -862,7 +862,7 @@
   "120": {
     "name": "Azmeri Energisation",
     "icon": "MoreWildWisps",
-    "desc": "Contains 2 additional Azmeri Spirits\nAzmeri Spirits have 1000% increased maximum Empowerment",
+    "desc": "Contains 2 additional Azmeri Spirits Azmeri Spirits have 1000% increased maximum Empowerment",
     "translates": {
       "french": {
         "name": "Azmeri Energisation",
@@ -1034,7 +1034,7 @@
   "124": {
     "name": "Twice-Locked Boxes",
     "icon": "StrongboxNotable1",
-    "desc": "Contains 3 additional Strongboxes\nStrongboxes are openable twice",
+    "desc": "Contains 3 additional Strongboxes Strongboxes are openable twice",
     "translates": {
       "french": {
         "name": "Twice-Locked Boxes",
@@ -1120,7 +1120,7 @@
   "126": {
     "name": "Large Congregation",
     "icon": "ShrinesNode",
-    "desc": "Contains 3 additional Shrines\nShrines have 2 additional packs of Worshippers",
+    "desc": "Contains 3 additional Shrines Shrines have 2 additional packs of Worshippers",
     "translates": {
       "french": {
         "name": "Large Congregation",
@@ -1163,7 +1163,7 @@
   "127": {
     "name": "Zealous Reverence",
     "icon": "BossNotableSpawnAdditionalShrine",
-    "desc": "Contains 2 additional Shrines\nElemental Shrines do not appear in area\nShrine Duration increased by 1000%",
+    "desc": "Contains 2 additional Shrines Elemental Shrines do not appear in area Shrine Duration increased by 1000%",
     "translates": {
       "french": {
         "name": "Zealous Reverence",
@@ -1249,7 +1249,7 @@
   "129": {
     "name": "Rites of the Rogues",
     "icon": "Anarchy5",
-    "desc": "Contains 2 additional Shrines\nShrines are Worshipped by a Rogue Exile",
+    "desc": "Contains 2 additional Shrines Shrines are Worshipped by a Rogue Exile",
     "translates": {
       "french": {
         "name": "Rites of the Rogues",
@@ -1292,7 +1292,7 @@
   "130": {
     "name": "Surprising Alliances",
     "icon": "AnarchyNode1",
-    "desc": "Contains 2 additional Rogue Exiles\nRogue Exiles appear in Pairs",
+    "desc": "Contains 2 additional Rogue Exiles Rogue Exiles appear in Pairs",
     "translates": {
       "french": {
         "name": "Surprising Alliances",
@@ -1335,7 +1335,7 @@
   "131": {
     "name": "Azmeri Bloodline",
     "icon": "Anarchy4",
-    "desc": "Contains an additional Rogue Exile and 2 additional Azmeri Spirits\nRogue Exiles are Possessed when a Possessed Monster is killed in Area",
+    "desc": "Contains an additional Rogue Exile and 2 additional Azmeri Spirits Rogue Exiles are Possessed when a Possessed Monster is killed in Area",
     "translates": {
       "french": {
         "name": "Azmeri Bloodline",
@@ -1378,7 +1378,7 @@
   "132": {
     "name": "Twinned Terrors",
     "icon": "StoneCircles",
-    "desc": "Contains an additional Summoning Circles\nSummoning Circles always summon an additional Boss",
+    "desc": "Contains an additional Summoning Circles Summoning Circles always summon an additional Boss",
     "translates": {
       "french": {
         "name": "Twinned Terrors",
@@ -1593,7 +1593,7 @@
   "137": {
     "name": "Simulacrum",
     "icon": "DeliriumNotable7",
-    "desc": "Contains a manifestation of Delirium that requires 100% Delirousness to enter",
+    "desc": "Contains a manifestation of Delirium",
     "translates": {
       "french": {
         "name": "Simulacrum",
@@ -1720,7 +1720,7 @@
     }
   },
   "140": {
-    "name": "Monstrous Treasure",
+    "name": "Behemoth's Bounty",
     "icon": "ExceptionalItemsWeaponsShields",
     "desc": "Map Boss drops a Unique item",
     "translates": {
@@ -1980,7 +1980,7 @@
   "146": {
     "name": "Stolen Power",
     "icon": "ScorchTheEarth",
-    "desc": "Contains an additional Summoning Circle\nSummoning Circle Bosses have increased difficulty and reward per power of enemy slain",
+    "desc": "Contains an additional Summoning Circle Summoning Circle Bosses have increased difficulty and reward per power of enemy slain",
     "translates": {
       "french": {
         "name": "Stolen Power",
@@ -2238,7 +2238,7 @@
   "152": {
     "name": "Exceptional Find",
     "icon": "ExceptionalItemsBodyArmour",
-    "desc": "1000% increased Exceptional Items found in Area\nMonster may drop anyExceptional Items",
+    "desc": "1000% increased Exceptional Items found in Area Monster may drop anyExceptional Items",
     "translates": {
       "french": {
         "name": "Exceptional Find",
@@ -2711,7 +2711,7 @@
   "163": {
     "name": "Fragment of Immortality",
     "icon": "IncreaseMinionLifeNode",
-    "desc": "Players have unlimited Revivals in area\nMonsters have 100% increased Effectiveness",
+    "desc": "Players have unlimited Revivals in area Monsters have 100% increased Effectiveness",
     "translates": {
       "french": {
         "name": "Fragment of Immortality",
@@ -2837,6 +2837,16 @@
       }
     }
   },
+  "166": {
+    "name": "Grand Expedition",
+    "icon": "ExpeditionNode1",
+    "desc": "Area contains a Grand Expedition"
+  },
+  "1000": {
+    "name": "Corruption",
+    "icon": "AtlasIconContentCorruption",
+    "desc": "This map is Corrupted."
+  },
   "1001": {
     "name": "Grand Expedition",
     "icon": "AtlasIconContentExpedition",
@@ -2879,10 +2889,5 @@
         "desc": "區域含有一個大型探險"
       }
     }
-  },
-  "1000": {
-    "name": "Corruption",
-    "icon": "AtlasIconContentCorruption",
-    "desc": "This map is Corrupted."
   }
 }

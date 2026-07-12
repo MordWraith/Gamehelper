@@ -684,7 +684,14 @@ namespace Atlas
                         "chain); tick a path to highlight its route on the atlas and draw a ray to its first " +
                         "map. Closing the window with X also clears this checkbox."));
                     if (Settings.ShowRitualPlanner)
+                    {
+                        ImGui.SetNextItemWidth(180);
+                        ImGui.SliderFloat(this.L("atlas.ritual_planner_font", "Rewards window font size"),
+                            ref Settings.RitualPlannerFontScale, 0.5f, 3.0f, "%.2fx");
+                        ImGuiHelper.ToolTip(this.L("atlas.ritual_planner_font_hint",
+                            "Text scale for the \"Head of the king Rewards\" window (1.00x = default)."));
                         this.DrawRewardWeightsTable();
+                    }
 
                     // The "Log Ritual rolls (RE)" debug toggle is HIDDEN from the UI for release;
                     // LogRitualRolls still works when set by hand in config/settings.txt.
@@ -1716,7 +1723,7 @@ namespace Atlas
                     ContentCount = GetContentCount(nodeUi),
                     ContentTokens = contentTokens,
                     BadgeContentIds = badgeIds,
-                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId),
+                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId, addr),
                     GridPosition = node.GridPosition,
                     Rating = GetMapRating(mapInfo),
                     RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(addr),
@@ -1801,7 +1808,7 @@ namespace Atlas
                     ContentCount = GetContentCount(nodeUi),
                     ContentTokens = contentTokens,
                     BadgeContentIds = badgeIds,
-                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId),
+                    ContentNames = BuildContentNames(contentTokens, badgeIds, internalId, addr),
                     GridPosition = node.GridPosition,
                     Rating = GetMapRating(mapInfo),
                     RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(addr),
@@ -1870,7 +1877,7 @@ namespace Atlas
                         ContentCount = (int)(nBadgeCount?.GetValue(map) ?? 0),
                         ContentTokens = tokens,
                         BadgeContentIds = badgeIds,
-                        ContentNames = BuildContentNames(tokens, badgeIds, internalId),
+                        ContentNames = BuildContentNames(tokens, badgeIds, internalId, nodeAddr),
                         GridPosition = (StdTuple2D<int>)(nGrid.GetValue(map) ?? default(StdTuple2D<int>)),
                         Rating = GetMapRating(mapInfo),
                         RitualSpecial = this.RitualFeaturesOn && IsRitualSpecialNode(nodeAddr),
@@ -4274,9 +4281,12 @@ namespace Atlas
             }
         }
 
-        // The planner window itself (normal-sized font — drawn outside the FontScaleScope).
+        // The planner window itself (normal-sized font — drawn outside the overlay FontScaleScope;
+        // its own text scale is the user-set RitualPlannerFontScale).
         private void DrawPlannerWindow()
         {
+            using var _ = new FontScaleScope(Math.Clamp(Settings.RitualPlannerFontScale, 0.5f, 3.0f));
+
             ImGui.SetNextWindowSize(new Vector2(760, 500), ImGuiCond.FirstUseEver);
             bool open = true;
             if (!ImGui.Begin(this.Loc.Title("atlas.planner_title", "Head of the king Rewards", "AtlasRitualPlanner"), ref open))
@@ -4783,72 +4793,100 @@ namespace Atlas
             return len > 0 ? len : 0;
         }
 
-        // Per-node content token → content name. A token is a u32 = (HIGH16 weight × 0x40)
-        // | (LOW16 effect-id): high words seen are ×1=0x0040, ×2=0x0080, ×3=0x00C0, ×5=0x0140,
-        // ×10=0x0280, ×50=0x0C80, ×100=0x1900, ×1000=0xFA00 (and 0xE700 cluster, still unknown).
-        // A content is identified by its DISTINCTIVE (usually high-weight) token; low-weight ×1/×2
-        // tokens are often shared "building-block" effects (e.g. 0x..0A8C across all Azmeri content)
-        // and are intentionally left unmapped to avoid mislabeling. So we key on the FULL u32.
-        // Built empirically by visually correlating live tokens with content (re-findings §2.10.1).
-        // Tokens confirmed STABLE across game restarts. Unknown tokens fall through to hex display.
+        // Per-node content token → content name. A token is a u32 = (weight<<6)<<16 | LOW16-id, where
+        // the LOW16 id = (Stats.dat row of the content's atlas display-stat) + 1 — the stable
+        // per-content identifier. We KEY ON LOW16 (weight-independent): the same content shows up with
+        // different weights (×1=0x0040_, ×2=0x0080_, ×3=0x00C0_, …) but always the same low16, so the
+        // old full-u32 + per-weight-variant scheme was brittle and broke every patch.
+        //
+        // GENERATED from game data (2026-07-11, build 0.5.4BHF3), rule verified in Ghidra
+        // (AtlasMapNodeWidget_ctor 140b143b0 → FUN_1423af640 = Stats-row+1):
+        //   • EndgameMapContent.Stats[0] + 1 → Name  (covers boss, essence, azmeri, strongbox, mods…)
+        //   • the 5 atlas mechanics OVERRIDE with their dedicated map_atlas_node_has_* display stat
+        //     (delirium/abyss/ritual/incursion→"Vaal Beacons"/breach)
+        //   • map_spawn_atlas_point_doodad_after_boss_kill → "(atlas skill point)" (suppressed marker)
+        // Cross-checked LIVE on 8 nodes: boss 0x4C59, Delirium 0x6871, Abyss 0x6872, Ritual 0x6873,
+        // Vaal Beacons 0x6874, Breach 0x6875, Notable Location 0x3A5E, skill-point 0x65F7 — all match.
+        //
+        // REGENERATE PER PATCH (ids are Stats rows, which drift — e.g. Vaal Beacons 0x686D→0x6874 since
+        // the previous build): re-dump EndgameMapContent.tsv + Stats.tsv and remap Stats[0]+1.
+        // Caveat: a few shared building-block stats (e.g. the Azmeri base 0x0A8C) collapse to a single
+        // name under low16 keying — a minor, rare mislabel. Unknown ids fall through to low16 hex.
         private static readonly Dictionary<uint, string> ContentTokenNames = new()
         {
-            [0x00404C57] = "Powerful Map Boss",
-            [0x004067C0] = "Grand Mirror",
-            [0x0040686A] = "Delirium",
-            [0x0040686B] = "Abyss",
-            [0x0080686B] = "Abyss",                 // weight-2 variant
-            [0x0040686C] = "Ritual",
-            [0x0040686D] = "Vaal Beacons",
-            [0x0040686E] = "Breach",
-            // Atlas influence (biome) content
-            [0x004064FF] = "Water Influence",
-            [0x00406501] = "Grass Influence",
-            [0x00406502] = "Forest Influence",
-            [0x00406503] = "Swamp Influence",
-            [0x00406504] = "Desert Influence",
-            // Azmeri / Wildwood
-            [0x19006351] = "Azmeri Bloodline",
-            [0x00400890] = "Azmeri Bloodline",
-            [0x004064DF] = "Azmeri Bloodline",
-            [0xFA00610E] = "Azmeri Energisation",
-            [0x0140_0A8C] = "Swarming Spirits",
-            [0x19006630] = "Spirit Migration",
-            [0x02806631] = "Spirit Migration",
-            // Mods / modifiers
-            [0x1900634C] = "Indomitable Essence",
-            [0x00C01247] = "Indomitable Essence",
-            [0x00C05E27] = "Scattered Stones",
-            [0x00C06349] = "Power Struggle",
-            [0x1900320E] = "Arcane Hordes",
-            [0x0C8004D8] = "Affluent Armies",
-            [0x19006202] = "Rites of the Rogues",
-            [0x00800963] = "Rites of the Rogues",
-            [0x00801282] = "Corrupted Mirage",
-            [0x0040675E] = "Glimmering Mutation",
-            [0x0040153B] = "Ancient Trove",
-            [0x00400962] = "Ancient Trove",
-            // Exceptional Find (distinctive + its 0x40-band sub-tokens)
-            [0xFA00635D] = "Exceptional Find",
-            [0x00406396] = "Exceptional Find",
-            [0x00406397] = "Exceptional Find",
-            [0x00406398] = "Exceptional Find",
-            [0x00406399] = "Exceptional Find",
-            [0x004065FF] = "Exceptional Find",
-            // Known NON-content markers (mapped so they can be hidden, see render filter):
-            [0x004065F0] = "(atlas skill point)",
-            // Shared base tokens deliberately NOT mapped (ambiguous across contents):
-            //   0x00800A8C / 0x00400A8C  — Azmeri base effect (Bloodline / Energisation / Spirit Migration)
-            //   0xE700_5F0C / _5F0D / _5F0E — common cluster, still unidentified
+            [0x04D8] = "Affluent Armies",
+            [0x0550] = "Wisdom's Teachings",
+            [0x0890] = "Fleeing Exile",
+            [0x0962] = "Monstrous Treasure",
+            [0x0963] = "Power of Faith",
+            [0x0A8C] = "Spirit Migration",
+            [0x127C] = "Behemoth's Bounty",
+            [0x1283] = "Corrupted Mirage",
+            [0x12BF] = "Fragment of Immortality",
+            [0x153C] = "Ancient Trove",
+            [0x157F] = "Headhunters",
+            [0x1867] = "Abyss",
+            [0x1C43] = "Vaal Beacons",
+            [0x2096] = "Echoes of Power",
+            [0x2D80] = "Delirium",
+            [0x3174] = "Twice-Locked Boxes",
+            [0x3210] = "Arcane Hordes",
+            [0x3252] = "Surprising Alliances",
+            [0x336E] = "Ritual",
+            [0x3411] = "Expedition",
+            [0x3898] = "Azmeri Champion",
+            [0x3A5E] = "Notable Location",
+            [0x3DCB] = "Crystalised Twinning",
+            [0x4C59] = "Powerful Map Boss",
+            [0x4E89] = "Energized Ley Lines",
+            [0x5477] = "Mirage of Riches",
+            [0x55C1] = "Immured Fury",
+            [0x592C] = "Overrun by the Abyssal",
+            [0x5DFC] = "Breach",
+            [0x5DFD] = "Irradiated",
+            [0x5E2B] = "Scattered Stones",
+            [0x60C4] = "Breach Hive",
+            [0x6112] = "Azmeri Energisation",
+            [0x613B] = "Tight Pockets",
+            [0x615A] = "Grand Mirror",     // stat-based (map_delirium_has_giga_mirror+1), no EndgameMapContent row
+            [0x61CA] = "Twinned Terrors",
+            [0x6206] = "Rites of the Rogues",
+            [0x6229] = "Stolen Power",
+            [0x622F] = "Large Congregation",
+            [0x6247] = "Nature Shrines",
+            [0x6301] = "Hunting Grounds",
+            [0x634D] = "Power Struggle",
+            [0x6350] = "Indomitable Essence",
+            [0x6355] = "Azmeri Bloodline",
+            [0x6361] = "Exceptional Find",
+            [0x64E3] = "Essence Trove",
+            [0x64E4] = "Spirit Guide",
+            [0x6504] = "Water Influence",
+            [0x6505] = "Mountain Influence",
+            [0x6506] = "Grass Influence",
+            [0x6507] = "Forest Influence",
+            [0x6508] = "Swamp Influence",
+            [0x6509] = "Desert Influence",
+            [0x653D] = "Persistent Devotion",
+            [0x65F7] = "(atlas skill point)",
+            [0x6762] = "Trialmaster's Trainee",
+            [0x6763] = "Sekhema's Student",
+            [0x6764] = "Gigantic Uprising",
+            [0x6765] = "Glimmering Mutation",
+            [0x6871] = "Delirium",
+            [0x6872] = "Abyss",
+            [0x6873] = "Ritual",
+            [0x6874] = "Vaal Beacons",
+            [0x6875] = "Breach",
         };
 
-        // Resolve a content token to its display name; unknown tokens return a hex string (low 16
-        // bits when in the 0x0040 band, otherwise the full u32) so they remain visible for labeling.
+        // Resolve a content token to its display name via its LOW16 id (see ContentTokenNames). Unknown
+        // ids return the low16 hex so they stay visible for labeling / future mapping.
         public static string ResolveContentToken(uint token)
         {
-            if (ContentTokenNames.TryGetValue(token, out var name))
+            if (ContentTokenNames.TryGetValue(token & 0xFFFFu, out var name))
                 return name;
-            return (token & 0xFFFF0000u) == 0x00400000u ? (token & 0xFFFF).ToString("X4") : token.ToString("X8");
+            return (token & 0xFFFFu).ToString("X4");
         }
 
         // Read the per-node content tokens: the StdVector<u32> living directly on the atlas-node
@@ -4904,12 +4942,53 @@ namespace Atlas
             return ids;
         }
 
+        // Raw class-2 badge content, read straight from the node widget's badge byte-vector at
+        // widget+0x368 (begin) / +0x370 (end) — a sorted std::vector<u8> of EndgameMapContent row
+        // indices (row+100 = mapcontent.json id; row 0 → id 100 = Powerful Map Boss). The game fills
+        // this from the server chunk cell-state (boss flag widget+0x32f&0x10, cell-keyed list pkt+0x400)
+        // in AtlasMapNodeWidget_ctor, so it SURVIVES on FOG / off-screen / sea nodes — unlike the UI
+        // badge widgets that GetBadgeContentIds walks (node[0][0]), which the game culls when the node
+        // isn't rendered. Reading it directly recovers boss/cell-state content the plugin otherwise
+        // misses. Verified live (0.5.4): fog node 896 = [0] and visible boss node 367 = [0], both
+        // Powerful Map Boss. Note: token-vector content (+0x350: Breach/Ritual/Vaal Beacons/…) is NOT
+        // here and is genuinely not sent for fog cells. See obsidian poe2/Atlas.md "Two content stores"
+        // + Ghidra AtlasMapNodeWidget_ctor 140b143b0 / AtlasNode_badgeVec_insert 140b345a0.
+        private const int BadgeVecBeginOffset = 0x368;
+        private const int BadgeVecEndOffset = 0x370;
+        private const int BadgeRowToContentId = 100;   // EndgameMapContent row → mapcontent.json id
+        public static uint[] GetRawBadgeContentIds(IntPtr nodeAddr)
+        {
+            if (nodeAddr == IntPtr.Zero)
+                return System.Array.Empty<uint>();
+
+            var begin = Read<IntPtr>(IntPtr.Add(nodeAddr, BadgeVecBeginOffset));
+            var end = Read<IntPtr>(IntPtr.Add(nodeAddr, BadgeVecEndOffset));
+            if (begin == IntPtr.Zero || end.ToInt64() <= begin.ToInt64())
+                return System.Array.Empty<uint>();
+
+            long count = end.ToInt64() - begin.ToInt64();   // 1 byte per badge
+            if (count <= 0 || count > MaxBadges)
+                return System.Array.Empty<uint>();
+
+            var ids = new uint[count];
+            for (int i = 0; i < count; i++)
+                ids[i] = (uint)(Read<byte>(IntPtr.Add(begin, i)) + BadgeRowToContentId);
+            return ids;
+        }
+
         // Resolve a node's tokens + badge ids into the final, de-duped display-name list. Run ONCE per
         // cache refresh (not per frame) so the per-frame draw path stays allocation-free. Non-content
         // markers (names wrapped in parentheses, e.g. atlas skill point) are filtered out here.
         private static readonly string[] NoContentNames = System.Array.Empty<string>();
-        private static string[] BuildContentNames(uint[] tokens, uint[] badges, string internalId)
+        private static string[] BuildContentNames(uint[] tokens, uint[] badges, string internalId, IntPtr nodeAddr)
         {
+            // Claimable HIDEOUT nodes are not content-bearing maps, but the game hangs a UI badge on them
+            // (node[0][0], content id low16 == 1001) that mapcontent.json maps to "Grand Expedition" — so
+            // every hideout wrongly drew the Expedition icon (verified: contentTokens/rawBadge368/mapId-
+            // derived all empty; only the 1001 badge). Hideouts never carry map content → skip entirely.
+            if (GetMapInfo(internalId)?.HasTag("hideout") == true)
+                return NoContentNames;
+
             var seen = new List<string>(4);
             void Add(string s)
             {
@@ -4923,6 +5002,11 @@ namespace Atlas
                 foreach (var t in tokens) Add(ResolveContentToken(t));
             if (badges is { Length: > 0 })
                 foreach (var b in badges) Add(ResolveBadgeContent(b));
+
+            // Raw badge byte-vector (widget+0x368): the server-cell-state content (boss, cell-keyed)
+            // that survives on fog/off-screen/sea nodes, where the UI badge widgets feeding `badges`
+            // above are culled. Merged here; the Add() dedup collapses the overlap on visible nodes.
+            foreach (var b in GetRawBadgeContentIds(nodeAddr)) Add(ResolveBadgeContent(b));
 
             // Map-type-inherent content fallback, derived from the persistent MapId (NOT the per-node
             // content widgets/vectors). The game culls a distant node's content badges AND its inline
