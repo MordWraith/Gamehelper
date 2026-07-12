@@ -1,6 +1,15 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.7",
+                         "published":  "2026-07-12T15:55:39.6013016Z",
+                         "changelog":  [
+                                           "Atlas new update (yokkenUA)",
+                                           "Core update from Gordin",
+                                           "Stashutility update (Tenchi)"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.6",
                          "published":  "2026-07-07T14:32:49.4336390Z",
                          "changelog":  [
