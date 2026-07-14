@@ -37,6 +37,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Data\WorldAreaNames.tsv" />
     <EmbeddedResource Include="Data\WorldAreaTags.json" />
+    <EmbeddedResource Include="Data\MonsterCategories.tsv" />
   </ItemGroup>
   <ItemGroup>
     <!-- Bundled fonts for the optional Universal Font mode (DejaVuSans + GNU Unifont). -->
