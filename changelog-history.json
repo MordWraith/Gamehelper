@@ -2,10 +2,9 @@
     "releases":  [
                      {
                          "version":  "1.4.7",
-                         "published":  "2026-07-13T15:49:55.5999788Z",
+                         "published":  "2026-07-14T14:55:08.6995944Z",
                          "changelog":  [
-                                           "Core update from Gordin",
-                                           "Stashutility update (Tenchi)"
+                                           "x"
                                        ]
                      },
                      {

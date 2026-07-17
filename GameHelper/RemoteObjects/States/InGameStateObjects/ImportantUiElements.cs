@@ -6,6 +6,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Numerics;
     using System.Runtime.InteropServices;
     using System.Threading.Tasks;
@@ -48,9 +49,25 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private const int AtlasNodeBiomeIdOffset = 0x2CE;
         private const int AtlasNodeStatusByteOffset = 0x2CF;
         private const int AtlasNodeMapDataOffset = 0x2A0;
+
+        // Atlas layout notes and offsets in this block are adapted from yokkenUA's Atlas plugin
+        // reverse engineering (dfb52db through afecda4), based on live-memory inspection and
+        // Ghidra analysis. Keep the behavioral notes with the offsets when updating them.
+        // The panel owns a flat vector of {unknown, source grid, target grid} connection edges.
         private const int AtlasNodeConnectionsVectorOffset = 0x5A8;
         private const int AtlasNodeContentNameOffset = 0x290;
+
+        // +0x350 is the separate vector<u32> content-token store. Token low 16 bits identify the
+        // effect/stat row and its data can change between game patches.
         private const int AtlasNodeContentVecOffset = 0x350;
+
+        // Unlike culled UI badge children, +0x368/+0x370 is a persistent sorted vector<u8> of
+        // EndgameMapContent row indices. AtlasMapNodeWidget's constructor fills it from server
+        // chunk cell-state, so it survives fog, off-screen culling, and sea nodes. The public id
+        // is row + 100. This vector does not contain the +0x350 token content.
+        private const int AtlasNodeBadgeVecBeginOffset = 0x368;
+        private const int AtlasNodeBadgeVecEndOffset = 0x370;
+        private const int AtlasNodeBadgeRowToContentId = 100;
         private const int AtlasNodeBadgeContentIdOffset = 0x188;
         private const byte AtlasNodeAccessibleBit = 0x01;
         private const byte AtlasNodeCompletedBit = 0x02;
@@ -58,7 +75,15 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private const uint IsVisibleMask = 0x800;
         private const uint AtlasCurrentNodeMarkerFp = 0x502EF3;
         private const uint AtlasMapNodeFp = 0x542EF3;
+
+        // A mist-shrouded King in the Mists node uses the normal 0x542EF3 fingerprint with bit 20
+        // cleared. Its data layout is otherwise identical, so both fingerprints must be accepted.
         private const uint AtlasMistNodeFp = 0x442EF3;
+
+        // A sea ship is an EndgameRegionActionButton in the atlas child list, not a map node.
+        // Rows are 0=Breach, 1=Forest, 2=Ocean/ship, 3=Tower. Its grid coordinate identifies the
+        // 16x16 chunk a logbook will reveal; those fogged nodes are already materialized and have
+        // maps assigned, which is why Atlas2 can preview their nodes and leylines.
         private const int AtlasRegionButtonRowPtrOffset = 0x320;
         private const int AtlasRegionButtonGridOffset = 0x330;
         private const int AtlasRegionButtonRowIndexOffset = 0x338;
@@ -657,6 +682,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             ReadAtlasContentContainer(nodeUi, out var badgeAddresses, out var contentNames, out var badgeContentIds);
             var contentTokens = ReadAtlasContentTokens(nodeAddr);
+            MergePersistentAtlasBadgeContent(nodeAddr, mapId, contentNames, badgeContentIds);
 
             return new AtlasMapNode(
                 index,
@@ -687,6 +713,57 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             var tokens = reader.ReadStdVector<uint>(tokenVector);
             return tokens.Length > 0 ? new List<uint>(tokens) : new List<uint>();
+        }
+
+        // The badge UI children are culled for fogged/off-screen nodes, but the persistent raw
+        // badge vector described above remains. Merge it into the public badge model so consumers
+        // see the same server cell-state content both on- and off-screen. yokkenUA traced its
+        // population through AtlasMapNodeWidget_ctor and AtlasNode_badgeVec_insert in Ghidra.
+        private static void MergePersistentAtlasBadgeContent(
+            IntPtr nodeAddr,
+            string mapId,
+            List<string> contentNames,
+            List<uint> badgeContentIds)
+        {
+            var tags = WorldAreaTags.GetMeta(mapId)?.Tags;
+            if (tags?.Contains("hideout", StringComparer.OrdinalIgnoreCase) == true)
+                return;
+
+            var reader = Core.Process.Handle;
+            if (reader.TryReadMemory<IntPtr>(nodeAddr + AtlasNodeBadgeVecBeginOffset, out var begin) &&
+                reader.TryReadMemory<IntPtr>(nodeAddr + AtlasNodeBadgeVecEndOffset, out var end) &&
+                begin != IntPtr.Zero)
+            {
+                var count = end.ToInt64() - begin.ToInt64();
+                if (count is > 0 and <= AtlasNodeMaxContentChildren)
+                {
+                    for (var i = 0; i < count; i++)
+                    {
+                        var id = (uint)(reader.ReadMemory<byte>(begin + i) + AtlasNodeBadgeRowToContentId);
+                        AddAtlasBadgeContent(id, contentNames, badgeContentIds);
+                    }
+                }
+            }
+
+            // Some distant sea maps have neither UI badges nor a transmitted content vector. Their
+            // content is intrinsic to the persistent map id and can still be recovered reliably.
+            if (mapId.StartsWith("ExpeditionSubArea", StringComparison.OrdinalIgnoreCase))
+                AddAtlasBadgeContent(100, contentNames, badgeContentIds); // Powerful Map Boss
+            else if (mapId.StartsWith("ExpeditionLogBook", StringComparison.OrdinalIgnoreCase))
+                AddAtlasBadgeContent(166, contentNames, badgeContentIds); // Grand Expedition
+        }
+
+        private static void AddAtlasBadgeContent(
+            uint id,
+            List<string> contentNames,
+            List<uint> badgeContentIds)
+        {
+            if (!badgeContentIds.Any(existing => (existing & 0xFFFFu) == id))
+                badgeContentIds.Add(id);
+
+            var name = AtlasMapNode.GetBadgeContentName(id);
+            if (!string.IsNullOrWhiteSpace(name) && !contentNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+                contentNames.Add(name);
         }
 
         private static Dictionary<StdTuple2D<int>, List<StdTuple2D<int>>> ReadAtlasConnections(IntPtr atlasAddress)
