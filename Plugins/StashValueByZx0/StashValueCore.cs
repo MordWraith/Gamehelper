@@ -30,7 +30,6 @@ namespace StashValue
     public sealed class StashValueCore : PCore<StashValueSettings>
     {
         private object? handleObj;
-        private object? uiParentsObj;
         private MethodInfo? readUiOffsetMethod;
         private MethodInfo? readStdVectorMethod;
         private MethodInfo? readIntPtrMethod;
@@ -63,7 +62,6 @@ namespace StashValue
         public override void OnDisable()
         {
             this.handleObj = null;
-            this.uiParentsObj = null;
             this.readUiOffsetMethod = null;
             this.readStdVectorMethod = null;
             this.readIntPtrMethod = null;
@@ -235,12 +233,12 @@ namespace StashValue
 
             if (gameUi.LeftPanel.IsVisible)
             {
-                leftSlots = this.ScanSlots(gameUi.LeftPanel.Address, out leftHovered);
+                leftSlots = this.ScanSlots(gameUi.LeftPanel.Address, gameUi.LeftPanel.Position, gameUi.LeftPanel.Size, out leftHovered);
             }
 
             if (gameUi.RightPanel.IsVisible)
             {
-                rightSlots = this.ScanSlots(gameUi.RightPanel.Address, out rightHovered);
+                rightSlots = this.ScanSlots(gameUi.RightPanel.Address, gameUi.RightPanel.Position, gameUi.RightPanel.Size, out rightHovered);
             }
 
             var globalAnyHovered = leftHovered || rightHovered;
@@ -282,24 +280,21 @@ namespace StashValue
             public string ValueText;
         }
 
-        private List<SlotInfo> ScanSlots(IntPtr panelAddr, out bool panelHovered)
+        private List<SlotInfo> ScanSlots(IntPtr panelAddr, Vector2 panelPos, Vector2 panelSize, out bool panelHovered)
         {
             panelHovered = false;
-            var slots = new List<SlotInfo>();
-            if (panelAddr == IntPtr.Zero) return slots;
+            var candidates = new List<SlotInfo>();
+            if (panelAddr == IntPtr.Zero) return candidates;
 
-            var queue = new Queue<IntPtr>();
+            var queue = new Queue<(IntPtr Address, IntPtr Parent)>();
             var visited = new HashSet<IntPtr>();
-            queue.Enqueue(panelAddr);
-
-            this.uiParentsObj ??= PluginUiElementReflection.CreateParents();
-            if (this.uiParentsObj == null) return slots;
+            queue.Enqueue((panelAddr, IntPtr.Zero));
 
             var mousePos = ImGui.GetIO().MousePos;
 
             while (queue.Count > 0 && visited.Count < 5000)
             {
-                var el = queue.Dequeue();
+                var (el, parent) = queue.Dequeue();
                 if (el == IntPtr.Zero || !visited.Add(el)) continue;
 
                 if (this.readUiOffsetMethod!.Invoke(this.handleObj, new object[] { el }) is not UiElementBaseOffset off) continue;
@@ -307,7 +302,7 @@ namespace StashValue
 
                 if (this.readStdVectorMethod!.Invoke(this.handleObj, new object[] { off.ChildrensPtr }) is IntPtr[] kids)
                 {
-                    foreach (var k in kids) queue.Enqueue(k);
+                    foreach (var k in kids) queue.Enqueue((k, el));
                 }
 
                 // Check if it's an item slot UI element
@@ -324,31 +319,56 @@ namespace StashValue
 
                 try
                 {
-                    var uiElement = PluginUiElementReflection.CreateUiElement(el, this.uiParentsObj);
-                    if (uiElement != null)
+                    if (PluginUiElementReflection.TryGetAbsoluteRect(el, out var pos, out var size))
                     {
-                        var pos = (Vector2)PluginUiElementReflection.UiElementPositionProperty!.GetValue(uiElement)!;
-                        var size = (Vector2)PluginUiElementReflection.UiElementSizeProperty!.GetValue(uiElement)!;
-                        if (pos != Vector2.Zero && size.X > 0f)
+                        // Premium stash tabs often store the item pointer on an inner
+                        // bookkeeping element. Its immediate parent is the visible cell.
+                        if (parent != IntPtr.Zero &&
+                            PluginUiElementReflection.TryGetAbsoluteRect(parent, out var parentPos, out var parentSize) &&
+                            parentSize.X >= 20f && parentSize.Y >= 20f &&
+                            ((parentSize.X <= 160f && parentSize.Y <= 256f) ||
+                             (parentSize.X <= 256f && parentSize.Y <= 160f)))
                         {
-                            // Trigger hover check if mouse is on this item slot (even if below threshold, since it has a tooltip)
-                            if (mousePos.X >= pos.X && mousePos.X <= pos.X + size.X &&
-                                mousePos.Y >= pos.Y && mousePos.Y <= pos.Y + size.Y)
-                            {
-                                panelHovered = true;
-                            }
+                            pos = parentPos;
+                            size = parentSize;
+                        }
 
-                            // Cache the display price text if it passes pricing threshold
-                            if (this.TryPriceItem(item, out var valueText))
-                            {
-                                slots.Add(new SlotInfo { El = el, Ptr = ptr, Pos = pos, Size = size, ValueText = valueText });
-                            }
+                        // Cache the display price text if it passes pricing threshold.
+                        if (this.TryPriceItem(item, out var valueText))
+                        {
+                            candidates.Add(new SlotInfo { El = el, Ptr = ptr, Pos = pos, Size = size, ValueText = valueText });
                         }
                     }
                 }
                 catch
                 {
                 }
+            }
+
+            // Premium tabs expose ghost copies of the same item. Keep the copy
+            // physically located inside the open panel, then deduplicate by item.
+            var panelMax = panelPos + panelSize;
+            var slots = new List<SlotInfo>();
+            foreach (var group in candidates.GroupBy(x => x.Ptr))
+            {
+                var slot = group.FirstOrDefault(x =>
+                {
+                    var center = x.Pos + (x.Size * 0.5f);
+                    return center.X >= panelPos.X && center.X <= panelMax.X &&
+                           center.Y >= panelPos.Y && center.Y <= panelMax.Y;
+                });
+                if (slot.Ptr == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                if (mousePos.X >= slot.Pos.X && mousePos.X <= slot.Pos.X + slot.Size.X &&
+                    mousePos.Y >= slot.Pos.Y && mousePos.Y <= slot.Pos.Y + slot.Size.Y)
+                {
+                    panelHovered = true;
+                }
+
+                slots.Add(slot);
             }
 
             return slots;
