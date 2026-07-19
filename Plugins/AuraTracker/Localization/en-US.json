@@ -47,7 +47,7 @@
   "settings.max_list_height": "Max List Height (px, 0 = overlay)",
   "settings.min_rarity": "Min Rarity To Show",
   "settings.only_beasts": "Only beasts (tamable)",
-  "settings.only_beasts.tooltip": "Wild / tamable beast monsters (Spirit Walker, Tame Beast). Detected via monster path (Beasts, WildBeast) or wild-beast stats.",
+  "settings.only_beasts.tooltip": "Wild / tamable beast monsters (Spirit Walker, Tame Beast). Matches the game's Beast monster category.",
   "settings.panel_background_color": "Panel Background Color",
   "settings.panel_border_color": "Panel Border Color",
   "settings.panel_corner_radius": "Panel Corner Radius",
