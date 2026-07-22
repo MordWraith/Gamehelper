@@ -1,6 +1,13 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.4.8",
+                         "published":  "2026-07-17T13:25:49.2293818Z",
+                         "changelog":  [
+                                           "Gordin Sync (New offsets)"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.7",
                          "published":  "2026-07-14T14:55:08.6995944Z",
                          "changelog":  [

@@ -90,6 +90,7 @@ namespace PlayerBuffBar
             ["haste"] = "SkillIcons/auraspeed.webp",
             ["charged_staff"] = "skillicons/4k/monkchargedstaff.webp",
             ["charged_staff_stack"] = "skillicons/4k/monkchargedstaff.webp",
+            ["spear_sandstorm"] = "skillicons/4k/huntresswhirlingslash.webp",
             ["power_charge"] = "BuffIcons/chargeint.webp",
             ["frenzy_charge"] = "BuffIcons/chargedex.webp",
             ["endurance_charge"] = "BuffIcons/chargestr.webp",
@@ -187,6 +188,40 @@ namespace PlayerBuffBar
 
             pageSlug = PrettyPageSlug(trimmed);
             return !string.IsNullOrWhiteSpace(pageSlug);
+        }
+
+        internal static bool TryResolveDirectIcon(
+            string watchId,
+            IReadOnlyDictionary<string, string> directIcons,
+            out string relativeIconPath)
+        {
+            relativeIconPath = string.Empty;
+            if (string.IsNullOrWhiteSpace(watchId))
+            {
+                return false;
+            }
+
+            var trimmed = watchId.Trim();
+            if (directIcons.TryGetValue(trimmed, out var exact) && !string.IsNullOrWhiteSpace(exact))
+            {
+                relativeIconPath = exact;
+                return true;
+            }
+
+            // Buff keys can include the active skill-gem id (for example,
+            // spear_sandstorm_77). Use the most-specific matching base override.
+            var match = directIcons
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Value) &&
+                    (ContainsInsensitive(trimmed, kv.Key) || ContainsInsensitive(kv.Key, trimmed)))
+                .OrderByDescending(kv => kv.Key.Length)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(match.Key))
+            {
+                relativeIconPath = match.Value;
+                return true;
+            }
+
+            return false;
         }
 
         internal static string BuildPageUrl(string pageSlug) => Poe2DbPageBase + Uri.EscapeDataString(pageSlug);

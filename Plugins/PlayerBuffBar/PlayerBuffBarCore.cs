@@ -345,11 +345,6 @@
 
             var positioningDummyActive = this.Settings.ResourceShowPositionDummy || this.AnyBuffBarPositionDummyActive();
 
-            if (Core.IsSettingsMenuOpen && !positioningDummyActive)
-            {
-                return;
-            }
-
             if (gameState == GameStateTypes.EscapeState && !positioningDummyActive)
             {
                 return;
@@ -1462,7 +1457,7 @@
             return opened;
         }
 
-        /// <summary>Above map overlays (e.g. Wraedar); hidden while GameHelper settings are open.</summary>
+        /// <summary>Above map overlays (e.g. Wraedar).</summary>
         private static ImDrawListPtr GetHudDrawList() => ImGui.GetForegroundDrawList();
 
         /// <summary>PoE or GameHelper overlay/settings focused â€” not e.g. Discord.</summary>
