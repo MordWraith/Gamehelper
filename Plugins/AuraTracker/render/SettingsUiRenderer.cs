@@ -52,7 +52,7 @@ internal sealed class SettingsUiRenderer
             {
                 ImGui.SetTooltip(
                     text.T("settings.only_beasts.tooltip", "Wild / tamable beast monsters (Spirit Walker, Tame Beast). " +
-                    "Detected via monster path (Beasts, WildBeast) or wild-beast stats."));
+                    "Matches the game's Beast monster category."));
             }
 
             ImGui.Spacing();
