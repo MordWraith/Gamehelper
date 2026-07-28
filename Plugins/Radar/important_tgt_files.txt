@@ -287,16 +287,16 @@
     "Metadata/Terrain/Islands/Tiles/Island/JourneysEnd/BossArena_02.tdtx:0-y:0": "Boss - Captain Hartlin"
   },
   "G4_3_1": {
-    "Metadata/Terrain/Islands/Tiles/TropicalIsland/Features/Shark_Arena_02.tdtx:0-y:0": "Boss - Shark",
-    "Metadata/Terrain/Islands/Tiles/TropicalIsland/TropicalCliff/TropicalCliff_Cv_Cove_01.tdtx:0-y:0": "Singing Caverns",
-    "Metadata/Terrain/Islands/Tiles/TropicalIsland/Features/TropicalCoastCliff_CrabCave_02.tdtx:0-y:0": "Crab Rare",
+    "Metadata/Terrain/Islands/Tiles/TropicalIsland/Features/Shark_Arena_02.tdtx:6-y:9": "Boss - Shark",
+    "Metadata/Terrain/Islands/Tiles/TropicalIsland/TropicalCliff/TropicalCliff_Cv_Cove_01.tdtx:6-y:5": "Singing Caverns",
+    "Metadata/Terrain/Islands/Tiles/TropicalIsland/Features/TropicalCoastCliff_CrabCave_02.tdtx:3-y:1": "Crab Rare",
     "Metadata/Terrain/Islands/Tiles/TropicalIsland/Features/TropicalCoastCliff_CrabCave_01.tdtx:0-y:0": "Singing Caverns"
   },
   "G4_3_2": {
-    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/SirenDonut_01.tdtx:0-y:0": "Boss - Siren",
-    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/CoveTreasure_01.tdtx:0-y:0": "Quest - Humming Pearl",
-    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/EggRoom_WW_01.tdtx:0-y:0": "Egg Room",
-    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/SirenCoveEntrance_01.tdtx:0-y:0": "Whakapanu Island"
+    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/SirenDonut_01.tdtx:7-y:11": "Boss - Siren",
+    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/CoveTreasure_01.tdtx:3-y:3": "Quest - Humming Pearl",
+    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/EggRoom_WW_01.tdtx:4-y:4": "Egg Room",
+    "Metadata/Terrain/Islands/Tiles/CoralDungeon/Features/SirenCoveEntrance_01.tdtx:4-y:4": "Whakapanu Island"
   },
   "G4_4_1": {
     "Metadata/Terrain/Islands/Tiles/CoralDungeon/Thickwall/CoralSinkhole/Arena/SudokuArena_03.tdtx:20-y:7": "Pay respects at end",
