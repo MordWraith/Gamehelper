@@ -875,8 +875,10 @@ namespace Radar
 
         private void AddDefaultDeliriumIcons(string iconPathName)
         {
-            this.DeliriumIcons.TryAdd("Delirium Bomb", new IconPicker(iconPathName, 5, 0, 30, IconSize));
-            this.DeliriumIcons.TryAdd("Delirium Spawner", new IconPicker(iconPathName, 6, 0, 30, IconSize));
+            this.DeliriumIcons.TryAdd("Delirium Bomb", new IconPicker(iconPathName, 5, 0, 40, IconSize));
+            this.DeliriumIcons.TryAdd("Delirium Spawner", new IconPicker(iconPathName, 6, 71, 40, IconSize));
+            this.DeliriumIcons.TryAdd("Loathsome Mire", new IconPicker(iconPathName, 8, 71, 40, IconSize,
+                showPath: true));
         }
 
         private void AddDefaultExpeditionIcons(string iconPathName)

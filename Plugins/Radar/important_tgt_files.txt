@@ -321,8 +321,8 @@
     "Metadata/Terrain/Islands/Tiles/Prison/Features/LowerPrison/Warden_Office.tdtx:2-y:3": "Warden office"
   },
   "G4_8b": {
-    "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/TwilightArena.tdtx:0-y:0": "Boss",
-    "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/TwilightLighthouse.tdtx:0-y:0": "Bell - Currency",
+    "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/TwilightArena.tdtx:4-y:5": "Boss",
+    "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/TwilightLighthouse.tdtx:13-y:9": "Bell - Currency",
     "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/TwilightOverlook.tdtx:3-y:8": "Bell (Rewards)",
     "Metadata/Terrain/Islands/Tiles/TwilightIsland/Feature/bell_feature_01.tdtx:1-y:1": "Bell (Rewards)"
   },

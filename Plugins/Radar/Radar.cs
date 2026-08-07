@@ -33,6 +33,8 @@ namespace Radar
     public sealed class Radar : PCore<RadarSettings>
     {
         private const string TempleTgtPrefix = "Metadata/Terrain/Leagues/Incursion/Tiles/Features/Waygates/WaygateDevice";
+        private const string LoathsomeMirePath =
+            "Metadata/MiscellaneousObjects/Delirium/DeliriumShardSeethingChyme";
 
         // All campaign rune terrain tiles (e.g. GrimTangle_Runestones, and other
         // terrain variants) live under this folder; matching the prefix combines them all.
@@ -1077,6 +1079,7 @@ namespace Radar
             foreach (var entity in currentAreaInstance.AwakeEntities)
             {
                 var entityValue = entity.Value;
+                var isLoathsomeMire = entityValue.Path.StartsWith(LoathsomeMirePath, StringComparison.Ordinal);
                 var isAzmeriSpiritCandidate = entityValue.Path.StartsWith(
                     RadarSettings.AzmeriSpiritPathPrefix,
                     StringComparison.Ordinal);
@@ -1091,7 +1094,9 @@ namespace Radar
                     continue;
                 }
 
-                if (entityValue.EntityState == EntityStates.Useless && !hasAzmeriMinimapIcon)
+                if (entityValue.EntityState == EntityStates.Useless &&
+                    !hasAzmeriMinimapIcon &&
+                    !isLoathsomeMire)
                 {
                     continue;
                 }
@@ -1145,6 +1150,12 @@ namespace Radar
                 if (azmeriSpiritIcon != null)
                 {
                     DrawIcon(azmeriSpiritIcon);
+                    continue;
+                }
+
+                if (isLoathsomeMire)
+                {
+                    DrawIcon(deliriumIcons["Loathsome Mire"]);
                     continue;
                 }
 
@@ -1517,12 +1528,13 @@ namespace Radar
             foreach (var entity in currentAreaInstance.AwakeEntities)
             {
                 var ev = entity.Value;
+                var isLoathsomeMire = ev.Path.StartsWith(LoathsomeMirePath, StringComparison.Ordinal);
                 if (this.Settings.HideOutsideNetworkBubble && !ev.IsValid)
                 {
                     continue;
                 }
 
-                if (ev.EntityState == EntityStates.Useless)
+                if (ev.EntityState == EntityStates.Useless && !isLoathsomeMire)
                 {
                     continue;
                 }
@@ -1534,6 +1546,12 @@ namespace Radar
 
                 var ePos = new Vector2(er.GridPosition.X, er.GridPosition.Y);
                 var eId = entity.Key.id;
+
+                if (isLoathsomeMire)
+                {
+                    TryAdd(eId, ePos, this.Settings.DeliriumIcons["Loathsome Mire"]);
+                    continue;
+                }
 
                 switch (ev.EntityType)
                 {
