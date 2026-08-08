@@ -35,6 +35,8 @@ namespace Radar
         private const string TempleTgtPrefix = "Metadata/Terrain/Leagues/Incursion/Tiles/Features/Waygates/WaygateDevice";
         private const string LoathsomeMirePath =
             "Metadata/MiscellaneousObjects/Delirium/DeliriumShardSeethingChyme";
+        private const string DeliriumShardBossPath =
+            "Metadata/MiscellaneousObjects/Delirium/DeliriumShardBoss";
 
         // All campaign rune terrain tiles (e.g. GrimTangle_Runestones, and other
         // terrain variants) live under this folder; matching the prefix combines them all.
@@ -93,9 +95,6 @@ namespace Radar
         private readonly Dictionary<string, HashSet<string>> reachedPathKeysByArea = new();
         private HashSet<string> reachedPathKeys = new();
 
-        // Abyss cracks/pit remembered per map instance (keyed by AreaHash, then by a stable
-        // position+type key). Fed by both the awake-entity pass and a throttled background scan
-        // of the game's larger-range SleepingEntities map, so the abyss line persists once seen.
         // Static "tracked" map objects (Abyss cracks/pit, specific Strongboxes) remembered per map
         // instance. Fed by the awake-entity pass and a throttled scan of the game's larger-range
         // SleepingEntities map, so they appear well beyond the network bubble and persist once seen.
@@ -237,18 +236,15 @@ namespace Radar
             ImGui.DragFloat(this.PluginText.Label("settings.runestone_socket_x_offset", "Runestone Socket X Offset", "RadarRunestoneSocketXOffset"), ref this.Settings.RunestoneSocketOffsetX, 0.5f);
             ImGui.DragFloat(this.PluginText.Label("settings.runestone_socket_y_offset", "Runestone Socket Y Offset", "RadarRunestoneSocketYOffset"), ref this.Settings.RunestoneSocketOffsetY, 0.5f);
             ImGuiHelper.ToolTip(this.PluginText.T("settings.runestone_socket_offset.tooltip", "Screen-pixel offset for the Runestone socket-count number."));
-            if (this.Settings.HideReachedPaths || this.Settings.HideRunestoneSocketsWhenNear)
-            {
-                ImGui.DragFloat(this.PluginText.Label("settings.reached_distance", "Reached Distance", "RadarReachedDistance"), ref this.Settings.ReachedPathDistance, 1f, 1f, 500f, "%.0f");
-                ImGuiHelper.ToolTip(this.PluginText.T("settings.reached_distance.tooltip", "Grid distance at which a path target / runestone counts as reached."));
-            }
+            ImGui.DragFloat(this.PluginText.Label("settings.reached_distance", "Reached Distance", "RadarReachedDistance"), ref this.Settings.ReachedPathDistance, 1f, 1f, 500f, "%.0f");
+            ImGuiHelper.ToolTip(this.PluginText.T("settings.reached_distance.tooltip", "Grid distance at which a path target, Abyss node, or runestone counts as reached."));
 
             if (ImGui.Button(this.PluginText.Label("button.reset_reached_paths", "Reset Reached Paths", "RadarResetReachedPaths")))
             {
                 this.reachedPathKeys.Clear();
             }
 
-            ImGuiHelper.ToolTip(this.PluginText.T("button.reset_reached_paths.tooltip", "Show all paths and runestone socket counts for the current map again."));
+            ImGuiHelper.ToolTip(this.PluginText.T("button.reset_reached_paths.tooltip", "Show all paths, Abyss nodes, and runestone socket counts for the current map again."));
             if (ImGui.CollapsingHeader(this.PluginText.Title("section.icons_setting", "Icons Setting", "RadarIconsSetting")))
             {
                 this.Settings.DrawIconsSettingToImGui(
@@ -1045,6 +1041,9 @@ namespace Radar
             var clipMax = clipMin + ImGui.GetWindowSize();
             var clipPadding = iconSizeMultiplier * 4f;
             var pPos = trackingPos;
+            var reachedCheckPos = currentAreaInstance.Player.TryGetComponent<Render>(out var localPlayerRender)
+                ? new Vector2(localPlayerRender.GridPosition.X, localPlayerRender.GridPosition.Y)
+                : pPos;
 
             var baseIcons = this.Settings.BaseIcons;
             var azmeriSpiritIcons = this.Settings.AzmeriSpiritIcons;
@@ -1080,6 +1079,7 @@ namespace Radar
             {
                 var entityValue = entity.Value;
                 var isLoathsomeMire = entityValue.Path.StartsWith(LoathsomeMirePath, StringComparison.Ordinal);
+                var isDeliriumShardBoss = entityValue.Path.StartsWith(DeliriumShardBossPath, StringComparison.Ordinal);
                 var isAzmeriSpiritCandidate = entityValue.Path.StartsWith(
                     RadarSettings.AzmeriSpiritPathPrefix,
                     StringComparison.Ordinal);
@@ -1096,7 +1096,8 @@ namespace Radar
 
                 if (entityValue.EntityState == EntityStates.Useless &&
                     !hasAzmeriMinimapIcon &&
-                    !isLoathsomeMire)
+                    !isLoathsomeMire &&
+                    !isDeliriumShardBoss)
                 {
                     continue;
                 }
@@ -1156,6 +1157,12 @@ namespace Radar
                 if (isLoathsomeMire)
                 {
                     DrawIcon(deliriumIcons["Loathsome Mire"]);
+                    continue;
+                }
+
+                if (isDeliriumShardBoss)
+                {
+                    DrawIcon(deliriumIcons["Delirium Shard Boss"]);
                     continue;
                 }
 
@@ -1475,6 +1482,13 @@ namespace Radar
                     continue;
                 }
 
+                // Abyss nodes are cached after their entities disappear, so retire their stable
+                // per-map key once reached instead of drawing the stale cached icon forever.
+                if (category == "abyss" && this.IsAbyssNodeReached(node.Key, reachedCheckPos, gridPos))
+                {
+                    continue;
+                }
+
                 var fpos = Helper.DeltaInWorldToMapDelta(gridPos - pPos, height - trackingHeight);
                 var sp = mapCenter + fpos;
                 if (sp.X < clipMin.X - clipPadding || sp.X > clipMax.X + clipPadding ||
@@ -1529,12 +1543,13 @@ namespace Radar
             {
                 var ev = entity.Value;
                 var isLoathsomeMire = ev.Path.StartsWith(LoathsomeMirePath, StringComparison.Ordinal);
+                var isDeliriumShardBoss = ev.Path.StartsWith(DeliriumShardBossPath, StringComparison.Ordinal);
                 if (this.Settings.HideOutsideNetworkBubble && !ev.IsValid)
                 {
                     continue;
                 }
 
-                if (ev.EntityState == EntityStates.Useless && !isLoathsomeMire)
+                if (ev.EntityState == EntityStates.Useless && !isLoathsomeMire && !isDeliriumShardBoss)
                 {
                     continue;
                 }
@@ -1550,6 +1565,12 @@ namespace Radar
                 if (isLoathsomeMire)
                 {
                     TryAdd(eId, ePos, this.Settings.DeliriumIcons["Loathsome Mire"]);
+                    continue;
+                }
+
+                if (isDeliriumShardBoss)
+                {
+                    TryAdd(eId, ePos, this.Settings.DeliriumIcons["Delirium Shard Boss"]);
                     continue;
                 }
 
@@ -1822,6 +1843,13 @@ namespace Radar
                 var (gridPos, _, category, iconKey) = node.Value;
                 var icon = this.ResolveTrackedIcon(category, iconKey);
                 if (icon == null || !icon.ShowPath || !icon.Draw)
+                {
+                    continue;
+                }
+
+                // Unlike general path hiding, a reached Abyss node is fully retired: neither
+                // its cached icon nor its path should return during this map instance.
+                if (category == "abyss" && this.IsAbyssNodeReached(node.Key, pPos, gridPos))
                 {
                     continue;
                 }
@@ -2201,6 +2229,29 @@ namespace Radar
         /// </summary>
         private bool IsReached(string key) =>
             this.Settings.HideReachedPaths && this.reachedPathKeys.Contains(key);
+
+        /// <summary>
+        /// Whether a cached Abyss crack or pit has been reached. Abyss entities can disappear
+        /// while their tracked nodes intentionally remain cached, so this uses the node's stable
+        /// position key and the per-area reached set to keep both its icon and path retired after
+        /// leaving and returning to the same map instance.
+        /// </summary>
+        private bool IsAbyssNodeReached(string key, Vector2 playerPos, Vector2 nodePos)
+        {
+            if (this.reachedPathKeys.Contains(key))
+            {
+                return true;
+            }
+
+            var threshold = this.Settings.ReachedPathDistance;
+            if (Vector2.DistanceSquared(playerPos, nodePos) > threshold * threshold)
+            {
+                return false;
+            }
+
+            this.reachedPathKeys.Add(key);
+            return true;
+        }
 
         /// <summary>
         /// Whether a Runestone Encounter's socket-count label should be hidden because the player

@@ -22,6 +22,7 @@
   "settings.highlight_color": "Цвет выделения",
   "settings.highlight_font_size": "Выделить размер шрифта",
   "settings.highlight_from": "Выделить из (бывшего)",
+  "settings.hide_when_game_unfocused": "Скрывать значения, когда игра не в фокусе",
   "settings.jitter_filter": "Фильтр джиттера (ниже = сильнее, без задержки)",
   "settings.league": "Лига",
   "settings.min_value_to_show": "Минимальное значение для отображения (например)",

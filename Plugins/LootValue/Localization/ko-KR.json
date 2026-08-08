@@ -22,6 +22,7 @@
   "settings.highlight_color": "하이라이트 색상",
   "settings.highlight_font_size": "강조표시 글꼴 크기",
   "settings.highlight_from": "(예)에서 하이라이트",
+  "settings.hide_when_game_unfocused": "게임이 포커스되지 않았을 때 값 숨기기",
   "settings.jitter_filter": "지터 필터(낮음=강함, 지연 없음)",
   "settings.league": "리그",
   "settings.min_value_to_show": "표시할 최소값(예)",

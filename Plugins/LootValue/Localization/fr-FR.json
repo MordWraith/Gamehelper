@@ -22,6 +22,7 @@
   "settings.highlight_color": "Couleur de surbrillance",
   "settings.highlight_font_size": "Mettre en surbrillance la taille de la police",
   "settings.highlight_from": "Highlight de (ex)",
+  "settings.hide_when_game_unfocused": "Masquer les valeurs lorsque le jeu n’est pas au premier plan",
   "settings.jitter_filter": "Filtre de gigue (inférieur = plus fort, pas de décalage)",
   "settings.league": "Ligue",
   "settings.min_value_to_show": "Valeur minimale à afficher (ex)",

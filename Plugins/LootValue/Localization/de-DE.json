@@ -22,6 +22,7 @@
   "settings.highlight_color": "Farbe hervorheben",
   "settings.highlight_font_size": "Schriftgröße hervorheben",
   "settings.highlight_from": "Highlight von (ex)",
+  "settings.hide_when_game_unfocused": "Werte ausblenden, wenn das Spiel nicht im Vordergrund ist",
   "settings.jitter_filter": "Jitter-Filter (geringer = stärker, keine Verzögerung)",
   "settings.league": "Liga",
   "settings.min_value_to_show": "Mindestwert, der angezeigt werden soll (z. B.)",

@@ -54,6 +54,8 @@ namespace GameHelper.Plugin
 
         /// <summary>
         ///     Draws the plugin UI. This function isn't called when the plugin is disabled.
+        ///     HUD primitives should use ImGui.GetBackgroundDrawList so GameHelper management
+        ///     windows remain visible above plugin overlays.
         /// </summary>
         public void DrawUI();
 

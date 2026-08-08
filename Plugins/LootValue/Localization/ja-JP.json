@@ -22,6 +22,7 @@
   "settings.highlight_color": "ハイライトカラー",
   "settings.highlight_font_size": "ハイライトのフォントサイズ",
   "settings.highlight_from": "ハイライト（例）",
+  "settings.hide_when_game_unfocused": "ゲームが非アクティブのとき値を非表示にする",
   "settings.jitter_filter": "ジッターフィルター (低いほど強力、遅延なし)",
   "settings.league": "リーグ",
   "settings.min_value_to_show": "表示する最小値 (例)",

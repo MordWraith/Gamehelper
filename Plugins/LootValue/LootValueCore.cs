@@ -173,6 +173,7 @@ namespace LootValue
             ImGui.Checkbox(this.PluginText.Label("settings.show_stash_overlay", "Show value over stash items", "LootValueShowStashOverlay"), ref this.Settings.ShowStashOverlay);
             ImGui.Checkbox(this.PluginText.Label("settings.show_inventory_overlay", "Show value over inventory items", "LootValueShowInventoryOverlay"), ref this.Settings.ShowInventoryOverlay);
             ImGui.Checkbox(this.PluginText.Label("settings.show_currency_exchange_overlay", "Show owned-stack values in Currency Exchange", "LootValueShowCurrencyExchangeOverlay"), ref this.Settings.ShowCurrencyExchangeOverlay);
+            ImGui.Checkbox(this.PluginText.Label("settings.hide_when_game_unfocused", "Hide values when game is not focused", "LootValueHideWhenGameUnfocused"), ref this.Settings.HideWhenGameInBackground);
             ImGui.Checkbox(this.PluginText.Label("settings.hide_slot_prices_on_hover", "Hide stash/inventory values while hovering an item", "LootValueHideSlotPricesOnHover"), ref this.Settings.HideSlotPricesOnHover);
             ImGui.Checkbox(this.PluginText.Label("settings.reveal_unidentified_uniques", "Reveal unidentified uniques (by art)", "LootValueRevealUnidentifiedUniques"), ref this.Settings.RevealUnidentifiedUniques);
             ImGui.Checkbox(this.PluginText.Label("settings.diagnostics_window", "Diagnostics window", "LootValueDiagnosticsWindow"), ref this.Settings.DiagnosticsMode);
@@ -251,6 +252,11 @@ namespace LootValue
                 this.DrawDiagnosticsWindow();
             }
 
+            if (this.Settings.HideWhenGameInBackground && !Core.Process.Foreground)
+            {
+                return;
+            }
+
             var now = DateTime.UtcNow;
             if (this.Settings.ShowOverlay && this.Settings.AnchorToLootTags)
             {
@@ -324,7 +330,7 @@ namespace LootValue
         {
             if (this.cachedLabels.Count == 0) return;
 
-            var fg = ImGui.GetForegroundDrawList();
+            var fg = ImGui.GetBackgroundDrawList();
             var font = ImGui.GetFont();
             var baseSize = ImGui.GetFontSize();
             var world = Core.States.InGameStateObject.CurrentWorldInstance;
@@ -494,7 +500,7 @@ namespace LootValue
             this.uiParentsObj ??= PluginUiElementReflection.CreateParents();
             if (this.uiParentsObj == null) return;
 
-            var fg = ImGui.GetForegroundDrawList();
+            var fg = ImGui.GetBackgroundDrawList();
             var font = ImGui.GetFont();
             var baseSize = ImGui.GetFontSize();
 
@@ -583,7 +589,7 @@ namespace LootValue
             }
 
             if (this.cachedExchangeLabels.Count == 0) return;
-            var foreground = ImGui.GetForegroundDrawList();
+            var foreground = ImGui.GetBackgroundDrawList();
             var font = ImGui.GetFont();
             var baseSize = ImGui.GetFontSize();
             foreach (var label in this.cachedExchangeLabels)
@@ -1061,7 +1067,7 @@ namespace LootValue
             bool hidePrices,
             ScrollFrameState scroll)
         {
-            var foreground = ImGui.GetForegroundDrawList();
+            var foreground = ImGui.GetBackgroundDrawList();
             var font = ImGui.GetFont();
             var fontSize = ImGui.GetFontSize() * this.Settings.SlotFontScale;
             var color = ImGui.ColorConvertFloat4ToU32(this.Settings.TextColor);

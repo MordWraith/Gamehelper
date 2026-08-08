@@ -108,7 +108,7 @@ namespace GameHelper.Ui
         /// <summary>Initializes the co-routines.</summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(RenderCoroutine());
+            CoroutineHandler.Start(RenderCoroutine(), priority: UiRenderPriority.CoreWindows);
         }
 
         private static IEnumerator<Wait> RenderCoroutine()

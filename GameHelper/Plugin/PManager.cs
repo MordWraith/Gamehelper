@@ -26,7 +26,11 @@ namespace GameHelper.Plugin
     /// </summary>
     internal static class PManager
     {
+        private const int MaxUnloadGcAttempts = 10;
         private static bool disableRendering = false;
+        private static readonly Dictionary<string, PluginMetadata> PluginMetadataByName =
+            new(StringComparer.OrdinalIgnoreCase);
+        private static readonly List<PendingPluginUnload> PendingPluginUnloads = new();
 #if DEBUG
         internal static readonly List<string> PluginNames = new();
 #endif
@@ -59,6 +63,7 @@ namespace GameHelper.Plugin
             }
             CoroutineHandler.Start(SavePluginSettingsCoroutine());
             CoroutineHandler.Start(SavePluginMetadataCoroutine());
+            CoroutineHandler.Start(CollectUnloadedPluginAssembliesCoroutine());
             Core.CoroutinesRegistrar.Add(CoroutineHandler.Start(
                 DrawPluginUiRenderCoroutine(), "[PManager] Draw Plugins UI"));
         }
@@ -117,29 +122,10 @@ namespace GameHelper.Plugin
             }
 
             // F-075: actually unload the assembly via the collectible ALC tracked
-            // in the PluginContainer (F-074 made the ALC collectible).
-            var alcRef = new WeakReference(target.Alc);
-            target.Alc.Unload();
-
-            // Release the strong reference to the PluginContainer (and its Alc field)
-            // BEFORE the GC loop. The .NET docs require this — without it, the JIT
-            // can keep `target` rooted across the loop and alcRef.IsAlive stays true
-            // forever (spurious warning log). See:
-            // https://learn.microsoft.com/en-us/dotnet/standard/assembly/unloadability
+            // in the PluginContainer (F-074 made the ALC collectible). Collection is
+            // verified on later frames, after render/settings snapshots release it.
+            QueuePluginAssemblyUnload(target);
             target = null;
-
-            // Run GC repeatedly until the ALC is unreachable (or we give up after
-            // 10 attempts).
-            for (var i = 0; i < 10 && alcRef.IsAlive; i++)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
-
-            if (alcRef.IsAlive)
-            {
-                Console.WriteLine($"[PManager.UnloadPlugin] {name}: ALC still alive after 10 GC cycles - likely a static reflection cache pinning a type. Plugin removed from manager but assembly remains loaded.");
-            }
 
             return true;
         }
@@ -274,18 +260,26 @@ namespace GameHelper.Plugin
 
         private static void LoadPluginMetadata(IEnumerable<PluginWithName> plugins)
         {
-            var metadata = JsonHelper.CreateOrLoadJsonFile<Dictionary<string, PluginMetadata>>(State.PluginsMetadataFile);
-            var newContainers = plugins.Select(
-                x => new PluginContainer(
-                    x.Name,
-                    x.Plugin,
-                    metadata.GetValueOrDefault(
-                        x.Name,
-                        new PluginMetadata()),
-                    x.Alc)).ToList();
+            var savedMetadata = JsonHelper.CreateOrLoadJsonFile<Dictionary<string, PluginMetadata>>(State.PluginsMetadataFile);
 
             lock (Plugins)
             {
+                foreach (var (name, metadata) in savedMetadata)
+                {
+                    PluginMetadataByName.TryAdd(name, metadata);
+                }
+
+                var newContainers = plugins.Select(x =>
+                {
+                    if (!PluginMetadataByName.TryGetValue(x.Name, out var metadata))
+                    {
+                        metadata = new PluginMetadata();
+                        PluginMetadataByName[x.Name] = metadata;
+                    }
+
+                    return new PluginContainer(x.Name, x.Plugin, metadata, x.Alc);
+                }).ToList();
+
                 Plugins.AddRange(newContainers);
             }
 
@@ -311,40 +305,126 @@ namespace GameHelper.Plugin
                 return;
             }
 
-            if (enabled)
+            try
             {
-                PluginContainer[] conflicts;
-                lock (Plugins)
+                if (enabled)
                 {
-                    conflicts = Plugins.Where(other =>
-                        other != container &&
-                        other.Metadata.Enable &&
-                        PluginsConflict(container, other)).ToArray();
-                }
+                    PluginContainer[] conflicts;
+                    lock (Plugins)
+                    {
+                        conflicts = Plugins.Where(other =>
+                            other != container &&
+                            other.Metadata.Enable &&
+                            PluginsConflict(container, other)).ToArray();
+                    }
 
-                foreach (var conflict in conflicts)
-                {
-                    DisablePlugin(conflict);
-                }
+                    foreach (var conflict in conflicts)
+                    {
+                        DisablePlugin(conflict);
+                    }
 
-                container.Metadata.Enable = true;
-                try
-                {
+                    container.Metadata.Enable = true;
                     container.Plugin.OnEnable(Core.Process.Address != IntPtr.Zero);
                 }
-                catch
+                else
                 {
-                    container.Metadata.Enable = false;
-                    SavePluginMetadata();
-                    throw;
+                    DisablePlugin(container);
                 }
             }
-            else
+            catch
             {
-                DisablePlugin(container);
+                if (enabled)
+                {
+                    container.Metadata.Enable = false;
+                }
+
+                throw;
+            }
+            finally
+            {
+                SavePluginMetadata();
+            }
+        }
+
+        /// <summary>
+        ///     Reloads all plugin assemblies from disk and restores their enabled state.
+        /// </summary>
+        internal static int ReloadAllPlugins()
+        {
+            PluginContainer[] oldPlugins;
+            Dictionary<string, PluginMetadata> desiredMetadata;
+            lock (Plugins)
+            {
+                oldPlugins = Plugins.ToArray();
+                desiredMetadata = oldPlugins.ToDictionary(
+                    container => container.Name,
+                    container => new PluginMetadata { Enable = container.Metadata.Enable },
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var (name, metadata) in desiredMetadata)
+                {
+                    PluginMetadataByName[name] = metadata;
+                }
+
+                // Stop render dispatch immediately while cleanup is in progress.
+                foreach (var container in oldPlugins)
+                {
+                    container.Metadata.Enable = false;
+                }
+
+                Plugins.Clear();
             }
 
+            foreach (var container in oldPlugins)
+            {
+                if (desiredMetadata[container.Name].Enable)
+                {
+                    try
+                    {
+                        SaveAndDisablePlugin(container);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[PManager.ReloadAllPlugins] {container.Name} threw during cleanup: {ex}");
+                    }
+                }
+
+                QueuePluginAssemblyUnload(container);
+            }
+
+            // Release this method's references. Other frame-local snapshots are allowed
+            // to disappear naturally before the deferred unload collector runs.
+            Array.Clear(oldPlugins);
+
+            LoadPluginMetadata(LoadPlugins());
+
+            PluginContainer[] newPlugins;
+            lock (Plugins)
+            {
+                newPlugins = Plugins.ToArray();
+            }
+
+            ResolveStartupConflicts(newPlugins);
+
+            foreach (var container in newPlugins)
+            {
+                try
+                {
+                    EnablePluginIfRequired(container);
+                }
+                catch (Exception ex)
+                {
+                    container.Metadata.Enable = false;
+                    Console.WriteLine($"[PManager.ReloadAllPlugins] {container.Name} threw on enable: {ex}");
+                }
+            }
+
+#if DEBUG
+            PluginNames.Clear();
+            GetAllPluginNames();
+#endif
             SavePluginMetadata();
+            return newPlugins.Length;
         }
 
         private static void DisablePlugin(PluginContainer container)
@@ -357,8 +437,44 @@ namespace GameHelper.Plugin
             // Stop render dispatch immediately. SaveSettings and OnDisable then finish before a
             // conflicting plugin's OnEnable is called.
             container.Metadata.Enable = false;
-            container.Plugin.SaveSettings();
-            container.Plugin.OnDisable();
+            SaveAndDisablePlugin(container);
+        }
+
+        private static void SaveAndDisablePlugin(PluginContainer container)
+        {
+            Exception? saveException = null;
+            try
+            {
+                container.Plugin.SaveSettings();
+            }
+            catch (Exception ex)
+            {
+                saveException = ex;
+            }
+
+            try
+            {
+                container.Plugin.OnDisable();
+            }
+            catch (Exception disableException) when (saveException != null)
+            {
+                throw new AggregateException(saveException, disableException);
+            }
+
+            if (saveException != null)
+            {
+                throw saveException;
+            }
+        }
+
+        private static void QueuePluginAssemblyUnload(PluginContainer container)
+        {
+            var pendingUnload = new PendingPluginUnload(container.Name, new WeakReference(container.Alc));
+            container.Alc.Unload();
+            lock (PendingPluginUnloads)
+            {
+                PendingPluginUnloads.Add(pendingUnload);
+            }
         }
 
         private static void ResolveStartupConflicts(IReadOnlyList<PluginContainer> plugins)
@@ -395,7 +511,15 @@ namespace GameHelper.Plugin
             Dictionary<string, PluginMetadata> snapshot;
             lock (Plugins)
             {
-                snapshot = Plugins.ToDictionary(x => x.Name, x => x.Metadata);
+                foreach (var container in Plugins)
+                {
+                    PluginMetadataByName[container.Name] = container.Metadata;
+                }
+
+                snapshot = PluginMetadataByName.ToDictionary(
+                    pair => pair.Key,
+                    pair => new PluginMetadata { Enable = pair.Value.Enable },
+                    StringComparer.OrdinalIgnoreCase);
             }
 
             JsonHelper.SafeToFile(snapshot, State.PluginsMetadataFile);
@@ -444,6 +568,49 @@ namespace GameHelper.Plugin
             }
         }
 
+        private static IEnumerator<Wait> CollectUnloadedPluginAssembliesCoroutine()
+        {
+            while (true)
+            {
+                yield return new Wait(GameHelperEvents.OnPostRender);
+                lock (PendingPluginUnloads)
+                {
+                    if (PendingPluginUnloads.Count == 0)
+                    {
+                        continue;
+                    }
+                }
+
+                // Perform at most one full collection per frame for the entire batch,
+                // rather than blocking the render thread with ten collections per plugin.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                lock (PendingPluginUnloads)
+                {
+                    for (var i = PendingPluginUnloads.Count - 1; i >= 0; i--)
+                    {
+                        var pending = PendingPluginUnloads[i];
+                        if (!pending.AlcReference.IsAlive)
+                        {
+                            PendingPluginUnloads.RemoveAt(i);
+                            continue;
+                        }
+
+                        pending.Attempts++;
+                        if (pending.Attempts < MaxUnloadGcAttempts)
+                        {
+                            continue;
+                        }
+
+                        Console.WriteLine(
+                            $"[PManager] {pending.Name}: ALC still alive after {MaxUnloadGcAttempts} GC cycles - likely retained by plugin state or a static reflection cache.");
+                        PendingPluginUnloads.RemoveAt(i);
+                    }
+                }
+            }
+        }
+
         private static IEnumerator<Wait> DrawPluginUiRenderCoroutine()
         {
             while (true)
@@ -481,6 +648,21 @@ namespace GameHelper.Plugin
                     }
                 }
             }
+        }
+
+        private sealed class PendingPluginUnload
+        {
+            internal PendingPluginUnload(string name, WeakReference alcReference)
+            {
+                this.Name = name;
+                this.AlcReference = alcReference;
+            }
+
+            internal string Name { get; }
+
+            internal WeakReference AlcReference { get; }
+
+            internal int Attempts { get; set; }
         }
     }
 }

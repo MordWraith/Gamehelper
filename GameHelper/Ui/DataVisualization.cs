@@ -22,7 +22,7 @@ namespace GameHelper.Ui
         /// </summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(DataVisualizationRenderCoRoutine());
+            CoroutineHandler.Start(DataVisualizationRenderCoRoutine(), priority: UiRenderPriority.CoreWindows);
         }
 
         /// <summary>

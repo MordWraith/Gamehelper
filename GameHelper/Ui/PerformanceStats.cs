@@ -26,7 +26,7 @@ namespace GameHelper.Ui
         /// </summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(PerformanceStatRenderCoRoutine());
+            CoroutineHandler.Start(PerformanceStatRenderCoRoutine(), priority: UiRenderPriority.CoreWindows);
         }
 
         /// <summary>

@@ -22,6 +22,7 @@
   "settings.highlight_color": "ไฮไลท์สี",
   "settings.highlight_font_size": "เน้นขนาดตัวอักษร",
   "settings.highlight_from": "ไฮไลท์จาก (อดีต)",
+  "settings.hide_when_game_unfocused": "ซ่อนค่าเมื่อเกมไม่ได้อยู่ในโฟกัส",
   "settings.jitter_filter": "ตัวกรองกระวนกระวายใจ (ต่ำกว่า = แข็งแกร่งขึ้น ไม่มีความล่าช้า)",
   "settings.league": "ลีก",
   "settings.min_value_to_show": "ค่าต่ำสุดที่จะแสดง (เช่น)",

@@ -789,7 +789,7 @@
 
             var rowWidth = this.GetRowWidth(previewEntries.Count, iconSize, spacing);
             var rowHeight = this.GetBarRowHeight(resourcePreview, iconSize, previewEntries);
-            var draw = ImGui.GetForegroundDrawList();
+            var draw = ImGui.GetBackgroundDrawList();
 
             this.DrawIconRow(draw, previewEntries, fixedTopLeft, iconSize, spacing, resourcePreview);
 
@@ -1457,8 +1457,8 @@
             return opened;
         }
 
-        /// <summary>Above map overlays (e.g. Wraedar).</summary>
-        private static ImDrawListPtr GetHudDrawList() => ImGui.GetForegroundDrawList();
+        /// <summary>HUD layer behind GameHelper management windows.</summary>
+        private static ImDrawListPtr GetHudDrawList() => ImGui.GetBackgroundDrawList();
 
         /// <summary>PoE or GameHelper overlay/settings focused â€” not e.g. Discord.</summary>
         private static bool IsGameOrOverlayForeground() =>

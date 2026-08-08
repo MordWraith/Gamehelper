@@ -29,7 +29,7 @@ namespace GameHelper.Ui
         /// </summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(GameUiExplorerRenderCoRoutine());
+            CoroutineHandler.Start(GameUiExplorerRenderCoRoutine(), priority: UiRenderPriority.CoreWindows);
             CoroutineHandler.Start(OnGameStateChange());
         }
 

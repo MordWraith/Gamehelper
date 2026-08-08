@@ -26,7 +26,7 @@ namespace GameHelper.Ui
         /// </summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(OverlayKillerCoRoutine());
+            CoroutineHandler.Start(OverlayKillerCoRoutine(), priority: UiRenderPriority.CoreWindows);
             CoroutineHandler.Start(OnAreaChange());
         }
 

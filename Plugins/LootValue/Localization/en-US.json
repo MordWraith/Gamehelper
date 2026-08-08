@@ -27,6 +27,7 @@
   "settings.highlight_color": "Highlight color",
   "settings.highlight_font_size": "Highlight font size",
   "settings.highlight_from": "Highlight from (ex)",
+  "settings.hide_when_game_unfocused": "Hide values when game is not focused",
   "settings.hide_slot_prices_on_hover": "Hide stash/inventory values while hovering an item",
   "settings.jitter_filter": "Jitter filter (lower=stronger, no lag)",
   "settings.league": "League",

@@ -22,6 +22,7 @@
   "settings.highlight_color": "高亮颜色",
   "settings.highlight_font_size": "高亮字体大小",
   "settings.highlight_from": "高亮起点（ex）",
+  "settings.hide_when_game_unfocused": "游戏未处于焦点时隐藏价值",
   "settings.jitter_filter": "抖动过滤（越低越强，无延迟）",
   "settings.league": "赛季",
   "settings.min_value_to_show": "显示最低价值（ex）",

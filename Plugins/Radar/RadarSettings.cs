@@ -206,9 +206,8 @@ namespace Radar
         public bool HideReachedPaths = true;
 
         /// <summary>
-        /// Grid-distance threshold below which a path target counts as "reached"
-        /// and is hidden for the remainder of the current map. Used by
-        /// <see cref="HideReachedPaths"/>.
+        /// Grid-distance threshold below which a path target, Abyss node, or Runestone
+        /// counts as "reached" for the remainder of the current map.
         /// </summary>
         public float ReachedPathDistance = 50f;
 
@@ -879,6 +878,9 @@ namespace Radar
             this.DeliriumIcons.TryAdd("Delirium Spawner", new IconPicker(iconPathName, 6, 71, 40, IconSize));
             this.DeliriumIcons.TryAdd("Loathsome Mire", new IconPicker(iconPathName, 8, 71, 40, IconSize,
                 showPath: true));
+            this.DeliriumIcons.TryAdd("Delirium Shard Boss", new IconPicker(iconPathName, 5, 73, 40, IconSize,
+                showPath: true,
+                pathColor: new System.Numerics.Vector4(1f, 0.6f, 0f, 1f)));
         }
 
         private void AddDefaultExpeditionIcons(string iconPathName)

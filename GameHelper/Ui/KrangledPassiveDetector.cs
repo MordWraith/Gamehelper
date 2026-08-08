@@ -25,7 +25,7 @@ namespace GameHelper.Ui
         internal static void InitializeCoroutines()
         {
 #if DEBUG
-            CoroutineHandler.Start(KrangledPassiveDetectorCoRoutine());
+            CoroutineHandler.Start(KrangledPassiveDetectorCoRoutine(), priority: UiRenderPriority.CoreWindows);
 #endif
         }
 #if DEBUG

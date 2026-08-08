@@ -24,6 +24,9 @@ namespace LootValue
         /// <summary>Draw owned-stack values in the Currency Exchange item list.</summary>
         public bool ShowCurrencyExchangeOverlay = true;
 
+        /// <summary>Hide all value overlays while the game is not the foreground window.</summary>
+        public bool HideWhenGameInBackground = true;
+
         /// <summary>Hide stash and inventory labels while an item slot is hovered.</summary>
         public bool HideSlotPricesOnHover = true;
 

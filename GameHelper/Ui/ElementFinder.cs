@@ -39,7 +39,7 @@ namespace GameHelper.Ui
         /// </summary>
         internal static void InitializeCoroutines()
         {
-            CoroutineHandler.Start(ElementFinderCoroutine());
+            CoroutineHandler.Start(ElementFinderCoroutine(), priority: UiRenderPriority.CoreWindows);
         }
 
         /// <summary>
