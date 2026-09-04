@@ -114,7 +114,17 @@ namespace GameHelper.RemoteObjects
                 if (cStateAddr != IntPtr.Zero && cStateAddr != this.currentStateAddress)
                 {
                     this.currentStateAddress = cStateAddr;
-                    this.GameCurrentState = this.AllStates[this.currentStateAddress];
+                    if (this.AllStates.TryGetValue(this.currentStateAddress, out var currentState))
+                    {
+                        this.GameCurrentState = currentState;
+                    }
+                    else
+                    {
+                        this.GameCurrentState = GameStateTypes.GameNotLoaded;
+                        Console.WriteLine(
+                            $"[GameStates] Current state 0x{this.currentStateAddress.ToInt64():X} " +
+                            "is absent from the configured state table; GameStateOffset may have shifted.");
+                    }
                 }
             }
         }

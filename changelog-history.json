@@ -1,6 +1,20 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.1",
+                         "published":  "2026-09-04T22:08:30.3208665Z",
+                         "changelog":  [
+                                           "Gordin Sync"
+                                       ]
+                     },
+                     {
+                         "version":  "1.4.12",
+                         "published":  "2026-08-08T22:21:34.8933940Z",
+                         "changelog":  [
+                                           "Gordin Sync"
+                                       ]
+                     },
+                     {
                          "version":  "1.4.11",
                          "published":  "2026-08-07T05:12:49.6568700Z",
                          "changelog":  [

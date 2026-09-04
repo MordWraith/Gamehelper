@@ -62,6 +62,10 @@ namespace StashUtility
         private string waystoneSearchTerm = string.Empty;
         private string tabletSearchTerm = string.Empty;
 
+        // Jewel UI State
+        private readonly Dictionary<string, string> jewelCategorySearchTerms = new();
+        private readonly Dictionary<string, int> jewelCategorySelectedIndices = new();
+
         // Debug UI Path Explorer State
         private readonly List<int> currentDebugPath = new();
         private string explorerRootAddressStr = string.Empty;
@@ -100,6 +104,78 @@ namespace StashUtility
             if (Settings.ScanEndOffset < 0x500)
             {
                 Settings.ScanEndOffset = 0x600;
+            }
+
+            if (Settings.TabletProfiles == null)
+            {
+                Settings.TabletProfiles = new Dictionary<string, TabletProfile>();
+            }
+            foreach (var type in StashUtilitySettings.TabletTypes)
+            {
+                if (!Settings.TabletProfiles.ContainsKey(type))
+                {
+                    Settings.TabletProfiles[type] = new TabletProfile();
+                }
+            }
+
+            // Migrate old global tablet settings to all profiles
+            if (Settings.TabletGoodModPatterns != null && Settings.TabletGoodModPatterns.Count > 0)
+            {
+                foreach (var type in StashUtilitySettings.TabletTypes)
+                {
+                    var profile = Settings.TabletProfiles[type];
+                    foreach (var pat in Settings.TabletGoodModPatterns)
+                    {
+                        if (!profile.GoodModPatterns.Contains(pat))
+                            profile.GoodModPatterns.Add(pat);
+                    }
+                }
+                Settings.TabletGoodModPatterns.Clear();
+                SaveSettings();
+            }
+
+            if (Settings.TabletBadModPatterns != null && Settings.TabletBadModPatterns.Count > 0)
+            {
+                foreach (var type in StashUtilitySettings.TabletTypes)
+                {
+                    var profile = Settings.TabletProfiles[type];
+                    foreach (var pat in Settings.TabletBadModPatterns)
+                    {
+                        if (!profile.BadModPatterns.Contains(pat))
+                            profile.BadModPatterns.Add(pat);
+                    }
+                }
+                Settings.TabletBadModPatterns.Clear();
+                SaveSettings();
+            }
+
+            if (Settings.TabletGodModPatterns != null && Settings.TabletGodModPatterns.Count > 0)
+            {
+                foreach (var type in StashUtilitySettings.TabletTypes)
+                {
+                    var profile = Settings.TabletProfiles[type];
+                    foreach (var pat in Settings.TabletGodModPatterns)
+                    {
+                        if (!profile.GodModPatterns.Contains(pat))
+                            profile.GodModPatterns.Add(pat);
+                    }
+                }
+                Settings.TabletGodModPatterns.Clear();
+                SaveSettings();
+            }
+
+            if (Settings.TabletModRequiredMinRolls != null && Settings.TabletModRequiredMinRolls.Count > 0)
+            {
+                foreach (var type in StashUtilitySettings.TabletTypes)
+                {
+                    var profile = Settings.TabletProfiles[type];
+                    foreach (var kvp in Settings.TabletModRequiredMinRolls)
+                    {
+                        profile.ModRequiredMinRolls[kvp.Key] = kvp.Value;
+                    }
+                }
+                Settings.TabletModRequiredMinRolls.Clear();
+                SaveSettings();
             }
 
             // Migration code: Convert old text patterns to new mod database IDs
@@ -726,78 +802,306 @@ namespace StashUtility
 
                     if (ImGui.BeginTabBar("TabletMechanicsTabs"))
                     {
-                        var categories = new Dictionary<string, Func<Models.TabletMod, bool>>
+                        foreach (var tabletType in StashUtilitySettings.TabletTypes)
                         {
-                            { "Breach", m => m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) },
-                            { "Expedition", m => m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) },
-                            { "Delirium", m => m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) },
-                            { "Abyss", m => m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) },
-                            { "Incursion", m => m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) },
-                            { "Ritual", m => m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) },
-                            { "General", m => !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase) }
+                            string tabName = tabletType;
+                            string tabId = tabletType.Replace(" ", "");
+
+                            if (ImGui.BeginTabItem(PluginText.T($"stashutility.tablet.category.{tabId}", tabName)))
+                            {
+                                var profile = Settings.TabletProfiles[tabletType];
+
+                                Func<Models.TabletMod, bool> filterFunc;
+                                if (tabletType == "Breach Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Expedition Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Delirium Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Ritual Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Abyss Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Temple Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Overseer Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Boss", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else if (tabletType == "Irradiated Tablet")
+                                {
+                                    filterFunc = m => IsGeneralMod(m) || m.Id.Contains("Irradiated", StringComparison.OrdinalIgnoreCase);
+                                }
+                                else
+                                {
+                                    filterFunc = m => IsGeneralMod(m);
+                                }
+
+                                var tabMods = Data.ModDatabase.AllTabletMods.Where(filterFunc).ToList();
+
+                                ImGui.InputTextWithHint($"##search{tabId}", PluginText.F("stashutility.tablet.search_category", "Search {0} Mods...", tabName), ref tabletSearchTerm, 64);
+                                var filtered = tabMods.Where(m => m.Name.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                                var prefixes = filtered.Where(m => m.Affix == "prefix").ToList();
+                                var suffixes = filtered.Where(m => m.Affix == "suffix").ToList();
+
+                                if (ImGui.BeginTable($"Table_{tabId}", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingStretchProp))
+                                {
+                                    ImGui.TableSetupColumn(PluginText.T("stashutility.tablet.prefixes", "Base Prefixes"));
+                                    ImGui.TableSetupColumn(PluginText.T("stashutility.tablet.suffixes", "Base Suffixes"));
+                                    ImGui.TableHeadersRow();
+
+                                    ImGui.TableNextRow();
+
+                                    // Left Column: Prefixes
+                                    ImGui.TableSetColumnIndex(0);
+                                    if (ImGui.BeginChild($"ChildPrefix_{tabId}", new Vector2(0, 300), ImGuiChildFlags.None))
+                                    {
+                                        foreach (var mod in prefixes)
+                                        {
+                                            DrawModConfigRow(profile, tabId, mod);
+                                        }
+                                    }
+                                    ImGui.EndChild();
+
+                                    // Right Column: Suffixes
+                                    ImGui.TableSetColumnIndex(1);
+                                    if (ImGui.BeginChild($"ChildSuffix_{tabId}", new Vector2(0, 300), ImGuiChildFlags.None))
+                                    {
+                                        foreach (var mod in suffixes)
+                                        {
+                                            DrawModConfigRow(profile, tabId, mod);
+                                        }
+                                    }
+                                    ImGui.EndChild();
+
+                                    ImGui.EndTable();
+                                }
+                                ImGui.EndTabItem();
+                            }
+                        }
+                        ImGui.EndTabBar();
+                    }
+                }
+
+                ImGui.Unindent();
+            }
+
+            ImGui.Checkbox(PluginText.T("stashutility.enable_jewel_manager", "Enable Jewel Manager"), ref Settings.EnableJewelManager);
+            ImGuiHelper.ToolTip(PluginText.T("stashutility.enable_jewel_manager_tooltip", "Enables or disables highlighting of Jewels in stash tabs."));
+            if (Settings.EnableJewelManager)
+            {
+                ImGui.Indent();
+                if (ImGui.CollapsingHeader(PluginText.T("stashutility.jewel_mod_manager_header", "Jewel Mod Filter Manager")))
+                {
+                    if (ImGui.Checkbox(PluginText.T("stashutility.filter_jewel_great", "Filter Jewel Great Status"), ref Settings.FilterJewelGreat)) SaveSettings();
+                    if (Settings.FilterJewelGreat)
+                    {
+                        ImGui.SameLine();
+                        ImGui.SetCursorPosX(300f);
+                        ImGui.SetNextItemWidth(150f);
+                        if (ImGui.SliderInt(PluginText.T("stashutility.min_good_jewel_mods", "Min Good Jewel Mods Count"), ref Settings.MinJewelGoodMods, 1, 4)) SaveSettings();
+                    }
+                    ImGui.Spacing();
+
+                    if (ImGui.BeginTabBar("JewelCategoryTabs"))
+                    {
+                        var categories = new Dictionary<string, Func<Models.JewelMod, bool>>
+                        {
+                            { "Sapphire", m => m.Category == "Sapphire" },
+                            { "Ruby", m => m.Category == "Ruby" },
+                            { "Emerald", m => m.Category == "Emerald" },
+                            { "Diamond", m => m.Category == "Diamond" },
+                            { "Time-Lost Sapphire", m => m.Category == "Time-Lost Sapphire" },
+                            { "Time-Lost Ruby", m => m.Category == "Time-Lost Ruby" },
+                            { "Time-Lost Emerald", m => m.Category == "Time-Lost Emerald" },
+                            { "Time-Lost Diamond", m => m.Category == "Time-Lost Diamond" }
                         };
 
                         foreach (var kvp in categories)
                         {
-                            if (ImGui.BeginTabItem(PluginText.T($"stashutility.tablet.category.{kvp.Key}", kvp.Key)))
+                            if (ImGui.BeginTabItem(kvp.Key))
                             {
-                                var tabMods = Data.ModDatabase.AllTabletMods.Where(kvp.Value).ToList();
-                                
-                                ImGui.InputTextWithHint($"##search{kvp.Key}", PluginText.F("stashutility.tablet.search_category", "Search {0} Mods...", kvp.Key), ref tabletSearchTerm, 64);
-                                var filtered = tabMods.Where(m => m.Name.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(tabletSearchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+                                string cat = kvp.Key;
+                                var allCatMods = Data.ModDatabase.AllJewelMods.Where(kvp.Value).ToList();
 
-                                if (ImGui.BeginChild($"Child{kvp.Key}", new Vector2(0, 250), ImGuiChildFlags.Borders))
+                                if (!Settings.JewelCategoryGroups.TryGetValue(cat, out var groupList) || groupList == null)
                                 {
-                                    foreach (var mod in filtered)
-                                    {
-                                        bool isGood = Settings.TabletGoodModPatterns.Contains(mod.Id);
-                                        bool isBad = Settings.TabletBadModPatterns.Contains(mod.Id);
-                                        bool isGod = Settings.TabletGodModPatterns.Contains(mod.Id);
-
-                                        ImGui.TextWrapped(mod.Name.Replace("%", "%%"));
-
-                                        if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.good", "Good", $"g_{mod.Id}"), ref isGood))
-                                        {
-                                            if (isGood) { Settings.TabletGoodModPatterns.Add(mod.Id); Settings.TabletBadModPatterns.Remove(mod.Id); Settings.TabletGodModPatterns.Remove(mod.Id); }
-                                            else { Settings.TabletGoodModPatterns.Remove(mod.Id); }
-                                            SaveSettings();
-                                        }
-                                        ImGui.SameLine(100f);
-                                        if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.bad", "Bad", $"b_{mod.Id}"), ref isBad))
-                                        {
-                                            if (isBad) { Settings.TabletBadModPatterns.Add(mod.Id); Settings.TabletGoodModPatterns.Remove(mod.Id); Settings.TabletGodModPatterns.Remove(mod.Id); }
-                                            else { Settings.TabletBadModPatterns.Remove(mod.Id); }
-                                            SaveSettings();
-                                        }
-                                        ImGui.SameLine(190f);
-                                        if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.god", "God", $"god_{mod.Id}"), ref isGod))
-                                        {
-                                            if (isGod) { Settings.TabletGodModPatterns.Add(mod.Id); Settings.TabletGoodModPatterns.Remove(mod.Id); Settings.TabletBadModPatterns.Remove(mod.Id); }
-                                            else { Settings.TabletGodModPatterns.Remove(mod.Id); }
-                                            SaveSettings();
-                                        }
-                                        ImGuiHelper.ToolTip(PluginText.T("stashutility.tablet.god_tooltip", "A God mod immediately flags the tablet as Good/Great, ignoring any Bad mods."));
-
-                                        if ((isGood || isGod) && mod.MinRoll != mod.MaxRoll)
-                                        {
-                                            if (!Settings.TabletModRequiredMinRolls.ContainsKey(mod.Id))
-                                                Settings.TabletModRequiredMinRolls[mod.Id] = mod.MinRoll;
-                                            float requiredRoll = Settings.TabletModRequiredMinRolls[mod.Id];
-                                            ImGui.Indent(20f);
-                                            int intRoll = (int)requiredRoll;
-                                            ImGui.SetNextItemWidth(150f);
-                                            string formatStr = mod.Name.Contains("%") ? "%d%%" : "%d";
-                                            if (ImGui.SliderInt($"Req. Min Roll##min_{mod.Id}", ref intRoll, (int)mod.MinRoll, (int)mod.MaxRoll, formatStr))
-                                            {
-                                                Settings.TabletModRequiredMinRolls[mod.Id] = (float)intRoll;
-                                                SaveSettings();
-                                            }
-                                            ImGui.Unindent(20f);
-                                        }
-                                        ImGui.Separator();
-                                    }
+                                    groupList = new List<StashUtility.Models.JewelGroup>();
+                                    Settings.JewelCategoryGroups[cat] = groupList;
                                 }
-                                ImGui.EndChild();
+
+                                // Migration / Default initialization
+                                if (groupList.Count == 0)
+                                {
+                                    var defGroup = new StashUtility.Models.JewelGroup { Name = "Default Profile", MinMatchCount = Settings.MinJewelGoodModsToHighlight };
+                                    var catModIds = allCatMods.Select(m => m.Id).ToHashSet();
+                                    defGroup.ModPatternIds = Settings.JewelGoodModPatterns.Where(id => catModIds.Contains(id)).ToList();
+                                    foreach (var id in defGroup.ModPatternIds)
+                                    {
+                                        if (Settings.JewelModRequiredMinRolls.TryGetValue(id, out float roll))
+                                            defGroup.ModRequiredMinRolls[id] = roll;
+                                    }
+                                    groupList.Add(defGroup);
+                                    SaveSettings();
+                                }
+
+                                if (ImGui.Button($"+ Add New Profile Group##add_group_{cat}"))
+                                {
+                                    groupList.Add(new StashUtility.Models.JewelGroup { Name = $"Profile Group {groupList.Count + 1}", MinMatchCount = 2 });
+                                    SaveSettings();
+                                }
+                                ImGui.Separator();
+
+                                for (int gIdx = 0; gIdx < groupList.Count; gIdx++)
+                                {
+                                    var group = groupList[gIdx];
+                                    ImGui.PushID($"Group_{cat}_{group.Id}");
+
+                                    string groupHeaderName = string.IsNullOrWhiteSpace(group.Name) ? $"Group {gIdx + 1}" : group.Name;
+                                    if (ImGui.CollapsingHeader($"{groupHeaderName} (Min Match: {group.MinMatchCount})##header_{group.Id}", ImGuiTreeNodeFlags.DefaultOpen))
+                                    {
+                                        ImGui.Indent(10f);
+
+                                        string nameBuf = group.Name ?? string.Empty;
+                                        ImGui.SetNextItemWidth(180f);
+                                        if (ImGui.InputText($"Group Name##name_{group.Id}", ref nameBuf, 50))
+                                        {
+                                            group.Name = nameBuf;
+                                            SaveSettings();
+                                        }
+
+                                        ImGui.SameLine();
+                                        ImGui.SetNextItemWidth(140f);
+                                        int minMatch = group.MinMatchCount;
+                                        if (ImGui.SliderInt($"Min Match##min_{group.Id}", ref minMatch, 1, 4))
+                                        {
+                                            group.MinMatchCount = minMatch;
+                                            SaveSettings();
+                                        }
+
+                                        if (groupList.Count > 1)
+                                        {
+                                            ImGui.SameLine();
+                                            if (ImGui.Button($"Delete Group##del_{group.Id}"))
+                                            {
+                                                groupList.RemoveAt(gIdx);
+                                                SaveSettings();
+                                                ImGui.Unindent(10f);
+                                                ImGui.PopID();
+                                                break;
+                                            }
+                                        }
+
+                                        // Search & Add Mod inside this group
+                                        string searchKey = $"{cat}_{group.Id}";
+                                        if (!jewelCategorySearchTerms.ContainsKey(searchKey)) jewelCategorySearchTerms[searchKey] = string.Empty;
+                                        if (!jewelCategorySelectedIndices.ContainsKey(searchKey)) jewelCategorySelectedIndices[searchKey] = 0;
+
+                                        string filter = jewelCategorySearchTerms[searchKey];
+                                        var matchingMods = string.IsNullOrWhiteSpace(filter)
+                                            ? allCatMods
+                                            : allCatMods.Where(m => m.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) || m.Id.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                                        ImGui.SetNextItemWidth(220f);
+                                        if (ImGui.InputText($"Search Mod##search_{searchKey}", ref filter, 100))
+                                        {
+                                            jewelCategorySearchTerms[searchKey] = filter;
+                                            jewelCategorySelectedIndices[searchKey] = 0;
+                                        }
+
+                                        if (matchingMods.Count > 0)
+                                        {
+                                            int selIdx = Math.Clamp(jewelCategorySelectedIndices[searchKey], 0, matchingMods.Count - 1);
+                                            string comboLabel = matchingMods[selIdx].Name;
+
+                                            ImGui.SetNextItemWidth(450f);
+                                            if (ImGui.BeginCombo($"Select Mod##combo_{searchKey}", comboLabel))
+                                            {
+                                                for (int i = 0; i < matchingMods.Count; i++)
+                                                {
+                                                    bool isSel = (i == selIdx);
+                                                    if (ImGui.Selectable(matchingMods[i].Name, isSel))
+                                                    {
+                                                        jewelCategorySelectedIndices[searchKey] = i;
+                                                    }
+                                                    if (isSel) ImGui.SetItemDefaultFocus();
+                                                }
+                                                ImGui.EndCombo();
+                                            }
+
+                                            ImGui.SameLine();
+                                            var targetMod = matchingMods[selIdx];
+                                            if (ImGui.Button($"Add Mod##add_mod_{searchKey}"))
+                                            {
+                                                if (!group.ModPatternIds.Contains(targetMod.Id))
+                                                {
+                                                    group.ModPatternIds.Add(targetMod.Id);
+                                                    SaveSettings();
+                                                }
+                                            }
+                                        }
+
+                                        // Active Mods List inside Group
+                                        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), $"Active Group Modifiers ({group.ModPatternIds.Count}):");
+                                        ImGui.BeginChild($"ActiveGroupMods_{searchKey}", new Vector2(0, 160), ImGuiChildFlags.Borders);
+
+                                        var activeGroupMods = allCatMods.Where(m => group.ModPatternIds.Contains(m.Id)).ToList();
+                                        if (activeGroupMods.Count == 0)
+                                        {
+                                            ImGui.TextDisabled("No modifiers added to this group profile yet.");
+                                        }
+                                        else
+                                        {
+                                            foreach (var mod in activeGroupMods)
+                                            {
+                                                ImGui.PushID($"GrpMod_{searchKey}_{mod.Id}");
+                                                if (ImGui.Button(" X "))
+                                                {
+                                                    group.ModPatternIds.Remove(mod.Id);
+                                                    SaveSettings();
+                                                }
+                                                ImGui.SameLine();
+                                                ImGui.TextUnformatted(mod.Name);
+
+                                                if (mod.MinRoll != mod.MaxRoll)
+                                                {
+                                                    ImGui.Indent(25f);
+                                                    if (!group.ModRequiredMinRolls.ContainsKey(mod.Id))
+                                                        group.ModRequiredMinRolls[mod.Id] = mod.MinRoll;
+
+                                                    float reqRoll = group.ModRequiredMinRolls[mod.Id];
+                                                    int intRoll = (int)reqRoll;
+                                                    if (ImGui.SliderInt($"Req. Min Roll##min_{mod.Id}", ref intRoll, (int)mod.MinRoll, (int)mod.MaxRoll))
+                                                    {
+                                                        group.ModRequiredMinRolls[mod.Id] = (float)intRoll;
+                                                        SaveSettings();
+                                                    }
+                                                    ImGui.Unindent(25f);
+                                                }
+                                                ImGui.PopID();
+                                                ImGui.Separator();
+                                            }
+                                        }
+                                        ImGui.EndChild();
+                                        ImGui.Unindent(10f);
+                                    }
+                                    ImGui.PopID();
+                                    ImGui.Spacing();
+                                }
+
                                 ImGui.EndTabItem();
                             }
                         }
@@ -845,8 +1149,11 @@ namespace StashUtility
                 if (ImGui.ColorEdit4(PluginText.T("stashutility.bad_color", "Waystone Bad Highlight Color"), ref Settings.BadColor)) SaveSettings();
                 if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_good_color", "Tablet Good Highlight Color"), ref Settings.TabletGoodColor)) SaveSettings();
                 if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_bad_color", "Tablet Bad Highlight Color"), ref Settings.TabletBadColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.jewel_good_color", "Jewel Good Highlight Color"), ref Settings.JewelGoodColor)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.jewel_bad_color", "Jewel Bad Highlight Color"), ref Settings.JewelBadColor)) SaveSettings();
                 if (ImGui.ColorEdit4(PluginText.T("stashutility.waystone_great_color", "Waystone GREAT Arrow Color"), ref Settings.ColorGreat)) SaveSettings();
                 if (ImGui.ColorEdit4(PluginText.T("stashutility.tablet_great_color", "Tablet GREAT Arrow Color"), ref Settings.TabletColorGreat)) SaveSettings();
+                if (ImGui.ColorEdit4(PluginText.T("stashutility.jewel_great_color", "Jewel GREAT Arrow Color"), ref Settings.JewelColorGreat)) SaveSettings();
                 ImGui.ColorEdit4(PluginText.T("stashutility.rare_color", "Rare Rarity Color"), ref Settings.RareRarityColor);
                 ImGui.ColorEdit4(PluginText.T("stashutility.magic_color", "Magic Rarity Color"), ref Settings.MagicRarityColor);
                 ImGui.ColorEdit4(PluginText.T("stashutility.normal_color", "Normal Rarity Color"), ref Settings.NormalRarityColor);
@@ -956,15 +1263,20 @@ namespace StashUtility
                 }
             }
 
-            // 4. Check normal grid: tab -> 0 -> 0 visible and non-zero size
+            // 4. Check normal grid: tab -> 0 -> 0 visible, non-zero size, and has item slots
             var child00 = ResolvePath(tab, new int[] { 0, 0 });
             if (child00 != IntPtr.Zero && HasNonZeroSize(child00))
             {
-                tabType = "Normal/Quad (0->0)";
-                return true;
+                var off00 = ReadMemory<UiElementBaseOffset>(child00);
+                var slots00 = ReadStdVector<IntPtr>(off00.ChildrensPtr);
+                if (slots00.Length > 0 && slots00.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                {
+                    tabType = "Normal/Quad (0->0)";
+                    return true;
+                }
             }
 
-            // 5. In coop mode, a normal grid might be flatter: tab -> 0 directly
+            // 5. Normal grid flat: tab -> 0 directly
             var child0 = ResolvePath(tab, new int[] { 0 });
             if (child0 != IntPtr.Zero && HasNonZeroSize(child0))
             {
@@ -977,12 +1289,21 @@ namespace StashUtility
                 }
             }
 
+            // 6. Normal grid self: tab directly
+            var offSelf = ReadMemory<UiElementBaseOffset>(tab);
+            var slotsSelf = ReadStdVector<IntPtr>(offSelf.ChildrensPtr);
+            if (slotsSelf.Length > 0 && slotsSelf.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+            {
+                tabType = "Normal/Quad (Self)";
+                return true;
+            }
+
             return false;
         }
 
         public override void DrawUI()
         {
-            if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableDebugProbe && !Settings.EnableMerchantPurchasePanel) return;
+            if (!Settings.EnableWaystoneManager && !Settings.EnableTabletManager && !Settings.EnableJewelManager && !Settings.EnableDebugProbe && !Settings.EnableMerchantPurchasePanel) return;
 
             if (!Settings.ShowOverlayInBackground && !Core.Process.Foreground)
             {
@@ -1011,7 +1332,7 @@ namespace StashUtility
                 DrawDebugOverlay();
             }
 
-            if (Settings.EnableWaystoneManager || Settings.EnableTabletManager)
+            if (Settings.EnableWaystoneManager || Settings.EnableTabletManager || Settings.EnableJewelManager)
             {
                 bool isCoopMode = Core.GHSettings.EnableControllerMode && gameUi.LeftPanel.Address != IntPtr.Zero;
 
@@ -1457,16 +1778,48 @@ namespace StashUtility
 
                     if (!processedAsFragmentTablets)
                     {
-                        // 3. Otherwise, check if it's a normal/quad stash tab: activeTabAddr -> 0 -> 0 has slots directly
-                        var normalGridRoot = ResolvePath(activeTabAddr, new int[] { 0, 0 });
-                        if (normalGridRoot != IntPtr.Zero)
+                        bool processedAsGrid = false;
+
+                        // Check activeTabAddr itself first
+                        var selfOffsets = ReadMemory<UiElementBaseOffset>(activeTabAddr);
+                        var selfKids = ReadStdVector<IntPtr>(selfOffsets.ChildrensPtr);
+                        if (selfKids.Length > 0 && selfKids.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
                         {
-                            ProcessNormalTab(normalGridRoot);
-                            spDebug.Status += " | Processed: Normal/Quad Tab (0->0)";
+                            ProcessNormalTab(activeTabAddr);
+                            processedAsGrid = true;
+                            spDebug.Status += " | Processed: Flat Grid (Self)";
                         }
-                        else
+
+                        // Next check activeTabAddr -> 0
+                        if (!processedAsGrid)
                         {
-                            spDebug.Status += " | Failed: Not Waystone/Fragment, and 0->0 resolved to null";
+                            var gridRoot0 = ResolvePath(activeTabAddr, new int[] { 0 });
+                            if (gridRoot0 != IntPtr.Zero)
+                            {
+                                var gridOffsets = ReadMemory<UiElementBaseOffset>(gridRoot0);
+                                var slots = ReadStdVector<IntPtr>(gridOffsets.ChildrensPtr);
+                                if (slots.Length > 0 && slots.Any(k => k != IntPtr.Zero && GetItemAddressFromElement(k) != IntPtr.Zero))
+                                {
+                                    ProcessNormalTab(gridRoot0);
+                                    processedAsGrid = true;
+                                    spDebug.Status += " | Processed: Flat Grid (0)";
+                                }
+                            }
+                        }
+
+                        // Next check activeTabAddr -> 0 -> 0
+                        if (!processedAsGrid)
+                        {
+                            var normalGridRoot = ResolvePath(activeTabAddr, new int[] { 0, 0 });
+                            if (normalGridRoot != IntPtr.Zero)
+                            {
+                                ProcessNormalTab(normalGridRoot);
+                                spDebug.Status += " | Processed: Normal/Quad Tab (0->0)";
+                            }
+                            else
+                            {
+                                spDebug.Status += " | Failed: Not Waystone/Fragment, and grid resolved to null";
+                            }
                         }
                     }
                 }
@@ -1735,6 +2088,101 @@ namespace StashUtility
             }
         }
 
+        private static bool IsJewelModMatch(string gameModName, Models.JewelMod def)
+        {
+            if (string.IsNullOrEmpty(gameModName) || def == null) return false;
+
+            string cleanGame = gameModName.ToLowerInvariant();
+            string gameModId = (def.GameModId ?? "").ToLowerInvariant();
+            string defId = (def.Id ?? "").ToLowerInvariant();
+            string defName = (def.Name ?? "").ToLowerInvariant();
+
+            // Category mismatch guards: prevent matching e.g. "Spell Damage" to "Critical Spell Damage"
+            bool gameHasCrit = cleanGame.Contains("crit");
+            bool defHasCrit = gameModId.Contains("crit") || defName.Contains("crit");
+            if (defHasCrit != gameHasCrit) return false;
+
+            bool gameHasSpeed = cleanGame.Contains("speed");
+            bool defHasSpeed = gameModId.Contains("speed") || defName.Contains("speed");
+            if (defHasSpeed != gameHasSpeed) return false;
+
+            bool gameHasMinion = cleanGame.Contains("minion");
+            bool defHasMinion = gameModId.Contains("minion") || defName.Contains("minion") || defId.Contains("minion");
+            if (defHasMinion != gameHasMinion) return false;
+
+            bool gameHasCurse = cleanGame.Contains("curse");
+            bool defHasCurse = gameModId.Contains("curse") || defName.Contains("curse") || defId.Contains("curse");
+            if (defHasCurse != gameHasCurse) return false;
+
+            // Weapon subtype guards: prevent matching weapon-specific mods (e.g. Spear) to generic attack mods
+            string[] weaponSubtypes = new[] { "spear", "bow", "crossbow", "mace", "flail", "staff", "quarterstaff", "dagger", "sword", "axe", "wand", "shield", "sceptre" };
+            foreach (var wp in weaponSubtypes)
+            {
+                bool gameHasWp = cleanGame.Contains(wp);
+                bool defHasWp = gameModId.Contains(wp) || defId.Contains(wp) || defName.Contains(wp);
+                if (gameHasWp != defHasWp) return false;
+            }
+
+            // 1. Exact or substring GameModId match
+            if (!string.IsNullOrEmpty(gameModId))
+            {
+                if (cleanGame.Equals(gameModId, StringComparison.OrdinalIgnoreCase) ||
+                    cleanGame.Contains(gameModId, StringComparison.OrdinalIgnoreCase) ||
+                    gameModId.Contains(cleanGame, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // 2. Direct poe2db ID match
+            if (!string.IsNullOrEmpty(defId))
+            {
+                if (cleanGame.Equals(defId, StringComparison.OrdinalIgnoreCase) ||
+                    cleanGame.Contains(defId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // 3. Mod Title match (e.g. "Sacrificial", "Mystic", "of Annihilating", "of Unmaking", "Combat")
+            string modTitle = defName.Split('(')[0].Trim();
+            if (modTitle.Length > 2)
+            {
+                if (cleanGame.Equals(modTitle, StringComparison.OrdinalIgnoreCase) || cleanGame.Contains(modTitle, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                string stripPrefix = modTitle.StartsWith("of ", StringComparison.OrdinalIgnoreCase) ? modTitle.Substring(3) : modTitle;
+                if (stripPrefix.Length > 2 && (cleanGame.Equals(stripPrefix, StringComparison.OrdinalIgnoreCase) || cleanGame.Contains(stripPrefix, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            // 4. Core mod keyword matching (strip "Jewel" prefix)
+            string coreGameMod = cleanGame.StartsWith("jewel") ? cleanGame.Substring(5) : cleanGame;
+            string coreGameModId = gameModId.StartsWith("jewel") ? gameModId.Substring(5) : gameModId;
+
+            if (!string.IsNullOrEmpty(coreGameModId) && coreGameModId.Length > 2)
+            {
+                if (coreGameMod.Contains(coreGameModId, StringComparison.OrdinalIgnoreCase) ||
+                    coreGameModId.Contains(coreGameMod, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // 5. Match core game mod phrase against def.Name description
+            string cleanDefNameAlpha = System.Text.RegularExpressions.Regex.Replace(defName, @"[^a-z0-9]", "");
+            if (coreGameMod.Length > 3 && cleanDefNameAlpha.Contains(coreGameMod, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         private void EvaluateAndHighlightItem(Item item, Vector2 pos, Vector2 size)
         {
             if (item == null) return;
@@ -1743,14 +2191,17 @@ namespace StashUtility
 
             var name = baseComponent.BaseItemName;
             var path = item.Path;
+            var internalNameStr = baseComponent.InternalName;
 
-            bool isWaystone = (!string.IsNullOrEmpty(name) && name.Contains("Waystone")) || path.Contains("MapKey") || path.Contains("Waystone");
-            bool isTablet = (!string.IsNullOrEmpty(name) && name.Contains("Tablet")) || path.Contains("TowerAugment") || path.Contains("Tablet");
+            bool isWaystone = (!string.IsNullOrEmpty(name) && name.Contains("Waystone")) || path.Contains("MapKey", StringComparison.OrdinalIgnoreCase) || path.Contains("Waystone", StringComparison.OrdinalIgnoreCase);
+            bool isTablet = (!string.IsNullOrEmpty(name) && name.Contains("Tablet")) || path.Contains("TowerAugment", StringComparison.OrdinalIgnoreCase) || path.Contains("Tablet", StringComparison.OrdinalIgnoreCase);
+            bool isJewel = (!string.IsNullOrEmpty(name) && (name.Contains("Jewel") || name == "Sapphire" || name == "Ruby" || name == "Emerald" || name == "Diamond" || name.Contains("Time-Lost"))) || path.Contains("Metadata/Items/Jewels", StringComparison.OrdinalIgnoreCase) || path.Contains("Jewel", StringComparison.OrdinalIgnoreCase) || (!string.IsNullOrEmpty(internalNameStr) && internalNameStr.Contains("Jewel", StringComparison.OrdinalIgnoreCase));
 
-            if (!isWaystone && !isTablet) return;
+            if (!isWaystone && !isTablet && !isJewel) return;
 
             if (isWaystone && !Settings.EnableWaystoneManager) return;
             if (isTablet && !Settings.EnableTabletManager) return;
+            if (isJewel && !Settings.EnableJewelManager) return;
 
             if (Settings.EnableDebugProbe && !freezeHoveredWaystone)
             {
@@ -1801,6 +2252,7 @@ namespace StashUtility
             int explicitModsCount = 0;
 
             int tabletGoodCount = 0;
+            int jewelGoodCount = 0;
 
             if (modsComponent != null)
             {
@@ -1830,6 +2282,8 @@ namespace StashUtility
                 allRawMods.AddRange(modsComponent.ImplicitMods);
                 allRawMods.AddRange(modsComponent.ExplicitMods);
                 allRawMods.AddRange(modsComponent.EnchantMods);
+
+                var matchedJewelPatternIds = new HashSet<string>();
 
                 foreach (var mod in allRawMods)
                 {
@@ -1878,38 +2332,80 @@ namespace StashUtility
                     }
                     else if (isTablet)
                     {
-                        var def = Data.ModDatabase.AllTabletMods
-                            .OrderByDescending(d => d.Id.Length)
-                            .FirstOrDefault(d => mod.name.Contains(d.Id, StringComparison.OrdinalIgnoreCase));
-
-                        if (def != null)
+                        string tabletType = "Breach Tablet";
+                        if (!string.IsNullOrEmpty(name))
                         {
-                            bool passesRollCheck = true;
-                            if (def.MinRoll != def.MaxRoll && Settings.TabletModRequiredMinRolls.TryGetValue(def.Id, out float reqMin))
+                            if (name.Contains("Breach")) tabletType = "Breach Tablet";
+                            else if (name.Contains("Expedition")) tabletType = "Expedition Tablet";
+                            else if (name.Contains("Delirium")) tabletType = "Delirium Tablet";
+                            else if (name.Contains("Ritual")) tabletType = "Ritual Tablet";
+                            else if (name.Contains("Irradiated")) tabletType = "Irradiated Tablet";
+                            else if (name.Contains("Overseer")) tabletType = "Overseer Tablet";
+                            else if (name.Contains("Abyss")) tabletType = "Abyss Tablet";
+                            else if (name.Contains("Temple") || name.Contains("Incursion")) tabletType = "Temple Tablet";
+                            else
                             {
-                                float val0 = float.IsNaN(mod.vals.v0) ? 0f : mod.vals.v0;
-                                float val1 = float.IsNaN(mod.vals.v1) ? 0f : mod.vals.v1;
-                                float val = Math.Abs(val0 != 0f ? val0 : val1);
-                                if (val > 0 && val < reqMin)
-                                {
-                                    passesRollCheck = false;
-                                }
-                            }
-
-                            if (Settings.TabletGodModPatterns.Contains(def.Id) && passesRollCheck)
-                            {
-                                isGod = true;
-                            }
-                            if (Settings.TabletBadModPatterns.Contains(def.Id))
-                            {
-                                isBad = true;
-                            }
-                            if (Settings.TabletGoodModPatterns.Contains(def.Id) && passesRollCheck)
-                            {
-                                isGood = true;
-                                tabletGoodCount++;
+                                if (path.Contains("BreachAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Breach Tablet";
+                                else if (path.Contains("ExpeditionAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Expedition Tablet";
+                                else if (path.Contains("DeliriumAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Delirium Tablet";
+                                else if (path.Contains("RitualAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Ritual Tablet";
+                                else if (path.Contains("GenericAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Irradiated Tablet";
+                                else if (path.Contains("MapBossAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Overseer Tablet";
+                                else if (path.Contains("AbyssAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Abyss Tablet";
+                                else if (path.Contains("IncursionAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Temple Tablet";
                             }
                         }
+                        else
+                        {
+                            if (path.Contains("BreachAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Breach Tablet";
+                            else if (path.Contains("ExpeditionAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Expedition Tablet";
+                            else if (path.Contains("DeliriumAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Delirium Tablet";
+                            else if (path.Contains("RitualAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Ritual Tablet";
+                            else if (path.Contains("GenericAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Irradiated Tablet";
+                            else if (path.Contains("MapBossAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Overseer Tablet";
+                            else if (path.Contains("AbyssAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Abyss Tablet";
+                            else if (path.Contains("IncursionAugment", StringComparison.OrdinalIgnoreCase)) tabletType = "Temple Tablet";
+                        }
+
+                        if (Settings.TabletProfiles != null && Settings.TabletProfiles.TryGetValue(tabletType, out var profile))
+                        {
+                            var def = Data.ModDatabase.AllTabletMods
+                                .OrderByDescending(d => d.Id.Length)
+                                .FirstOrDefault(d => mod.name.Contains(d.Id, StringComparison.OrdinalIgnoreCase));
+
+                            if (def != null)
+                            {
+                                bool passesRollCheck = true;
+                                if (def.MinRoll != def.MaxRoll && profile.ModRequiredMinRolls.TryGetValue(def.Id, out float reqMin))
+                                {
+                                    float val0 = float.IsNaN(mod.vals.v0) ? 0f : mod.vals.v0;
+                                    float val1 = float.IsNaN(mod.vals.v1) ? 0f : mod.vals.v1;
+                                    float val = Math.Abs(val0 != 0f ? val0 : val1);
+                                    if (val > 0 && val < reqMin)
+                                    {
+                                        passesRollCheck = false;
+                                    }
+                                }
+
+                                if (profile.GodModPatterns.Contains(def.Id) && passesRollCheck)
+                                {
+                                    isGod = true;
+                                }
+                                if (profile.BadModPatterns.Contains(def.Id))
+                                {
+                                    isBad = true;
+                                }
+                                if (profile.GoodModPatterns.Contains(def.Id) && passesRollCheck)
+                                {
+                                    isGood = true;
+                                    tabletGoodCount++;
+                                }
+                            }
+                        }
+                    }
+                    else if (isJewel)
+                    {
+                        // Profile Groups evaluation is handled after raw mods scan
                     }
                 }
 
@@ -1946,6 +2442,98 @@ namespace StashUtility
                         isGreat = isGod || tabletGoodCount >= Settings.MinTabletGoodMods;
                     }
                 }
+                else if (isJewel)
+                {
+                    string itemPath = path ?? "";
+                    string itemName = name ?? "";
+                    string combinedInfo = $"{itemName} {internalNameStr} {itemPath}";
+
+                    bool isTimeLost = combinedInfo.Contains("Time-Lost", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("TimeLost", StringComparison.OrdinalIgnoreCase);
+
+                    string categoryKey = "Sapphire";
+                    if (combinedInfo.Contains("Emerald", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("JewelDex", StringComparison.OrdinalIgnoreCase))
+                    {
+                        categoryKey = isTimeLost ? "Time-Lost Emerald" : "Emerald";
+                    }
+                    else if (combinedInfo.Contains("Ruby", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("JewelStr", StringComparison.OrdinalIgnoreCase))
+                    {
+                        categoryKey = isTimeLost ? "Time-Lost Ruby" : "Ruby";
+                    }
+                    else if (combinedInfo.Contains("Sapphire", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("JewelInt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        categoryKey = isTimeLost ? "Time-Lost Sapphire" : "Sapphire";
+                    }
+                    else if (combinedInfo.Contains("Diamond", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("JewelStat", StringComparison.OrdinalIgnoreCase) || combinedInfo.Contains("JewelAll", StringComparison.OrdinalIgnoreCase))
+                    {
+                        categoryKey = isTimeLost ? "Time-Lost Diamond" : "Diamond";
+                    }
+
+                    bool satisfiesAnyGroup = false;
+
+                    if (Settings.JewelCategoryGroups.TryGetValue(categoryKey, out var groupList) && groupList != null && groupList.Count > 0)
+                    {
+                        foreach (var group in groupList)
+                        {
+                            if (group.ModPatternIds == null || group.ModPatternIds.Count == 0) continue;
+
+                            int groupMatchCount = 0;
+                            var matchedGroupPatternIds = new HashSet<string>();
+
+                            foreach (var mod in allRawMods)
+                            {
+                                if (string.IsNullOrEmpty(mod.name)) continue;
+
+                                foreach (var patternId in group.ModPatternIds)
+                                {
+                                    if (matchedGroupPatternIds.Contains(patternId)) continue;
+
+                                    var def = Data.ModDatabase.AllJewelMods.FirstOrDefault(d => d.Id == patternId);
+                                    if (def == null) continue;
+
+                                    if (IsJewelModMatch(mod.name, def))
+                                    {
+                                        bool passesRollCheck = true;
+                                        if (def.MinRoll != def.MaxRoll && group.ModRequiredMinRolls != null && group.ModRequiredMinRolls.TryGetValue(def.Id, out float reqMin))
+                                        {
+                                            float val0 = float.IsNaN(mod.vals.v0) ? 0f : mod.vals.v0;
+                                            float val1 = float.IsNaN(mod.vals.v1) ? 0f : mod.vals.v1;
+                                            float val = Math.Abs(val0 != 0f ? val0 : val1);
+                                            if (val > 0 && val < reqMin) passesRollCheck = false;
+                                        }
+
+                                        if (passesRollCheck)
+                                        {
+                                            matchedGroupPatternIds.Add(patternId);
+                                            groupMatchCount++;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (groupMatchCount >= group.MinMatchCount)
+                            {
+                                satisfiesAnyGroup = true;
+                                jewelGoodCount = Math.Max(jewelGoodCount, groupMatchCount);
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (jewelGoodCount >= Settings.MinJewelGoodModsToHighlight)
+                        {
+                            satisfiesAnyGroup = true;
+                        }
+                    }
+
+                    isGood = satisfiesAnyGroup;
+
+                    if (Settings.FilterJewelGreat)
+                    {
+                        isGreat = jewelGoodCount >= Settings.MinJewelGoodMods;
+                    }
+                }
             }
 
             bool passesNumericalFilters = true;
@@ -1966,7 +2554,7 @@ namespace StashUtility
                 if (Settings.FilterMaxExplicitMods && explicitModsCount > Settings.MaxExplicitMods) passesNumericalFilters = false;
             }
 
-            if (isTablet && !isBad && !isGood) return;
+            if ((isTablet || isJewel) && !isBad && !isGood) return;
 
             if (isWaystone && Settings.FilterBadModsOnlyOnHighlighted && !passesNumericalFilters) return;
 
@@ -1976,7 +2564,7 @@ namespace StashUtility
             float margin = Settings.BorderMargin * scale; // Adaptive margin for 4K scaling where bounding boxes overlap
             float activeBorderThickness = 0f;
 
-            bool showModBorder = (isWaystone && Settings.ShowModBorder) || (isTablet && Settings.ShowTabletModBorder);
+            bool showModBorder = (isWaystone && Settings.ShowModBorder) || (isTablet && Settings.ShowTabletModBorder) || (isJewel && Settings.EnableJewelManager);
 
             if (isTablet && isBad && Settings.DisableBadTabletHighlight)
             {
@@ -1985,9 +2573,11 @@ namespace StashUtility
 
             if (showModBorder && (isBad || isGood || passesNumericalFilters))
             {
-                Vector4 borderCol = isTablet 
-                    ? (isBad ? Settings.TabletBadColor : Settings.TabletGoodColor)
-                    : (isBad ? Settings.BadColor : Settings.GoodColor);
+                Vector4 borderCol = isJewel
+                    ? (isBad ? Settings.JewelBadColor : Settings.JewelGoodColor)
+                    : (isTablet 
+                        ? (isBad ? Settings.TabletBadColor : Settings.TabletGoodColor)
+                        : (isBad ? Settings.BadColor : Settings.GoodColor));
                 float thickness = isBad ? Settings.BorderThickness : Math.Max(1.5f, Settings.BorderThickness - 0.5f);
                 int style = isBad ? Settings.FrameStyleBad : Settings.FrameStyleGood;
 
@@ -1998,7 +2588,7 @@ namespace StashUtility
                 AddStyledRect(ImGui.GetBackgroundDrawList(), pos + new Vector2(inset, inset), pos + size - new Vector2(inset, inset), ImGuiHelper.Color(borderCol), thickness, style);
             }
 
-            if ((isWaystone || isTablet) && Settings.ShowRarityBorder)
+            if ((isWaystone || isTablet || isJewel) && Settings.ShowRarityBorder)
             {
                 Vector4 rarityCol = rarity switch
                 {
@@ -2035,7 +2625,7 @@ namespace StashUtility
                 };
 
                 var dl = ImGui.GetBackgroundDrawList();
-                Vector4 arrowCol = isTablet ? Settings.TabletColorGreat : Settings.ColorGreat;
+                Vector4 arrowCol = isJewel ? Settings.JewelColorGreat : (isTablet ? Settings.TabletColorGreat : Settings.ColorGreat);
                 dl.AddTriangleFilled(topTip, topTip + new Vector2(-arrowSize / 2, arrowSize), topTip + new Vector2(arrowSize / 2, arrowSize), ImGuiHelper.Color(arrowCol));
                 dl.AddTriangle(topTip, topTip + new Vector2(-arrowSize / 2, arrowSize), topTip + new Vector2(arrowSize / 2, arrowSize), 0xFF000000, Math.Max(1.0f, 1.5f * scale));
             }
@@ -2741,6 +3331,66 @@ namespace StashUtility
             result = SpacesRegex.Replace(result, " ").Trim().ToLowerInvariant();
             
             return result;
+        }
+
+        private static bool IsGeneralMod(Models.TabletMod m)
+        {
+            return !m.Id.Contains("Breach", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Expedition", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Delirium", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Abyss", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Incursion", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Ritual", StringComparison.OrdinalIgnoreCase)
+                && !m.Id.Contains("Irradiated", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void DrawModConfigRow(TabletProfile profile, string tabId, Models.TabletMod mod)
+        {
+            bool isGood = profile.GoodModPatterns.Contains(mod.Id);
+            bool isBad = profile.BadModPatterns.Contains(mod.Id);
+            bool isGod = profile.GodModPatterns.Contains(mod.Id);
+
+            ImGui.TextWrapped(mod.Name.Replace("%", "%%"));
+
+            if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.good", "Good", $"g_{tabId}_{mod.Id}"), ref isGood))
+            {
+                if (isGood) { profile.GoodModPatterns.Add(mod.Id); profile.BadModPatterns.Remove(mod.Id); profile.GodModPatterns.Remove(mod.Id); }
+                else { profile.GoodModPatterns.Remove(mod.Id); }
+                SaveSettings();
+            }
+            ImGui.SameLine(100f);
+            if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.bad", "Bad", $"b_{tabId}_{mod.Id}"), ref isBad))
+            {
+                if (isBad) { profile.BadModPatterns.Add(mod.Id); profile.GoodModPatterns.Remove(mod.Id); profile.GodModPatterns.Remove(mod.Id); }
+                else { profile.BadModPatterns.Remove(mod.Id); }
+                SaveSettings();
+            }
+            ImGui.SameLine(190f);
+            if (ImGui.Checkbox(PluginText.Label("stashutility.tablet.god", "God", $"god_{tabId}_{mod.Id}"), ref isGod))
+            {
+                if (isGod) { profile.GodModPatterns.Add(mod.Id); profile.GoodModPatterns.Remove(mod.Id); profile.BadModPatterns.Remove(mod.Id); }
+                else { profile.GodModPatterns.Remove(mod.Id); }
+                SaveSettings();
+            }
+            ImGuiHelper.ToolTip(PluginText.T("stashutility.tablet.god_tooltip", "A God mod immediately flags the tablet as Good/Great, ignoring any Bad mods."));
+
+            if ((isGood || isGod) && mod.MinRoll != mod.MaxRoll)
+            {
+                if (!profile.ModRequiredMinRolls.ContainsKey(mod.Id))
+                    profile.ModRequiredMinRolls[mod.Id] = mod.MinRoll;
+                float requiredRoll = profile.ModRequiredMinRolls[mod.Id];
+                ImGui.Indent(20f);
+                int intRoll = (int)requiredRoll;
+                ImGui.SetNextItemWidth(150f);
+                string formatStr = mod.Name.Contains("%") ? "%d%%" : "%d";
+                if (ImGui.SliderInt($"Req. Min Roll##min_{tabId}_{mod.Id}", ref intRoll, (int)mod.MinRoll, (int)mod.MaxRoll, formatStr))
+                {
+                    profile.ModRequiredMinRolls[mod.Id] = (float)intRoll;
+                    SaveSettings();
+                }
+                ImGui.Unindent(20f);
+            }
+            ImGui.Separator();
         }
     }
 }

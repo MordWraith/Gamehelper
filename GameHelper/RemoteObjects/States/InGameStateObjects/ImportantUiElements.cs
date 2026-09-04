@@ -35,6 +35,9 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
     public class ImportantUiElements : RemoteObjectBase
     {
         private static readonly int[] WorldMapPanelChildPath = { 22, 0 };
+        private static readonly int[] LargeMapViewportChildPath = { 6, 0 };
+        private static readonly int[] MiniMapViewportChildPath = { 6, 1 };
+        private static readonly int[] PassiveSkillTreeNodesChildPath = { 24, 2 };
         private static readonly int[] Act1PanelChildPath = { 22, 0, 0 };
         private static readonly int[] Act2PanelChildPath = { 22, 0, 1 };
         private static readonly int[] Act3PanelChildPath = { 22, 0, 2 };
@@ -72,7 +75,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private const int AtlasNodeBadgeContentIdOffset = 0x188;
         private const byte AtlasNodeAccessibleBit = 0x01;
         private const byte AtlasNodeCompletedBit = 0x02;
-        private const int UiElementBaseFlagsOffset = 0x180;
+        private const int UiElementBaseFlagsOffset = 0x168;
         private const uint IsVisibleMask = 0x800;
         private const uint AtlasCurrentNodeMarkerFp = 0x502EF3;
         private const uint AtlasMapNodeFp = 0x542EF3;
@@ -110,7 +113,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
         /// <summary>
         ///     Passive skill tree node Parent UI element.
-        ///     UiRoot -> MainChild -> index 28 -> 1
+        ///     GameUi -> child 24 -> child 2.
         /// </summary>
         private UiElementBase passiveskilltreenodes;
 
@@ -282,7 +285,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
         /// <summary>
         ///     Gets a value indicating whether the passive skill tree is currently open.
-        ///     Gated on the visibility of the tree's node container (UiRoot manager -> 0x730 -> child 2),
+        ///     Gated on the effective visibility of the tree's node container (GameUi -> child 24 -> child 2),
         ///     not on <see cref="SkillTreeNodesUiElements" />: in v0.5.x the per-node SkillInfo pointer
         ///     reads null so that list never populates, but the container's visibility bit is reliable.
         /// </summary>
@@ -303,7 +306,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
         /// <summary>
         ///     Gets the skill tree nodes UI Elements.
-        ///     UiRoot -> MainChild -> index 28 -> 2 -> all childrens;
+        ///     GameUi -> child 24 -> child 2 -> all children.
         /// </summary>
         public List<SkillTreeNodeUiElement> SkillTreeNodesUiElements { get; }
 
@@ -460,9 +463,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             var data1 = reader.ReadMemory<ImportantUiElementsOffsets>(Core.GHSettings.IsTaiwanClient ? this.Address - 0x08 : this.Address);
             if (Core.GHSettings.EnableControllerMode)
             {
-                var data2 = reader.ReadMemory<MapParentStruct>(data1.ControllerModeMapParentPtr);
-                this.LargeMap.Address = data2.LargeMapPtr;
-                this.MiniMap.Address = data2.MiniMapPtr;
+                this.UpdateMapAddresses();
                 this.UpdateWorldMapPanelAddresses();
                 if (this.IsCoopMode())
                 {
@@ -480,18 +481,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             }
             else
             {
-                var data2 = reader.ReadMemory<MapParentStruct>(data1.MapParentPtr);
-                var data3 = reader.ReadMemory<UiElementBaseOffset>(data1.PassiveSkillTreePanel);
-                var data4 = reader.ReadMemory<IntPtr>(data3.ChildrensPtr.First + (PassiveSkillTreeStruct.ChildNumber));
-                // This won't throw an exception (i.e. this address is not a UIElement) because (lucky us)
-                // game UiElement garbage collection is not instant. if this ever changes, put try catch on it.
-                this.LargeMap.Address = data2.LargeMapPtr;
-                this.MiniMap.Address = data2.MiniMapPtr;
+                this.UpdateMapAddresses();
                 this.UpdateWorldMapPanelAddresses();
                 this.LeftPanel.Address = ValidUiElementOrZero(data1.LeftPanelPtr);
                 this.RightPanel.Address = ValidUiElementOrZero(data1.RightPanelPtr);
                 this.ChatParent.Address = data1.ChatParentPtr;
-                this.passiveskilltreenodes.Address = ValidUiElementOrZero(data4);
+                this.passiveskilltreenodes.Address = ResolveChildAddress(this.Address, PassiveSkillTreeNodesChildPath);
                 this.updatePassiveSkillTreeData();
                 {
                     var mgrOff = reader.ReadMemory<UiElementBaseOffset>(this.Address);
@@ -504,6 +499,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             this.CurrencyExchangePanel.Address = ResolveChildAddress(this.Address, CurrencyExchangePanelChildPath);
             this.UpdateAtlasMapData();
+        }
+
+        private void UpdateMapAddresses()
+        {
+            this.LargeMap.Address = ResolveChildAddress(this.Address, LargeMapViewportChildPath);
+            this.MiniMap.Address = ResolveChildAddress(this.Address, MiniMapViewportChildPath);
         }
 
         private void UpdateWorldMapPanelAddresses()
@@ -960,8 +961,10 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                 return IntPtr.Zero;
             }
 
-            var data = Core.Process.Handle.ReadMemory<UiElementBaseOffset>(address);
-            return data.Self != IntPtr.Zero && data.Self != address ? IntPtr.Zero : address;
+            return Core.Process.Handle.TryReadMemory<UiElementBaseOffset>(address, out var data) &&
+                   data.Self == address
+                ? address
+                : IntPtr.Zero;
         }
 
         private void updatePassiveSkillTreeData()

@@ -117,6 +117,19 @@ namespace RunecraftHelper
         private readonly PriceCache priceCache = new();
         private DateTime nextAutoRefreshCheckUtc = DateTime.MinValue;
 
+        // Throttles the league-list staleness check (same one-minute tick as the price check).
+        private DateTime nextLeagueCheckUtc = DateTime.MinValue;
+
+        // FetchedUtc of the league list the last time we evaluated it — a change means a fresh list
+        // arrived, which is the only moment "the saved league disappeared" can newly become true.
+        private DateTime lastSeenLeagueListUtc = DateTime.MinValue;
+
+        // Set when the plugin moved itself off a league that vanished from poe.ninja's economyLeagues,
+        // so the settings pane can say so instead of silently swapping the user's league. Stored as the
+        // two raw names (not a formatted sentence) so the note follows the UI language at draw time.
+        private string leagueNoteFrom = string.Empty;
+        private string leagueNoteTo = string.Empty;
+
         // {localizedName → (metaId, ddsArt)}, built once per game session from BaseItemTypes.
         // metaId  = BaseItemType.Id last segment  — matches poe.ninja's tiered key for shared-icon
         //           families (Regal: …/…2/…3).
@@ -139,6 +152,10 @@ namespace RunecraftHelper
 
         private string SettingPathname => Path.Join(this.DllDirectory, "config", "settings.txt");
         private string PriceCachePathname => Path.Join(this.DllDirectory, "config", "prices.json");
+
+        // poe.ninja's economyLeagues list (see NinjaLeagues). League-independent by design — the file
+        // name must NOT carry a league, it caches the list of leagues itself.
+        private string LeagueCachePathname => Path.Join(this.DllDirectory, "config", "leagues.json");
 
         // Localization: JSON dictionaries in <plugin>/Localization/<lang-code>.json, keyed by the stable keys
         // used at the call sites. Resolves against GameHelper's selected UI language (OverlayLocalization.
@@ -165,7 +182,17 @@ namespace RunecraftHelper
                                 ?? new RunecraftHelperSettings();
             }
 
-            var fresh = this.priceCache.TryLoadFromDisk(this.PriceCachePathname, this.Settings.CacheTtlMinutes);
+            // League list first: the price fetch below needs a league name that still exists, and the
+            // settings combo should have content on the very first frame.
+            if (!NinjaLeagues.TryLoadFromDisk(this.LeagueCachePathname, NinjaLeagues.DefaultTtlHours))
+            {
+                NinjaLeagues.StartRefresh(this.LeagueCachePathname);
+            }
+
+            this.MaybeAdoptIndexedLeague();
+
+            var fresh = this.priceCache.TryLoadFromDisk(
+                this.PriceCachePathname, this.Settings.CacheTtlMinutes, this.Settings.League);
             if (!fresh)
                 this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
         }
@@ -190,7 +217,7 @@ namespace RunecraftHelper
             ImGui.Separator();
 
             if(ImGui.CollapsingHeader(this.Loc.Title("settings.poeninja", "poe.ninja settings", "rh_poeninja"))) {
-                ImGui.InputText(this.L("settings.league", "League"), ref this.Settings.League, 64);
+                this.DrawLeaguePicker();
                 ImGui.SliderInt(this.L("settings.refresh_interval", "Refresh interval (min)"), ref this.Settings.CacheTtlMinutes, 5, 60);
 
                 // poe.ninja price sync status + manual refresh — common (the price overlay is shared by all features).
@@ -208,6 +235,18 @@ namespace RunecraftHelper
                 };
 
                 ImGui.Text(this.LF("status.label", "Status: {0}", statusText));
+
+                // The single most common pricing failure: a league name the API doesn't know (typically a
+                // web slug), which answers 200 with an empty body. PriceCache reports it verbatim (it has
+                // no localization access), so the localized explanation lives here.
+                if (status == PriceSyncStatus.Error &&
+                    this.priceCache.LastError.Contains("returned 0 rows", StringComparison.Ordinal))
+                {
+                    ImGui.TextWrapped(this.L("status.zero_rows",
+                        "poe.ninja answered, but has no rows for this league. Check the league name: it must be\n" +
+                        "the API name with spaces (\"Runes of Aldur\"), not the web slug (\"runesofaldur\")."));
+                }
+
                 ImGui.Text(this.LF("status.items_cached", "Items cached: {0}", this.priceCache.PriceCount));
                 if (this.priceCache.DivineToExaltedRate > 0)
                     ImGui.Text(this.LF("status.divine_rate", "1 Divine = {0:F2} Exalted", this.priceCache.DivineToExaltedRate));
@@ -369,6 +408,128 @@ namespace RunecraftHelper
             }
 
             ImGui.EndTabBar();
+        }
+
+        // League selector. Filled from poe.ninja's economyLeagues (NinjaLeagues), grouped by the
+        // `hardcore` flag, with a free-text escape hatch for league-launch day (when the new league
+        // isn't in index-state yet).
+        //
+        // Deliberately NOT ImGuiHelper.IEnumerableComboBox: that helper renders entries as
+        // "0:Runes of Aldur" (index prefix), which is a core debug idiom, not user-facing UI.
+        // Every label goes through Loc.Label/a literal "##id" so the ImGui item ID stays stable when
+        // the GameHelper UI language changes.
+        private void DrawLeaguePicker()
+        {
+            if (this.Settings.UseCustomLeague)
+            {
+                if (ImGui.InputText(this.Loc.Label("settings.league", "League", "RhLeagueInput"), ref this.Settings.League, 64))
+                {
+                    this.Settings.LeaguePinned = true;
+                }
+
+                if (ImGui.IsItemDeactivatedAfterEdit())
+                {
+                    this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
+                }
+
+                ImGui.TextDisabled(this.L("settings.custom_league_hint",
+                    "Enter poe.ninja's API name, with spaces (\"Runes of Aldur\") — not the web slug\n" +
+                    "(\"runesofaldur\"), which the API answers with an empty result."));
+            }
+            else
+            {
+                // Preview is the RAW saved value, so the user sees what will be sent even before the
+                // list has loaded (or when the saved league isn't in it at all).
+                var softcore = new List<NinjaLeague>();
+                var hardcore = new List<NinjaLeague>();
+                foreach (var name in NinjaLeagues.ComboItems(this.Settings.League))
+                {
+                    var lg = NinjaLeagues.Resolve(name);
+                    (lg.Hardcore ? hardcore : softcore).Add(lg);
+                }
+
+                void Group(string header, List<NinjaLeague> items)
+                {
+                    if (items.Count == 0)
+                    {
+                        return;
+                    }
+
+                    ImGui.SeparatorText(header);
+                    foreach (var lg in items)
+                    {
+                        var selected = string.Equals(lg.Name, this.Settings.League, StringComparison.OrdinalIgnoreCase);
+                        if (ImGui.IsWindowAppearing() && selected)
+                        {
+                            ImGui.SetScrollHereY();
+                        }
+
+                        if (ImGui.Selectable($"{NinjaLeagues.LabelOf(lg)}##lg_{lg.Name}", selected) && !selected)
+                        {
+                            this.Settings.League = lg.Name;
+                            this.Settings.LeaguePinned = true;
+                            this.leagueNoteFrom = string.Empty;
+                            this.leagueNoteTo = string.Empty;
+                            this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
+                        }
+                    }
+                }
+
+                if (ImGui.BeginCombo(this.Loc.Label("settings.league", "League", "RhLeagueCombo"), this.Settings.League))
+                {
+                    Group(this.L("settings.league_softcore", "Softcore"), softcore);
+                    Group(this.L("settings.league_hardcore", "Hardcore"), hardcore);
+                    ImGui.EndCombo();
+                }
+
+                ImGui.TextDisabled(this.L("settings.league_hint",
+                    "Prices are fetched for exactly this poe.ninja league."));
+            }
+
+            ImGui.Checkbox(
+                this.Loc.Label("settings.custom_league", "Type the league name manually", "RhCustomLeague"),
+                ref this.Settings.UseCustomLeague);
+
+            var listStatus = NinjaLeagues.Status;
+            ImGui.BeginDisabled(listStatus == PriceSyncStatus.Syncing);
+            if (ImGui.Button(this.Loc.Label("settings.refresh_leagues", "Refresh league list", "RhRefreshLeagues")))
+            {
+                NinjaLeagues.StartRefresh(this.LeagueCachePathname);
+            }
+
+            ImGui.EndDisabled();
+
+            string listText;
+            if (listStatus == PriceSyncStatus.Syncing)
+            {
+                listText = this.L("settings.leagues_loading", "loading league list…");
+            }
+            else if (listStatus == PriceSyncStatus.Error)
+            {
+                listText = NinjaLeagues.IsLoaded
+                    ? this.LF("settings.leagues_offline_cached", "offline — using cached list ({0} old)", FormatRelative(NinjaLeagues.FetchedUtc))
+                    : this.L("settings.leagues_offline_builtin", "offline — using built-in list");
+            }
+            else if (NinjaLeagues.IsLoaded)
+            {
+                listText = this.LF("settings.leagues_ok", "{0} leagues, updated {1} ago", NinjaLeagues.All.Count, FormatRelative(NinjaLeagues.FetchedUtc));
+            }
+            else
+            {
+                listText = this.L("settings.leagues_offline_builtin", "offline — using built-in list");
+            }
+
+            ImGui.SameLine();
+            ImGui.TextDisabled(listText);
+
+            if (!string.IsNullOrEmpty(this.leagueNoteTo))
+            {
+                ImGui.TextWrapped(this.LF(
+                    "settings.league_adopted",
+                    "League \"{0}\" is gone from poe.ninja; switched to \"{1}\".",
+                    this.leagueNoteFrom,
+                    this.leagueNoteTo));
+            }
         }
 
         public override void DrawUI()
@@ -721,10 +882,76 @@ namespace RunecraftHelper
             if (now < this.nextAutoRefreshCheckUtc) return;
             this.nextAutoRefreshCheckUtc = now.AddMinutes(1);
 
+            // League list ages on its own (12h) clock, independent of the price TTL.
+            if (now >= this.nextLeagueCheckUtc)
+            {
+                this.nextLeagueCheckUtc = now.AddMinutes(1);
+                var wasLoaded = NinjaLeagues.IsLoaded;
+                var listAt = NinjaLeagues.FetchedUtc;
+
+                if (NinjaLeagues.IsStale && NinjaLeagues.Status != PriceSyncStatus.Syncing)
+                {
+                    NinjaLeagues.StartRefresh(this.LeagueCachePathname);
+                }
+                else if (NinjaLeagues.IsLoaded &&
+                         (!wasLoaded || listAt != this.lastSeenLeagueListUtc) &&
+                         !this.Settings.LeaguePinned &&
+                         !this.Settings.UseCustomLeague &&
+                         !NinjaLeagues.Contains(this.Settings.League))
+                {
+                    // The list just changed under us and the saved league is no longer offered.
+                    this.MaybeAdoptIndexedLeague();
+                }
+
+                this.lastSeenLeagueListUtc = NinjaLeagues.FetchedUtc;
+            }
+
             if (this.priceCache.Status == PriceSyncStatus.Syncing) return;
             var ttl = TimeSpan.FromMinutes(Math.Max(1, this.Settings.CacheTtlMinutes));
             if (this.priceCache.LastSyncUtc != DateTime.MinValue && now - this.priceCache.LastSyncUtc < ttl) return;
 
+            this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
+        }
+
+        // One-time, opt-out-able migration: if the user never picked a league themselves and the one
+        // we have saved is gone from poe.ninja's economyLeagues (new league launched), move to the
+        // league poe.ninja itself defaults to and re-fetch prices. A user with a league that still
+        // exists only gets LeaguePinned set — nothing else changes for them.
+        //
+        // `Indexed` is used ONLY here (default picking); it does not mean "has economy data".
+        private void MaybeAdoptIndexedLeague()
+        {
+            if (this.Settings.LeaguePinned || this.Settings.UseCustomLeague)
+            {
+                return;
+            }
+
+            // Built-in fallback only (no network, no cache): we can't tell whether the saved league is
+            // gone or merely unseen, so do nothing and retry on a later tick.
+            if (!NinjaLeagues.IsLoaded)
+            {
+                return;
+            }
+
+            this.lastSeenLeagueListUtc = NinjaLeagues.FetchedUtc;
+
+            if (NinjaLeagues.Contains(this.Settings.League))
+            {
+                this.Settings.LeaguePinned = true;
+                return;
+            }
+
+            if (!NinjaLeagues.TryPickDefault(out var picked) ||
+                string.Equals(picked, this.Settings.League, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var previous = this.Settings.League;
+            this.Settings.League = picked;
+            this.Settings.LeaguePinned = true;
+            this.leagueNoteFrom = previous;
+            this.leagueNoteTo = picked;
             this.priceCache.StartRefresh(this.Settings.League, this.PriceCachePathname);
         }
 

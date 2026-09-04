@@ -55,6 +55,8 @@ namespace Radar
         private ActiveCoroutine? onForegroundChange;
         private ActiveCoroutine? onGameClose;
         private ActiveCoroutine? onAreaChange;
+        private IntPtr observedAreaInstanceAddress;
+        private string observedAreaHash = string.Empty;
 
         private string currentAreaName = string.Empty;
         private string tmpTileName = string.Empty;
@@ -377,6 +379,8 @@ namespace Radar
             {
                 return;
             }
+
+            this.RefreshAreaIfIdentityChanged();
 
             if (this.Settings.DrawWhenForeground && !Core.Process.Foreground)
             {
@@ -2340,12 +2344,36 @@ namespace Radar
             while (true)
             {
                 yield return new Wait(RemoteEvents.AreaChanged);
-                this.CleanUpRadarPluginCaches();
-                this.currentAreaName = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.Id;
-                this.SwitchReachedPathsToCurrentArea();
-                this.GenerateMapTexture();
-                this.LogBossArenaTgtMatches();
+                this.RefreshAreaInfo();
             }
+        }
+
+        private void RefreshAreaIfIdentityChanged()
+        {
+            var instance = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (instance.Address == IntPtr.Zero ||
+                (instance.Address == this.observedAreaInstanceAddress &&
+                 instance.AreaHash == this.observedAreaHash))
+            {
+                return;
+            }
+
+            Console.WriteLine(
+                $"[Radar] Area identity changed to 0x{instance.Address.ToInt64():X} " +
+                $"(hash {instance.AreaHash}); refreshing map caches.");
+            this.RefreshAreaInfo();
+        }
+
+        private void RefreshAreaInfo()
+        {
+            this.CleanUpRadarPluginCaches();
+            var instance = Core.States.InGameStateObject.CurrentAreaInstance;
+            this.observedAreaInstanceAddress = instance.Address;
+            this.observedAreaHash = instance.AreaHash;
+            this.currentAreaName = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.Id;
+            this.SwitchReachedPathsToCurrentArea();
+            this.GenerateMapTexture();
+            this.LogBossArenaTgtMatches();
         }
 
         private void LogBossArenaTgtMatches()
@@ -2698,6 +2726,8 @@ namespace Radar
             this.tileIconPathSnapshot.Clear();
             this.RemoveMapTexture();
             this.currentAreaName = string.Empty;
+            this.observedAreaInstanceAddress = IntPtr.Zero;
+            this.observedAreaHash = string.Empty;
         }
 
         private bool IsLocalCoopActive(Render playerRender, bool hasOtherPlayer)

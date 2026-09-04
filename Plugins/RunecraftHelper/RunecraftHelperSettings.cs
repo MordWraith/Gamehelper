@@ -38,9 +38,20 @@ namespace RunecraftHelper
 
     public sealed class RunecraftHelperSettings : IPSettings
     {
-        // poe.ninja PoE2 league slug as it appears in the API "league" parameter (spaces become '+').
-        // Update each league launch. Default is the current league as of 2026-06-06.
+        // poe.ninja PoE2 league name, stored VERBATIM as the API spells it — i.e. the `name` field of
+        // economyLeagues ("HC Runes of Aldur"), never the web slug ("runesofaldurhc"), which the API
+        // answers with an empty body. URL-encoding (spaces → '+') happens in PriceCache. Picked from
+        // the settings combo; shared default with LootTracker as of 2026-06.
         public string League = "Runes of Aldur";
+
+        // True once the user has consciously picked a league in the combo (or typed a custom one).
+        // While false the plugin is allowed to move itself once onto poe.ninja's current indexed
+        // league — but only if the saved league has disappeared from economyLeagues.
+        public bool LeaguePinned = false;
+
+        // Show a free-text league field instead of the combo. Escape hatch for league-launch day,
+        // when the new league isn't in index-state yet.
+        public bool UseCustomLeague = false;
 
         // How long cached prices stay valid before we re-fetch (minutes). Range enforced in the
         // UI slider (5–60).

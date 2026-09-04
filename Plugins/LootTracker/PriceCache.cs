@@ -122,7 +122,13 @@ namespace LootTracker
         // Load a previously-saved snapshot. Returns true if the file existed AND its data is
         // within the TTL — caller skips a network refresh in that case. A return of false with
         // a populated Status (Ready) means stale data is loaded and usable while a refresh runs.
-        public bool TryLoadFromDisk(string filePath, int ttlMinutes)
+        //
+        // `expectedLeague` guards against showing another league's prices: the snapshot records the
+        // league it was fetched for, and a mismatch is rejected BEFORE the dictionaries are filled,
+        // so the overlay never gets a chance to render foreign prices as fresh. A pre-League cache
+        // file deserializes to "" and therefore never matches — one extra price reload on the first
+        // launch of this version, deliberately preferred over trusting an unlabeled cache.
+        public bool TryLoadFromDisk(string filePath, int ttlMinutes, string expectedLeague)
         {
             try
             {
@@ -130,6 +136,10 @@ namespace LootTracker
                 var content = File.ReadAllText(filePath);
                 var dto = JsonConvert.DeserializeObject<PriceCacheDto>(content);
                 if (dto == null || dto.Prices == null) return false;
+                if (!string.Equals(dto.League ?? string.Empty, expectedLeague ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
 
                 lock (this.gate)
                 {
@@ -179,11 +189,26 @@ namespace LootTracker
                 var aggregatedArtNames = new Dictionary<string, string>(StringComparer.Ordinal);
                 double divToEx = 0;
 
-                var leagueParam = Uri.EscapeDataString(league.Trim()).Replace("%20", "+");
+                // The API expects the economyLeagues `name` verbatim ("Runes of Aldur"), NOT the web
+                // slug ("runesofaldur") — the slug yields 200 with an empty body.
+                var leagueName = league.Trim();
+                var leagueParam = Uri.EscapeDataString(leagueName).Replace("%20", "+");
 
                 // One bad overview type (404 / renamed slug) must not nuke every other price, so
                 // each type is fetched independently and failures are collected, not thrown.
                 var failedTypes = new List<string>();
+
+                // Per-FAMILY tallies of "answered 200 and parsed" vs "actually carried rows". Kept
+                // apart because the two families react differently to an unknown type (exchange →
+                // 200 with an empty lines[]; stash/item → an honest 404), and because a legitimately
+                // dead league like Hardcore returns 0 exchange rows as its normal answer. Without
+                // this split a wrong league name is indistinguishable from "no HTTP failures at all",
+                // which is exactly the misleading case the old "all overview types failed ()" hit.
+                var exchangeOk = 0;
+                var exchangeRows = 0;
+                var itemOk = 0;
+                var itemRows = 0;
+
                 foreach (var type in ExchangeTypes)
                 {
                     try
@@ -194,6 +219,8 @@ namespace LootTracker
                         var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
 
                         var parsed = JObject.Parse(json);
+                        exchangeOk++;
+                        exchangeRows += (parsed["lines"] as JArray)?.Count ?? 0;
                         var localRate = parsed["core"]?["rates"]?["exalted"]?.Value<double>() ?? 0;
                         if (localRate > 0) divToEx = localRate;
 
@@ -315,6 +342,8 @@ namespace LootTracker
                         var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
 
                         var parsed = JObject.Parse(json);
+                        itemOk++;
+                        itemRows += (parsed["lines"] as JArray)?.Count ?? 0;
                         var localRate = parsed["core"]?["rates"]?["exalted"]?.Value<double>() ?? 0;
                         if (localRate > 0) divToEx = localRate;
                         var rate = localRate > 0 ? localRate : divToEx;
@@ -372,8 +401,17 @@ namespace LootTracker
                 }
 
                 if (aggregated.Count == 0)
-                    throw new InvalidOperationException(
-                        $"no prices fetched — all overview types failed ({string.Join("; ", failedTypes)})");
+                {
+                    var okTypes = exchangeOk + itemOk;
+                    var rowsTotal = exchangeRows + itemRows;
+                    var breakdown = $"exchange {exchangeOk} ok/{exchangeRows} rows, item {itemOk} ok/{itemRows} rows";
+                    throw new InvalidOperationException(okTypes > 0 && rowsTotal == 0
+                        ? $"league \"{leagueName}\": API answered 200 for {okTypes} type(s) but returned 0 rows " +
+                          $"— wrong league name (use the API name, not the web slug) or no economy data " +
+                          $"for this league [{breakdown}]"
+                        : $"league \"{leagueName}\": no prices fetched — {okTypes} type(s) answered, " +
+                          $"{rowsTotal} row(s) total [{breakdown}]; failures: {string.Join("; ", failedTypes)}");
+                }
 
                 // Ensure the reference currencies themselves are queryable. lines[] for Currency
                 // includes them (their primaryValue is their own price in Divine), but defending
@@ -394,11 +432,12 @@ namespace LootTracker
                     this.Status = PriceSyncStatus.Ready;
                     this.LastError = failedTypes.Count == 0
                         ? string.Empty
-                        : $"partial — skipped {string.Join(", ", failedTypes)}";
+                        : $"league \"{leagueName}\": partial — skipped {string.Join(", ", failedTypes)}";
                 }
 
                 var dto = new PriceCacheDto
                 {
+                    League = league.Trim(),
                     LastSyncUtc = this.LastSyncUtc,
                     DivineToExaltedRate = divToEx,
                     Prices = aggregated,
@@ -474,6 +513,10 @@ namespace LootTracker
         {
             public DateTime LastSyncUtc { get; set; }
             public double DivineToExaltedRate { get; set; }
+            // League this snapshot was fetched for (poe.ninja API `name`). Empty in files written by
+            // a pre-2026-09 build → treated as "unknown league" and rejected on load.
+            public string League { get; set; } = string.Empty;
+
             public Dictionary<string, double> Prices { get; set; } = new();
             public Dictionary<string, double> ArtPrices { get; set; } = new();
             public Dictionary<string, string> ArtNames { get; set; } = new();

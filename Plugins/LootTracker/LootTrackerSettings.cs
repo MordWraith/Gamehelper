@@ -11,9 +11,20 @@ namespace LootTracker
         // How many finished sessions to keep on disk (config/sessions); oldest deleted past this.
         public int MaxSessions = 30;
 
-        // poe.ninja PoE2 league slug (spaces become '+'). Update each league launch. Shared default
-        // with RunecraftHelper as of 2026-06.
+        // poe.ninja PoE2 league name, stored VERBATIM as the API spells it — i.e. the `name` field of
+        // economyLeagues ("HC Runes of Aldur"), never the web slug ("runesofaldurhc"), which the API
+        // answers with an empty body. URL-encoding (spaces → '+') happens in PriceCache. Picked from
+        // the settings combo; shared default with RunecraftHelper as of 2026-06.
         public string League = "Runes of Aldur";
+
+        // True once the user has consciously picked a league in the combo (or typed a custom one).
+        // While false the plugin is allowed to move itself once onto poe.ninja's current indexed
+        // league — but only if the saved league has disappeared from economyLeagues.
+        public bool LeaguePinned = false;
+
+        // Show a free-text league field instead of the combo. Escape hatch for league-launch day,
+        // when the new league isn't in index-state yet.
+        public bool UseCustomLeague = false;
 
         // How long cached prices stay valid before a re-fetch (minutes; UI slider 5–60).
         public int CacheTtlMinutes = 60;

@@ -7,7 +7,7 @@
     public struct SkillTreeNodeUiElementOffset
     {
         [FieldOffset(0x000)] public UiElementBaseOffset UiElementBase;
-        [FieldOffset(0x2B8)] public IntPtr SkillInfo; // SkillInfoStruct
+        [FieldOffset(0x2A0)] public IntPtr SkillInfo; // SkillInfoStruct
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1)]

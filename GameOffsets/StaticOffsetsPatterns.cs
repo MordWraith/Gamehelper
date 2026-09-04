@@ -25,7 +25,10 @@
             // </HowToFindIt>
             new (
                 "Game States",
-                "48 39 2D ^ ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? B9 40 01 00 00"
+                // The immediate passed to the allocator changed from 0x140 to 0x148 in a game patch.
+                // It is not part of the RIP-relative GameStates reference, so wildcard it and
+                // extend through the stable post-call instructions to retain uniqueness.
+                "48 39 2D ^ ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? B9 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8B F8 48 89 44 24 50"
             ),
 
             // <HowToFindIt>

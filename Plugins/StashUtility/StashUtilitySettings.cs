@@ -116,8 +116,43 @@ namespace StashUtility
         public Dictionary<string, float> TabletModRequiredMinRolls = new();
         public int MinGoodModsToIgnoreBad = 3;
 
+        // Jewels Manager
+        public bool EnableJewelManager = true;
+        public int MinJewelGoodModsToHighlight = 1;
+        public bool FilterJewelGreat = false;
+        public int MinJewelGoodMods = 2;
+        public Vector4 JewelGoodColor = new(0.0f, 1.0f, 0.4f, 1.0f);   // Bright Emerald Green
+        public Vector4 JewelBadColor = new(1.0f, 0.2f, 0.2f, 1.0f);    // Bright Red
+        public Vector4 JewelColorGreat = new(1.0f, 0.84f, 0.0f, 1.0f); // Gold
+        public List<string> JewelGoodModPatterns = new();
+        public List<string> JewelBadModPatterns = new();
+        public Dictionary<string, float> JewelModRequiredMinRolls = new();
+        public Dictionary<string, List<StashUtility.Models.JewelGroup>> JewelCategoryGroups = new();
+
         // Debug Probe Mode
         public bool EnableDebugProbe = false;
         public bool EnableMerchantPurchasePanel = false;
+
+        public static readonly string[] TabletTypes = new[]
+        {
+            "Breach Tablet",
+            "Expedition Tablet",
+            "Delirium Tablet",
+            "Ritual Tablet",
+            "Irradiated Tablet",
+            "Overseer Tablet",
+            "Abyss Tablet",
+            "Temple Tablet"
+        };
+
+        public Dictionary<string, TabletProfile> TabletProfiles = new();
+    }
+
+    public class TabletProfile
+    {
+        public List<string> GoodModPatterns = new();
+        public List<string> BadModPatterns = new();
+        public List<string> GodModPatterns = new();
+        public Dictionary<string, float> ModRequiredMinRolls = new();
     }
 }

@@ -117,7 +117,7 @@ namespace GameHelper.Utils
                         var pattern = Patterns[k];
                         var patternLength = pattern.Data.Length;
                         var isOddLengthPattern = patternLength % 2 != 0;
-                        var middleOfOddLengthPattern = patternLength / 2 + 1;
+                        var middleOfOddLengthPattern = patternLength / 2;
                         var isAnyByteDifferent = false;
 
                         if (processDataLength - j < patternLength)
@@ -125,9 +125,12 @@ namespace GameHelper.Utils
                             continue;
                         }
 
+                        // The paired comparison loop below intentionally excludes the single
+                        // middle byte of an odd-length pattern, so validate that byte here when
+                        // it is fixed. Wildcards must never reject a candidate.
                         if (isOddLengthPattern &&
-                            !pattern.Mask[middleOfOddLengthPattern] &&
-                            processData[j + middleOfOddLengthPattern] ==
+                            pattern.Mask[middleOfOddLengthPattern] &&
+                            processData[j + middleOfOddLengthPattern] !=
                             pattern.Data[middleOfOddLengthPattern])
                         {
                             continue;
@@ -170,7 +173,22 @@ namespace GameHelper.Utils
 
             if (totalPatternsFound < totalPatterns)
             {
-                throw new Exception("Couldn't find some patterns. kindly fix the patterns.");
+                var missingPatterns = Patterns
+                    .Where((_, index) => !isPatternFound[index])
+                    .ToArray();
+                var missingPatternNames = string.Join(", ", missingPatterns.Select(pattern => pattern.Name));
+
+                Console.WriteLine(
+                    $"[PatternFinder] Static-pattern scan found {totalPatternsFound}/{totalPatterns}. " +
+                    $"Missing: {missingPatternNames}");
+                foreach (var missingPattern in missingPatterns)
+                {
+                    Console.WriteLine($"[PatternFinder] Missing pattern: {missingPattern}");
+                }
+
+                throw new Exception(
+                    $"Couldn't find {missingPatterns.Length}/{totalPatterns} patterns. " +
+                    $"Missing: {missingPatternNames}. Kindly fix the patterns.");
             }
 
             for (var i = 0; i < totalPatterns; i++)
