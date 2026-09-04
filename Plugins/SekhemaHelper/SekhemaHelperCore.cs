@@ -36,7 +36,7 @@ namespace SekhemaHelper
         private int honourScanMax;
 
         // --- UITree navigation: index path primary, Flags-fingerprint fallback (docs/uitree-guide.md §2b) ---
-        // Child indices jump on game patches; each element's Flags field (+0x180) encodes its stable
+        // Child indices jump on game patches; each element's Flags field (+0x168 on 0.5.5) encodes its stable
         // "role". Ideally we'd navigate purely by fp (like RunecraftHelper.WalkFp), but here the
         // fingerprints are GENERIC containers (0x..F1 at every level) and the terminals are WEAK (water
         // = "any numeric text", honour = "any bar geometry"), so an fp-walk could backtrack into the
@@ -45,24 +45,32 @@ namespace SekhemaHelper
         // shifted indices) — the stable Flags still find the element though it moved. Re-harvest the
         // chains after a client patch with the "Dump UI fingerprints" debug button.
         private const int UiChildrenFirstOffset = 0x10;   // UiElementBase.ChildrensPtr.First (StdVector @ +0x10).
-        private const int UiElementFlagsOffset = 0x180;    // UiElementBaseOffset.Flags (uint).
-        private const int UiParentOffset = 0xB8;           // UiElementBaseOffset.ParentPtr.
-        private const int UiUnscaledSizeXOffset = 0x288;   // UiElementBaseOffset.UnscaledSize.X (float).
+        // 0.5.5: everything in UiElementBase AFTER ParentPtr moved -0x18 (Flags 0x180 -> 0x168,
+        // UnscaledSize 0x288 -> 0x270); ParentPtr itself and the children vector are unchanged. These are
+        // the same values GameOffsets.UiElementBaseOffset now carries -- this plugin keeps private copies
+        // only to read a raw child address without materialising a whole element, so they must be kept in
+        // step with the core by hand. A stale Flags word is silent: every fp compare simply misses.
+        private const int UiElementFlagsOffset = 0x168;    // UiElementBaseOffset.Flags (uint).
+        private const int UiParentOffset = 0xB8;           // UiElementBaseOffset.ParentPtr (unchanged).
+        private const int UiUnscaledSizeXOffset = 0x270;   // UiElementBaseOffset.UnscaledSize.X (float).
         private const uint IsVisibleMask = 0x800;          // Flags bit 0x0B — masked before fp compare.
 
         // Live Sacred Water, read from the Trial map panel's water counter text leaf.
         // Index path SekhemasTrialMapPanel -> [1][0][0][1]; displayed value is the std::wstring at
-        // leaf+0x4C0 (docs §4.7.9). -1 = not yet read (rule degrades via WeightCalculator.WaterKnown).
+        // leaf+0x490 (docs §4.7.9). -1 = not yet read (rule degrades via WeightCalculator.WaterKnown).
         // Fp chain harvested live 2026-06-23 (config\ui_fp_dump.txt); IsVisible masked at compare time.
         private static int liveWater = -1;
         private static readonly int[] WaterIndexPath = { 1, 0, 0, 1 };
         private static readonly uint[] WaterFpChain = { 0x00502EF1, 0x00502EF1, 0x00502EF3, 0x00502EE1 };
-        private const int WaterTextWStringOffset = 0x4C0;
+        // 0.5.5: 0x4C0 -> 0x490. A derived TEXT element lost 0x30 in total -- 0x18 from UiElementBase's
+        // tail plus another 0x18 of the text class's own. Measured by reading a known string back, not
+        // by shifting the old value.
+        private const int WaterTextWStringOffset = 0x490;
 
         // Live key counts (Bronze/Silver/Gold), read from the same map-panel water+keys container as the
         // water counter: SekhemasTrialMapPanel -> [1][0] is the container, where child[0]=water and
         // child[1|2|3] are the three key tiers; each value leaf is child[N][1] with the displayed number
-        // as a std::wstring at leaf+0x4C0 (docs re-findings-sekhema §4.6). Read while the map is open,
+        // as a std::wstring at leaf+0x490 (docs re-findings-sekhema §4.6). Read while the map is open,
         // then cached so the HUD can show them when the map is closed (like water). -1 = not yet read.
         private static int liveBronze = -1, liveSilver = -1, liveGold = -1;
         // Map-OPEN source: from SekhemasTrialMapPanel (read after the visibility gate, like water).
@@ -70,7 +78,7 @@ namespace SekhemaHelper
         private static readonly int[] SilverKeyIndexPath = { 1, 0, 2, 1 };
         private static readonly int[] GoldKeyIndexPath = { 1, 0, 3, 1 };
         // Map-CLOSED source: the bottom HUD panel GameUi.Address -> [13] (the same container that holds
-        // the honour bar at [13][5]); key tiers at [13][1|2|3][1], value wstring @ +0x4C0. Captured live
+        // the honour bar at [13][5]); key tiers at [13][1|2|3][1], value wstring @ +0x490. Captured live
         // 2026-06-25 (chest room: GameUi -> [13] -> [1|2|3] -> [1]). Read before the gate so keys show
         // while the map is closed; values are read fresh here (no staleness in a chest room).
         private static readonly int[] HudBronzeKeyIndexPath = { 13, 1, 1 };
@@ -88,6 +96,11 @@ namespace SekhemaHelper
         private static readonly int[] HonourIndexPath = { 13, 5, 1 };
         private static readonly uint[] HonourFpChain = { 0x005026F1, 0x00502EF1, 0x00502EF7 };
         private bool dumpUiFpRequested;
+        private bool dumpFloorRequested;
+        // Node->physical-room mapping research (FloorResearch): collect ground-truth across many floors.
+        private bool researchNewFloorRequested;
+        private bool researchRecordRoomRequested;
+        private bool researchSaveFloorRequested;
 
         public override void OnEnable(bool isGameOpened)
         {
@@ -164,6 +177,26 @@ namespace SekhemaHelper
                     this.scanHonourByValueRequested = true;
                 if (ImGui.Button("Dump UI fingerprints -> config\\ui_fp_dump.txt"))
                     this.dumpUiFpRequested = true;
+
+                // Whole-floor read (SanctumPlugin picks + placement records): draw every room (incl.
+                // UI-hidden) on the large map, and dump the floor + raw door bytes for edge-graph RE.
+                ImGui.Checkbox("Draw floor plots (all rooms on large map)", ref Settings.DebugDrawFloorPlots);
+                ImGuiHelper.ToolTip("Reads the client's terrain layout: every room's type+reward at its world position, incl. rooms the UI hides. Open the large map to see it.");
+                if (ImGui.Button("Dump floor -> config\\sekhema_floor_dump.txt"))
+                    this.dumpFloorRequested = true;
+
+                // --- Node->physical-room mapping research (open the Trial map for each action) ---
+                ImGui.SeparatorText("Room-mapping research");
+                ImGuiHelper.ToolTip("Collect ground-truth to reverse the server's (layer,room)->physical-room assignment. Keep the Trial map OPEN when pressing these.\n1) enter a fresh floor -> New floor snapshot\n2) in each room you visit -> Record current room\n3) at floor end -> Save floor\nRepeat for 8-15 floors; data lands in config\\sekhema_research\\dataset.jsonl.");
+                if (ImGui.Button("1) New floor snapshot"))
+                    this.researchNewFloorRequested = true;
+                ImGui.SameLine();
+                if (ImGui.Button("2) Record current room"))
+                    this.researchRecordRoomRequested = true;
+                ImGui.SameLine();
+                if (ImGui.Button("3) Save floor -> dataset.jsonl"))
+                    this.researchSaveFloorRequested = true;
+                ImGui.TextDisabled(FloorResearch.Status);
             }
 
             // ---- Display ----
@@ -381,6 +414,14 @@ namespace SekhemaHelper
             // (§12). Self-gates on large-map visibility; independent of the Trial map panel below.
             RoomObjects.Draw(Settings);
 
+            // Whole-floor plots (all rooms incl. UI-hidden) on the large map — debug overlay + dump.
+            FloorReader.Draw(Settings);
+            if (this.dumpFloorRequested)
+            {
+                this.dumpFloorRequested = false;
+                FloorReader.Dump(Path.Join(DllDirectory, "config", "sekhema_floor_dump.txt"));
+            }
+
             var gameUi = Core.States.InGameStateObject.GameUi;
 
             var panel = gameUi?.SekhemasTrialMapPanel;
@@ -432,6 +473,24 @@ namespace SekhemaHelper
             }
 
             ClassifyRooms(floor);
+
+            // Room-mapping research harness (ground-truth collection across floors). Handled here so the
+            // classified `floor` (revealed ids) and the open-map FloorData are both available.
+            if (this.researchNewFloorRequested)
+            {
+                this.researchNewFloorRequested = false;
+                FloorResearch.NewFloor(floor);
+            }
+            if (this.researchRecordRoomRequested)
+            {
+                this.researchRecordRoomRequested = false;
+                FloorResearch.RecordRoom(floor);
+            }
+            if (this.researchSaveFloorRequested)
+            {
+                this.researchSaveFloorRequested = false;
+                FloorResearch.SaveFloor(Path.Join(DllDirectory, "config", "sekhema_research"));
+            }
 
             this.weightCalculator ??= new WeightCalculator(Settings);
             // Live water + key counts from the visible map panel's counter text (docs §4.7.9 / §4.6).
@@ -763,7 +822,7 @@ namespace SekhemaHelper
         }
 
         // Resolve the Sacred Water counter leaf by Flags-fingerprint walk (docs §2b), then read the
-        // displayed std::wstring at +0x4C0 and parse it (strips thousands separators, e.g. "6 267").
+        // displayed std::wstring at +0x490 and parse it (strips thousands separators, e.g. "6 267").
         // Returns -1 if the leaf can't be resolved or the text isn't numeric. Panel must be populated.
         private static int ReadSacredWaterFromUi(IntPtr panelAddr)
         {
@@ -772,7 +831,7 @@ namespace SekhemaHelper
         }
 
         // Read one key-tier counter by its index path (Bronze/Silver/Gold share the water leaf layout:
-        // displayed number is the std::wstring at leaf+0x4C0). -1 if unresolved/non-numeric.
+        // displayed number is the std::wstring at leaf+0x490). -1 if unresolved/non-numeric.
         private static int ReadKeyFromUi(IntPtr root, int[] indexPath)
         {
             var leaf = ResolveByIndex(root, indexPath, out _);
@@ -791,7 +850,7 @@ namespace SekhemaHelper
             if (g >= 0) liveGold = g;
         }
 
-        // Terminal validator: a water leaf is one whose +0x4C0 std::wstring parses to a number.
+        // Terminal validator: a water leaf is one whose +0x490 std::wstring parses to a number.
         private static bool IsWaterLeaf(IntPtr leaf) =>
             ParseDigits(Mem.ReadStdWString(leaf + WaterTextWStringOffset)) >= 0;
 

@@ -21,6 +21,12 @@ namespace SekhemaHelper
         public bool DrawBestPath = true;
         public bool DebugEnable = false;
 
+        // DEBUG ONLY (requires DebugEnable): draw EVERY room of the floor (incl. UI-hidden ones) at its
+        // real world position on the large map, labelled with type + reward, read straight from the
+        // client's terrain-generation data (FloorReader: SanctumPlugin picks + placement records). Used
+        // to verify the whole-floor read + (next) the door-graph against the Trial map screenshot.
+        public bool DebugDrawFloorPlots = false;
+
         // --- Resource-aware room recommendations (use live Sacred Water / Honour readouts) ---
         // Don't recommend the Merchant reward room while current Sacred Water is BELOW this threshold:
         // with nothing to spend the detour isn't worth it. Skipped when water is unknown (not in a Trial

@@ -14,25 +14,40 @@ namespace LootTracker
     // backtracking. Child indices drift across game restarts/patches; the role-encoding Flags bits are
     // stable, so we match those (with the IsVisible bit masked out, since it toggles). The path is:
     //   GameUi -> {fp 0x005026F1} -> {fp 0x004426F3 = experience bar}
-    // Flags verified live on PoE2 0.5.x. Geometry math mirrors GameHelper.UiElementBase.Position/Size
+    // Flags verified live on PoE2 0.5.x, re-checked on 0.5.5: the fingerprints are UNCHANGED and still
+    // resolve at GameUi[96][0] (a 961.7 x 22.3 strip along the bottom of the screen). When the bar stops
+    // resolving after a patch, suspect the raw offsets below before re-deriving the fingerprints.
+    // Geometry math mirrors GameHelper.UiElementBase.Position/Size
     // but is read by raw offset (not the GameOffsets struct) so it survives layout differences between
     // forks' GameOffsets builds.
     public sealed partial class LootTrackerCore
     {
         private static readonly uint[] ExpBarFingerprints = { 0x005026F1, 0x004426F3 };
 
+        // 0.5.5: every UiElementBase field after ParentPtr moved -0x18 (vtable / Self / children /
+        // ParentPtr did not). Confirmed from the game's own position walk, which reads the parent at
+        // +0xB8, tests flags at +0x168, adds the parent's modifier from +0x108, compares +0x172 and
+        // +0x118, and accumulates +0x100 -- the same maths this file mirrors.
+        //
+        // Note PositionModifier: 0xF0 came from GameHelper upstream and was ALREADY WRONG for 0.5.4
+        // (the game reads +0x120 there), so the correct 0.5.5 value is 0x120 - 0x18 = 0x108, NOT
+        // 0xF0 - 0x18. Shifting a stale offset only moves the mistake.
+        //
+        // Why this broke the whole plugin rather than just the anchor: the HUD is gated on the
+        // experience bar resolving (a failed resolve doubles as "a large panel is covering the
+        // screen"), so stale geometry offsets meant nothing drew at all.
         private const int UiChildrenOffset = 0x10;          // StdVector {first,last} of child element ptrs
         private const int UiSelfOffset = 0x08;              // points back at the element (validity check)
-        private const int UiFlagsOffset = 0x180;
-        private const int UiRelativePositionOffset = 0x118; // StdTuple2D<float>
-        private const int UiPositionModifierOffset = 0xF0;  // StdTuple2D<float>
+        private const int UiFlagsOffset = 0x168;
+        private const int UiRelativePositionOffset = 0x100; // StdTuple2D<float>
+        private const int UiPositionModifierOffset = 0x108; // StdTuple2D<float>
         private const int UiParentPtrOffset = 0xB8;
-        private const int UiLocalScaleOffset = 0x130;       // float
-        private const int UiScaleIndexOffset = 0x18A;       // byte
-        private const int UiUnscaledSizeOffset = 0x288;     // StdTuple2D<float>
+        private const int UiLocalScaleOffset = 0x118;       // float
+        private const int UiScaleIndexOffset = 0x172;       // byte
+        private const int UiUnscaledSizeOffset = 0x270;     // StdTuple2D<float>
         private const uint UiIsVisibleMask = 1u << 0x0B;    // 0x800
         private const uint UiShouldModifyPosMask = 1u << 0x0A; // 0x400
-        private const int UiNodeReadSize = 0x290;           // covers up to UnscaledSize + 8
+        private const int UiNodeReadSize = 0x278;           // covers up to UnscaledSize + 8
 
         private IntPtr resolvedExpBar;
         private DateTime nextExpBarResolveUtc = DateTime.MinValue;

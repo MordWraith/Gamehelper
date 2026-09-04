@@ -55,7 +55,13 @@ namespace SekhemaHelper
     //   panel(=mapElement) +0x3B8 -> floorObj -> +0x1F8 (or +0x1B0) = FloorData
     public static class SekhemaReader
     {
-        private const int MapElement_FloorObjPtr = 0x3B8; // field [0x77]
+        // 0.5.5: 0x3B8 -> 0x3A0. mapElement is a UiElement (GameUi.child[84], the PARENT of the map
+        // panel), so its own fields ride behind UiElementBase -- which lost 0x18 this patch. Verified by
+        // following it: floorObj+0x1B0 gives a FloorData whose layers vector holds 8 layers, whose
+        // content vector (FloorData+0x18) holds 14 entries of stride 0x40, whose choices array reads
+        // `00 FF FF FF FF FF FF FF` (8 layers, first chosen) and whose counter reads 1 = one choice
+        // made. The stale 0x3B8 now reads 0, so the whole plugin degraded to "no FloorData".
+        private const int MapElement_FloorObjPtr = 0x3A0; // field [0x74] (0.5.5; was 0x3B8)
         private const int FloorObj_Flag25a = 0x25a;
         private const int FloorData_OffActive = 0x1F8;
         private const int FloorData_OffAlt = 0x1B0;
@@ -67,6 +73,10 @@ namespace SekhemaHelper
         private const int RoomStride = 0x38;
         private const int RoomConnFirst = 0x00;
         private const int RoomConnLast = 0x08;
+        // DEAD as of the §4.4 fix: room classification reads the FloorData content vector instead, and
+        // ContentFk is written but never consumed. Left at its 0.5.4 value ON PURPOSE -- it is a
+        // UI-widget field, so it certainly drifted, and guessing a new one would only manufacture a
+        // plausible-looking pointer. Re-verify before reviving any use of it.
         private const int WidgetContent = 0x4D8;
 
         private const int UiElement_ParentPtr = 0xB8;

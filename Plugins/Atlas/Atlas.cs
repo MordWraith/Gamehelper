@@ -39,8 +39,11 @@ namespace Atlas
 
         // Atlas connection (edge) list — a flat StdVector on the atlas-panel UiElement. Each entry
         // is {int unknown; grid Source; grid Target}; Source/Target are grid coords matched against
-        // each node's grid (node+0x320). Verified live in GameHelper2-main for PoE2 0.5.x.
-        private const int AtlasConnectionsVectorOffset = 0x5A8;
+        // each node's grid (0.5.5: node+0x310, was 0x320 -- see the core reader for the proof).
+        // NOTE: this plugin takes GridPosition from GameHelper's AtlasMapNode, so the core fix covers it.
+        // 0.5.5: 0x5A8 -> 0x590 (the panel took a plain -0x18; see the core's ImportantUiElements for
+        // the evidence, including why 0x578 is the ritual candidate table and not this).
+        private const int AtlasConnectionsVectorOffset = 0x590;
 
         // fp of the "you are here" marker child (shares the node-list container fp, not the
         // map-node fp 0x542EF3). Used to locate the player's current atlas node by screen position.
@@ -74,21 +77,31 @@ namespace Atlas
         // attaches a text child at +0x3B8 whose label already holds the LOCALIZED Rite-mod lines
         // (rolled client-side, translated via stat_descriptions.csd). We just read that text.
         // See obsidian poe2/Ritual.md; Ghidra AtlasPanel_ritualLineToggleNode / FUN_140b18010.
-        private const uint RitualLineFlagMask = 0x100000u;  // node widget +0x180 bit 20 = "on the ritual line"
+        // The flag WORD moved 0x180 -> 0x168 on 0.5.5. This constant is only a bit MASK, so it is
+        // unaffected; the three places that read the word raw use NodeFlagsOffset (see below).
+        private const uint RitualLineFlagMask = 0x100000u;  // node widget +0x168 (was 0x180) bit 20 = "on the ritual line"
         private const int RitualModsChildOffset = 0x3B8;    // ptr → text child carrying the Rite-mod lines
-        private const int TextElementTextOffset = 0x4C0;    // std::wstring on a game text element (uitree guide)
+        // 0.5.5: 0x4C0 -> 0x490. The wstrings on a derived TEXT element moved -0x30 (UiElementBase lost
+        // 0x18 and the text class another 0x18 of its own). Measured by reading content back, not shifted.
+        private const int TextElementTextOffset = 0x490;    // std::wstring on a game text element (uitree guide)
         // Ritual-line state on the atlas panel (== the node-list container, verified live 0.5.4):
-        private const int PanelLineModeOffset = 0x637;      // u8 bool: ritual line mode (page mode 6) active
-        private const int PanelLineIdOffset = 0x63C;        // u32 line id/seed word (TinyMT input word 0)
-        private const int PanelPendingVecOffset = 0x648;    // std::vector<(i32,i32)> candidate grids
-        private const int PanelCommittedVecOffset = 0x660;  // std::vector<(i32,i32)> committed line grids
+        // 0.5.5: all -0x18. The panel's shift is established by TWO independently identified vectors
+        // (connections 0x5A8 -> 0x590 and the candidate table 0x590 -> 0x578), so carrying the rest of
+        // the panel's fields by the same delta rests on measured evidence rather than a guess -- but
+        // these four only populate in ritual line mode and have NOT been observed live yet.
+        private const int PanelLineModeOffset = 0x61F;      // u8 bool: ritual line mode (page mode 6) active
+        private const int PanelLineIdOffset = 0x624;        // u32 line id/seed word (TinyMT input word 0)
+        private const int PanelPendingVecOffset = 0x630;    // std::vector<(i32,i32)> candidate grids
+        private const int PanelCommittedVecOffset = 0x648;  // std::vector<(i32,i32)> committed line grids
         // Precomputed next-candidate table (AtlasPanel_ritualLineNextCandidates does a binary search
         // here): std::vector begin@+0x590 / end@+0x598, entry stride 0x44 = 17 int32:
         //   [0]=nodeX [1]=nodeY, then 5 candidates × (x,y,extra) = ints [2..16]. Sorted by x<<16|y.
         // The roll's candIdx = the clicked node's rank among these 5 (minus (0,0) / already-committed)
         // sorted lexicographically by (x,y). See obsidian poe2/Ritual.md.
-        private const int PanelCandTableBeginOffset = 0x590;
-        private const int PanelCandTableEndOffset = 0x598;
+        // 0.5.5: 0x590/0x598 -> 0x578/0x580. Identified by content: real entries in this vector sit
+        // 17 int32 (0x44) apart, which is what distinguishes it from the edge vector now at 0x590.
+        private const int PanelCandTableBeginOffset = 0x578;
+        private const int PanelCandTableEndOffset = 0x580;
         private const int CandTableEntryStride = 0x44;   // bytes; 17 int32
         private const int CandTableMaxCandidates = 5;
         // Node widget +0x300 → per-map dat-row ptr; row +0x7C = special-map category id
@@ -1693,7 +1706,7 @@ namespace Atlas
                 if (addr == IntPtr.Zero)
                     continue;
 
-                uint f = Read<uint>(IntPtr.Add(addr, 0x180));
+                uint f = Read<uint>(IntPtr.Add(addr, NodeFlagsOffset));
                 if ((f & ~IsVisibleMask) != (AtlasMistNodeFp & ~IsVisibleMask))
                     continue;
 
@@ -2256,7 +2269,7 @@ namespace Atlas
             var wanted = new Dictionary<(int X, int Y), StdTuple2D<int>>();
             foreach (var (addr, gx, gy, cx, cy) in shipCache)
             {
-                if ((Read<uint>(IntPtr.Add(addr, 0x180)) & IsVisibleMask) != 0)
+                if ((Read<uint>(IntPtr.Add(addr, NodeFlagsOffset)) & IsVisibleMask) != 0)
                     chunkVisible.Add((cx, cy));
                 else if (!wanted.ContainsKey((cx, cy)))
                     wanted[(cx, cy)] = new StdTuple2D<int> { X = gx, Y = gy };
@@ -4618,6 +4631,16 @@ namespace Atlas
         private const uint AtlasMapNodeFp = 0x00542EF3;
         private const uint IsVisibleMask = 0x800u;
 
+        // 0.5.5: the UiElement flag word moved 0x180 -> 0x168 (UiElementBase's tail lost 0x18).
+        // Most of this plugin reads Flags through GameHelper's UiElementBaseOffset and so was
+        // carried by the core fix, but three places read the word RAW off a child address to avoid
+        // materialising a whole UiElement -- and those kept reading 0x180. That is what blanked the
+        // overlay: HasAtlasNodeChild below is the TERMINAL check of the fingerprint walk, so with a
+        // stale flag word no candidate container ever looked like a node list, GetAtlasPanelAddress
+        // returned Zero, and DrawUI bailed at `!atlasUi.IsVisible` before reading a single node.
+        // Nothing logged an error and the core's own node data was perfect the whole time.
+        private const int NodeFlagsOffset = 0x168;
+
         // KB/Mouse: the panel is a DIRECT child of GameUi → Panel→Gate→NodeList (3 hops).
         // Controller: GameHelper auto-detects controller mode (InGameState.UiRootStructPtr == 0) and
         // swaps GameUi.Address to the gamepad UI manager (fp 0x502EF0); under it the SAME
@@ -4713,7 +4736,7 @@ namespace Atlas
                 var childAddr = container.GetChildAddress(i);
                 if (childAddr == IntPtr.Zero)
                     continue;
-                uint f = Read<uint>(IntPtr.Add(childAddr, 0x180)) & ~IsVisibleMask;
+                uint f = Read<uint>(IntPtr.Add(childAddr, NodeFlagsOffset)) & ~IsVisibleMask;
                 if (f == (AtlasMapNodeFp & ~IsVisibleMask) || f == (AtlasMistNodeFp & ~IsVisibleMask))
                     return true;
             }
