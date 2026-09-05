@@ -498,6 +498,8 @@ namespace GameHelper.Ui
             Add("MiniMap", ui.MiniMap.Address);
             Add("WorldMapPanel", ui.WorldMapPanel.Address);
             Add("Atlas", ui.Atlas.Address);
+            Add("GemcuttingPanel", ui.GemcuttingPanel.Address);
+            Add("SupportGemcuttingPanel", ui.SupportGemcuttingPanel.Address);
             Add("LeftPanel", ui.LeftPanel.Address);
             Add("RightPanel", ui.RightPanel.Address);
             Add("ChatParent", ui.ChatParent.Address);

@@ -47,6 +47,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly int[] AtlasPanelChildPath = { 22, 0, 6 };
         private static readonly int[] AtlasSkillsPanelChildPath = { 25, 0 };
         private static readonly int[] CurrencyExchangePanelChildPath = { 114, 20, 6, 1 };
+        private static readonly int[] GemcuttingPanelChildPath = { 53, 3 };
+        private static readonly int[] SupportGemcuttingPanelChildPath = { 54, 3 };
         private static readonly int[] LeftPanelCoopPath = { 22 };
         private static readonly int[] RightPanelCoopPath = { 23 };
         private static readonly int[] TempleConsoleChildPath = { 64, 0 };
@@ -156,6 +158,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.AtlasSkillsPanel = new(IntPtr.Zero, this.rootCache);
             this.TempleConsole = new(IntPtr.Zero, this.rootCache);
             this.CurrencyExchangePanel = new(IntPtr.Zero, this.rootCache);
+            this.GemcuttingPanel = new(IntPtr.Zero, this.rootCache);
+            this.SupportGemcuttingPanel = new(IntPtr.Zero, this.rootCache);
             this.LeftPanel = new(IntPtr.Zero, this.rootCache);
             this.RightPanel = new(IntPtr.Zero, this.rootCache);
             this.ChatParent = new(IntPtr.Zero, this.rootCache);
@@ -275,6 +279,18 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public UiElementBase CurrencyExchangePanel { get; }
 
         /// <summary>
+        ///     Gets the Gemcutting panel visibility gate.
+        ///     GameUi -> child 53 -> child 3. Child 53 itself remains visible while the panel is closed.
+        /// </summary>
+        public UiElementBase GemcuttingPanel { get; }
+
+        /// <summary>
+        ///     Gets the Support Gemcutting panel visibility gate.
+        ///     GameUi -> child 54 -> child 3. Child 54 itself remains visible while the panel is closed.
+        /// </summary>
+        public UiElementBase SupportGemcuttingPanel { get; }
+
+        /// <summary>
         ///     Gets a value indicating whether any large blocking panel is currently open
         ///     (a left/right side panel, the passive skill tree, or the world-travel map).
         ///     Useful for overlays that should hide world-space drawing while the player is in a menu.
@@ -286,6 +302,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.AtlasSkillsPanel.IsVisible ||
             this.TempleConsole.IsVisible ||
             this.CurrencyExchangePanel.IsVisible ||
+            this.GemcuttingPanel.IsVisible ||
+            this.SupportGemcuttingPanel.IsVisible ||
             this.SekhemasTrialMapPanel.IsVisible ||
             this.IsPassiveSkillTreeOpen;
 
@@ -458,6 +476,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.AtlasSkillsPanel.Address = IntPtr.Zero;
             this.TempleConsole.Address = IntPtr.Zero;
             this.CurrencyExchangePanel.Address = IntPtr.Zero;
+            this.GemcuttingPanel.Address = IntPtr.Zero;
+            this.SupportGemcuttingPanel.Address = IntPtr.Zero;
             this.LeftPanel.Address = IntPtr.Zero;
             this.RightPanel.Address = IntPtr.Zero;
             this.ChatParent.Address = IntPtr.Zero;
@@ -510,6 +530,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             }
 
             this.CurrencyExchangePanel.Address = ResolveChildAddress(this.Address, CurrencyExchangePanelChildPath);
+            this.GemcuttingPanel.Address = ResolveChildAddress(this.Address, GemcuttingPanelChildPath);
+            this.SupportGemcuttingPanel.Address = ResolveChildAddress(this.Address, SupportGemcuttingPanelChildPath);
             this.UpdateAtlasMapData();
         }
 
