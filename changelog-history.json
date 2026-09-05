@@ -1,6 +1,13 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.4",
+                         "published":  "2026-09-05T01:51:16.8680564Z",
+                         "changelog":  [
+                                           "Gordin and Yokken thx for this awesome work :)"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.3",
                          "published":  "2026-09-04T23:45:51.5931322Z",
                          "changelog":  [

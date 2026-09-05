@@ -374,13 +374,28 @@ namespace Atlas2
         }
 
         // Read the panel's active atlas stats (id -> value, value!=0 only). Chain from
-        // ritualLineToggleNode: panel+0x320 -> +0x1b0 -> +0x3a20 -> vector [+0x408 begin, +0x410 end],
+        // ritualLineToggleNode: panel+X -> +0x1b0 -> +0x3a20 -> vector [+0x408 begin, +0x410 end],
         // stride 0x28 (10 int32): stat id @ +0x00, value @ +0x08. Gates the reservoir pool and gives
-        // the line length (5 + map_ritual_rite_additional_maps, binary id 0x670b).
+        // the line length (5 + map_ritual_rite_additional_maps, runtime stat id 0x670d).
+        // The first hop is a UiElement field shifted from 0x320 to 0x308 in 0.5.5. Probe both
+        // layouts and accept only a vector whose byte span is a whole number of 0x28 entries.
+        private static readonly int[] RitualStatsBaseOffsets = { 0x308, 0x320 };
+
         private static Dictionary<int, int> ReadRitualStats(IntPtr panel)
         {
+            foreach (var baseOffset in RitualStatsBaseOffsets)
+            {
+                var got = ReadRitualStatsAt(panel, baseOffset);
+                if (got.Count > 0) return got;
+            }
+
+            return new Dictionary<int, int>();
+        }
+
+        private static Dictionary<int, int> ReadRitualStatsAt(IntPtr panel, int baseOffset)
+        {
             var stats = new Dictionary<int, int>();
-            var o1 = Read<IntPtr>(IntPtr.Add(panel, 0x320));
+            var o1 = Read<IntPtr>(IntPtr.Add(panel, baseOffset));
             if (o1 == IntPtr.Zero) return stats;
             var o2 = Read<IntPtr>(IntPtr.Add(o1, 0x1b0));
             if (o2 == IntPtr.Zero) return stats;
@@ -405,11 +420,11 @@ namespace Atlas2
             return stats;
         }
 
-        // Whether a line node ALSO gets a second Rite mod: rand(100) < chance stat 0x670C
+        // Whether a line node ALSO gets a second Rite mod: rand(100) < chance stat 0x670E
         // (map_ritual_rite_additional_modifier_chance_%), on a separate deterministic stream
         // seeded [lineId, committedCount, candIdx, salt] — the salt appears ONLY in this coin
         // flip, never in the mod-pick seed.
-        private const int StatSecondModChance = 0x670c;
+        private const int StatSecondModChance = 0x670e;
         private const uint SecondModCoinSalt = 0x91DA3AD9;
         private const string TwoModFilterOption = "[2 mods]";  // pseudo-entry in the reward dropdown
 
@@ -533,8 +548,9 @@ namespace Atlas2
             return true;
         }
 
-        // Line-length atlas stat (binary id = tsv id - 1). map_ritual_rite_additional_maps.
-        private const int StatAdditionalMaps = 0x670b;
+        // Runtime stat id for map_ritual_rite_additional_maps. The Stats.dat table shift in
+        // 0.5.5 moved it from 0x670b to 0x670d.
+        private const int StatAdditionalMaps = 0x670d;
         private const int RitualBaseLineLength = 5;   // AtlasPanel_ritualLineToggleNode: stat + 5
         private const int RitualMaxLookaheadDepth = 16;
         private const int RitualMaxPredictNodes = 4000;
@@ -593,7 +609,8 @@ namespace Atlas2
             foreach (var row in ritualPool)
             {
                 if (row.W <= 0) continue;
-                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                // ConditionStat stores a Stats.dat row; the runtime table uses row + 1.
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond + 1))
                     pool.Add(row);
             }
 
@@ -938,7 +955,8 @@ namespace Atlas2
             foreach (var row in ritualPool)
             {
                 if (row.W <= 0) continue;
-                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                // ConditionStat stores a Stats.dat row; the runtime table uses row + 1.
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond + 1))
                     pool.Add(row);
             }
 

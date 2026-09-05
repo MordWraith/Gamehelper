@@ -1169,8 +1169,10 @@
             }
             public void Dispose()
             {
-                ImGui.PopFont();
+                // PopFont rebinds the previous font and recomputes its size from Scale. Restore
+                // the shared font first so this scope cannot resize later GameHelper windows.
                 _font.Scale = _prevScale;
+                ImGui.PopFont();
             }
         }
 

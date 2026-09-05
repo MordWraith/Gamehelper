@@ -3026,8 +3026,13 @@ namespace Atlas
             }
             public void Dispose()
             {
-                ImGui.PopFont();
+                // Order MIRRORS the ctor and must not be swapped: PopFont() re-binds the previous
+                // font through SetCurrentFont, which recomputes its size from font->Scale. Popping
+                // while the scale is still multiplied bakes OUR scale into the restored context, so
+                // everything drawn afterwards -- GameHelper's own windows included -- came out
+                // resized. Restore the shared font's scale first, then pop.
                 _font.Scale = _prevScale;
+                ImGui.PopFont();
             }
         }
 
@@ -3464,13 +3469,31 @@ namespace Atlas
         }
 
         // Read the panel's active atlas stats (id -> value, value!=0 only). Chain from
-        // ritualLineToggleNode: panel+0x320 -> +0x1b0 -> +0x3a20 -> vector [+0x408 begin, +0x410 end],
+        // ritualLineToggleNode: panel+X -> +0x1b0 -> +0x3a20 -> vector [+0x408 begin, +0x410 end],
         // stride 0x28 (10 int32): stat id @ +0x00, value @ +0x08. Gates the reservoir pool and gives
-        // the line length (5 + map_ritual_rite_additional_maps, binary id 0x670b).
+        // the line length (5 + map_ritual_rite_additional_maps, runtime stat id 0x670d).
+        //
+        // The first hop is a field of the panel, which is a UiElement, so 0.5.5's -0x18 of everything
+        // after UiElementBase.ParentPtr applies: 0x320 -> 0x308. It was a raw literal and got missed
+        // when the named panel offsets were shifted. Both are probed and the read self-validates
+        // (a wrong base yields either null or a span that is not a whole number of 0x28 entries),
+        // so this keeps working whichever base is live.
+        private static readonly int[] RitualStatsBaseOffsets = { 0x308, 0x320 };
+
         private static Dictionary<int, int> ReadRitualStats(IntPtr panel)
         {
+            foreach (var baseOffset in RitualStatsBaseOffsets)
+            {
+                var got = ReadRitualStatsAt(panel, baseOffset);
+                if (got.Count > 0) return got;
+            }
+            return new Dictionary<int, int>();
+        }
+
+        private static Dictionary<int, int> ReadRitualStatsAt(IntPtr panel, int baseOffset)
+        {
             var stats = new Dictionary<int, int>();
-            var o1 = Read<IntPtr>(IntPtr.Add(panel, 0x320));
+            var o1 = Read<IntPtr>(IntPtr.Add(panel, baseOffset));
             if (o1 == IntPtr.Zero) return stats;
             var o2 = Read<IntPtr>(IntPtr.Add(o1, 0x1b0));
             if (o2 == IntPtr.Zero) return stats;
@@ -3495,11 +3518,11 @@ namespace Atlas
             return stats;
         }
 
-        // Whether a line node ALSO gets a second Rite mod: rand(100) < chance stat 0x670C
-        // (map_ritual_rite_additional_modifier_chance_%), on a separate deterministic stream
-        // seeded [lineId, committedCount, candIdx, salt] — the salt appears ONLY in this coin
-        // flip, never in the mod-pick seed.
-        private const int StatSecondModChance = 0x670c;
+        // Whether a line node ALSO gets a second Rite mod: rand(100) < chance stat 0x670E
+        // (map_ritual_rite_additional_modifier_chance_%, Stats.dat row 26381 in 0.5.5; was 0x670c),
+        // on a separate deterministic stream seeded [lineId, committedCount, candIdx, salt] — the
+        // salt appears ONLY in this coin flip, never in the mod-pick seed.
+        private const int StatSecondModChance = 0x670e;
         private const uint SecondModCoinSalt = 0x91DA3AD9;
         private const string TwoModFilterOption = "[2 mods]";  // pseudo-entry in the reward dropdown
 
@@ -3581,7 +3604,7 @@ namespace Atlas
         // While drawing the ritual line the game shows a header with how many maps can still
         // be picked (the first pick — the start node — consumes one). Authoritative live value,
         // so it overrides the computed 5 + additional-maps stat when readable.
-        // GameUi → [22] → [2] → [0], leaf fp 0x502EE1, wstring at +0x4C0 (found via UiExplorer).
+        // GameUi → [22] → [2] → [0], leaf fp 0x502EE1, wstring at TextElementTextOffset (0.5.4: +0x4C0).
         private static readonly int[] RitualPickCounterPath = { 22, 2, 0 };
         private const uint RitualPickCounterFp = 0x502EE1;
 
@@ -3623,8 +3646,11 @@ namespace Atlas
             return true;
         }
 
-        // Line-length atlas stat (binary id = tsv id - 1). map_ritual_rite_additional_maps.
-        private const int StatAdditionalMaps = 0x670b;
+        // Line-length atlas stat. Runtime stat id = Stats.dat row + 1 (confirmed live in 0.5.5:
+        // token 0x65D1 == row 26064 map_is_rite_of_the_nameless). 0.5.5 moved
+        // map_ritual_rite_additional_maps from row 26378 to 26380, so 0x670b -> 0x670d; the old id
+        // now names arbiter_of_divinity_player_divinity.
+        private const int StatAdditionalMaps = 0x670d;
         private const int RitualBaseLineLength = 5;   // AtlasPanel_ritualLineToggleNode: stat + 5
         private const int RitualMaxLookaheadDepth = 16;
         private const int RitualMaxPredictNodes = 4000;
@@ -3683,7 +3709,8 @@ namespace Atlas
             foreach (var row in ritualPool)
             {
                 if (row.W <= 0) continue;
-                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                // ConditionStat is a Stats.dat ROW; the panel's table is keyed by runtime id = row + 1.
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond + 1))
                     pool.Add(row);
             }
 
@@ -4028,7 +4055,8 @@ namespace Atlas
             foreach (var row in ritualPool)
             {
                 if (row.W <= 0) continue;
-                if (row.Cond == 0 || stats.ContainsKey(row.Cond) || stats.ContainsKey(row.Cond - 1))
+                // ConditionStat is a Stats.dat ROW; the panel's table is keyed by runtime id = row + 1.
+                if (row.Cond == 0 || stats.ContainsKey(row.Cond + 1))
                     pool.Add(row);
             }
 

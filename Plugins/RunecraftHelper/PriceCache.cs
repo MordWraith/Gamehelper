@@ -28,6 +28,31 @@ namespace RunecraftHelper
 
         private static readonly HttpClient http = CreateHttpClient();
 
+        // poe.ninja quotes every `primaryValue` in the league's OWN base currency -- named by
+        // `core.primary` -- and `core.rates` says how many of each OTHER currency one base unit buys,
+        // so the base currency itself is absent from `rates`. The base is per league, not fixed:
+        //   Runes of Aldur   primary="divine"   rates={exalted:520.2, chaos:10.4}
+        //   Forbidden Rites  primary="exalted"  rates={divine:0.02028, chaos:0.5905}   <- no "exalted"
+        // Reading rates.exalted unconditionally therefore returned 0 in Forbidden Rites, every price
+        // became primaryValue * 0, and the panel showed no prices at all while the requests all
+        // answered 200 with full rows -- nothing in the fetch path looked wrong.
+        private static void ReadRates(JObject parsed, out double baseToEx, out double divToEx)
+        {
+            var core = parsed["core"];
+            var rates = core?["rates"];
+            var primary = core?["primary"]?.Value<string>() ?? string.Empty;
+
+            // Units of `ccy` per one base unit. The base currency is implicitly 1 and never listed.
+            double Per(string ccy) => string.Equals(primary, ccy, StringComparison.OrdinalIgnoreCase)
+                ? 1.0
+                : rates?[ccy]?.Value<double>() ?? 0;
+
+            baseToEx = Per("exalted");
+            var divPerBase = Per("divine");
+            divToEx = divPerBase > 0 ? baseToEx / divPerBase : 0;
+        }
+
+
         private static HttpClient CreateHttpClient()
         {
             var c = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
@@ -192,8 +217,8 @@ namespace RunecraftHelper
                         var parsed = JObject.Parse(json);
                         typesOk++;
                         rowsTotal += (parsed["lines"] as JArray)?.Count ?? 0;
-                        var localRate = parsed["core"]?["rates"]?["exalted"]?.Value<double>() ?? 0;
-                        if (localRate > 0) divToEx = localRate;
+                        ReadRates(parsed, out var localRate, out var localDivToEx);
+                        if (localDivToEx > 0) divToEx = localDivToEx;
 
                         var nameById = new Dictionary<string, string>(StringComparer.Ordinal);
                         // {ninjaId → composite key (art-id + grade suffix when grade>1)}. The composite

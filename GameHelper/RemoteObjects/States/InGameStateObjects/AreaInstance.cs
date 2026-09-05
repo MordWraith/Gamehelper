@@ -30,9 +30,11 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
     /// </summary>
     public class AreaInstance : RemoteObjectBase
     {
-        // A normal area is far smaller than this. The cap prevents a shifted TerrainMetadata
-        // offset from turning arbitrary values into multi-gigabyte jagged-array allocations.
-        private const long MaxTerrainGridCells = 25_000_000;
+        // Large composite areas such as the Trial of the Sekhemas foyer legitimately exceed the
+        // old 25-million-cell ceiling. The exact TileDetails vector-shape check below remains the
+        // primary guard against shifted metadata causing multi-gigabyte allocations.
+        private const long MaxTerrainGridCells = 50_000_000;
+        private const int TerrainTileStructureSize = 0x38;
 
         private static readonly EntityBackedBuffDefinition[] EntityBackedPlayerBuffs =
         {
@@ -637,6 +639,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             var candidateGridSizeX = totalTilesX * conversion;
             var candidateGridSizeY = totalTilesY * conversion;
             if (candidateGridSizeY > MaxTerrainGridCells / candidateGridSizeX)
+            {
+                return false;
+            }
+
+            var tileDetails = this.TerrainMetadata.TileDetailsPtr;
+            var tileDetailsBytes = tileDetails.Last.ToInt64() - tileDetails.First.ToInt64();
+            var expectedTileDetailsBytes = totalTilesX * totalTilesY * TerrainTileStructureSize;
+            if (tileDetails.First == IntPtr.Zero || tileDetails.Last.ToInt64() < tileDetails.First.ToInt64() ||
+                tileDetails.End.ToInt64() < tileDetails.Last.ToInt64() ||
+                tileDetailsBytes != expectedTileDetailsBytes)
             {
                 return false;
             }
