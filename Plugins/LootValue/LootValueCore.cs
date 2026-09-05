@@ -36,6 +36,9 @@ namespace LootValue
         public override int ConflictPriority => 100;
 
         private const string ItemPathPrefix = "Metadata/Items";
+        private const string PreviousDefaultLeague = "Runes of Aldur";
+        private const string CurrentDefaultLeague = "Forbidden Rites";
+        private const int CurrentLeagueMigrationVersion = 1;
         // PoE 0.5.5 shifted the UiElement tail (including the slot item pointer) by -0x18.
         private const int UiElementItemAddressOffset = 0x4E0;
         private static readonly int[] CurrencyExchangeRootPath = { 114, 20, 6 };
@@ -83,6 +86,7 @@ namespace LootValue
         public override void OnEnable(bool isGameOpened)
         {
             var shouldMigrateStashSettings = true;
+            var shouldSaveSettings = false;
             if (File.Exists(this.SettingPathname))
             {
                 try
@@ -98,13 +102,31 @@ namespace LootValue
                 }
             }
 
-            if (shouldMigrateStashSettings && this.TryMigrateStashValueSettings())
+            shouldSaveSettings |= this.TryMigrateLeagueDefault();
+            shouldSaveSettings |= shouldMigrateStashSettings && this.TryMigrateStashValueSettings();
+            if (shouldSaveSettings)
             {
                 this.SaveSettings();
             }
 
             PoeNinjaPriceFetcher.Configure(this.Settings.PriceSource, this.Settings.League ?? string.Empty, this.Settings.RefreshIntervalMin);
             PoeNinjaPriceFetcher.Initialize(this.DllDirectory);
+        }
+
+        private bool TryMigrateLeagueDefault()
+        {
+            if (this.Settings.LeagueMigrationVersion.HasValue)
+            {
+                return false;
+            }
+
+            if (string.Equals(this.Settings.League, PreviousDefaultLeague, StringComparison.OrdinalIgnoreCase))
+            {
+                this.Settings.League = CurrentDefaultLeague;
+            }
+
+            this.Settings.LeagueMigrationVersion = CurrentLeagueMigrationVersion;
+            return true;
         }
 
         private bool TryMigrateStashValueSettings()

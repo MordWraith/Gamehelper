@@ -1,6 +1,13 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.5",
+                         "published":  "2026-09-05T12:20:37.9068141Z",
+                         "changelog":  [
+                                           "Update"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.4",
                          "published":  "2026-09-05T01:51:16.8680564Z",
                          "changelog":  [

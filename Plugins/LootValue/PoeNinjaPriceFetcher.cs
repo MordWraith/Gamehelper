@@ -116,7 +116,7 @@ namespace LootValue
         private static string cacheFilePath = string.Empty;
         private static DateTime lastFetchTime = DateTime.MinValue;
         private static int configuredSource = SourcePoe2Scout;
-        private static string configuredLeague = "Runes of Aldur";
+        private static string configuredLeague = "Forbidden Rites";
         private static int configuredRefreshMinutes = 5;
         private static double chaosPerDivine = 12.0;
         private static double chaosPerExalted = 0.1;
@@ -136,7 +136,7 @@ namespace LootValue
         public static void Configure(int priceSource, string league, int refreshIntervalMinutes)
         {
             configuredSource = priceSource;
-            configuredLeague = string.IsNullOrWhiteSpace(league) ? "Runes of Aldur" : league.Trim();
+            configuredLeague = string.IsNullOrWhiteSpace(league) ? "Forbidden Rites" : league.Trim();
             configuredRefreshMinutes = Math.Max(1, refreshIntervalMinutes);
         }
 

@@ -44,7 +44,10 @@ namespace LootValue
         public int PriceSource = PoeNinjaPriceFetcher.SourcePoe2Scout;
 
         /// <summary>PoE2 league name for price lookups.</summary>
-        public string League = "Runes of Aldur";
+        public string League = "Forbidden Rites";
+
+        /// <summary>Version marker for one-time default-league migrations.</summary>
+        public int? LeagueMigrationVersion;
 
         /// <summary>Automatic price refresh interval in minutes.</summary>
         public int RefreshIntervalMin = 5;
