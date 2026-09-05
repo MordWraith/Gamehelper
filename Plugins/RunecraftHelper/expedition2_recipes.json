@@ -605,7 +605,7 @@
     "Moon"
    ],
    "reward": {
-    "idx": 5072,
+    "idx": 5092,
     "id": "Metadata/Items/SoulCores/RuneWard1Lesser",
     "name": "Lesser Ward Rune"
    },
@@ -628,7 +628,7 @@
     "Tidal"
    ],
    "reward": {
-    "idx": 5076,
+    "idx": 5096,
     "id": "Metadata/Items/SoulCores/RuneWard2Lesser",
     "name": "Lesser Charging Rune"
    },
@@ -950,7 +950,7 @@
     "Fire"
    ],
    "reward": {
-    "idx": 5073,
+    "idx": 5093,
     "id": "Metadata/Items/SoulCores/RuneWard1Normal",
     "name": "Ward Rune"
    },
@@ -1042,7 +1042,7 @@
     "Rebirth"
    ],
    "reward": {
-    "idx": 5049,
+    "idx": 5069,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy1",
     "name": "Runic Alloy"
    },
@@ -1224,7 +1224,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5077,
+    "idx": 5097,
     "id": "Metadata/Items/SoulCores/RuneWard2Normal",
     "name": "Charging Rune"
    },
@@ -1574,7 +1574,7 @@
     "Lightning"
    ],
    "reward": {
-    "idx": 5074,
+    "idx": 5094,
     "id": "Metadata/Items/SoulCores/RuneWard1Greater",
     "name": "Greater Ward Rune"
    },
@@ -1599,7 +1599,7 @@
     "Fire"
    ],
    "reward": {
-    "idx": 5078,
+    "idx": 5098,
     "id": "Metadata/Items/SoulCores/RuneWard2Greater",
     "name": "Greater Charging Rune"
    },
@@ -1808,7 +1808,7 @@
     "Prismatic"
    ],
    "reward": {
-    "idx": 5049,
+    "idx": 5069,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy1",
     "name": "Runic Alloy"
    },
@@ -1833,7 +1833,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5050,
+    "idx": 5070,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy2",
     "name": "Adaptive Alloy"
    },
@@ -1933,7 +1933,7 @@
     "Bloodletting"
    ],
    "reward": {
-    "idx": 5051,
+    "idx": 5071,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy3",
     "name": "Protective Alloy"
    },
@@ -2058,7 +2058,7 @@
     "Tidal"
    ],
    "reward": {
-    "idx": 5052,
+    "idx": 5072,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy4",
     "name": "Expansive Alloy"
    },
@@ -2083,7 +2083,7 @@
     "Celestial"
    ],
    "reward": {
-    "idx": 5236,
+    "idx": 5256,
     "id": "Metadata/Items/Gems/SkillGemDetonateLiving",
     "name": "Detonate Living"
    },
@@ -2108,7 +2108,7 @@
     "Protective"
    ],
    "reward": {
-    "idx": 5239,
+    "idx": 5259,
     "id": "Metadata/Items/Gems/SkillGemEternalMarch",
     "name": "Eternal March"
    },
@@ -2133,7 +2133,7 @@
     "Lightning"
    ],
    "reward": {
-    "idx": 5245,
+    "idx": 5265,
     "id": "Metadata/Items/Gems/SkillGemFragmentsOfThePast",
     "name": "Fragments Of The Past"
    },
@@ -2158,7 +2158,7 @@
     "Fire"
    ],
    "reward": {
-    "idx": 5223,
+    "idx": 5243,
     "id": "Metadata/Items/Gems/SkillGemFrostflameNova",
     "name": "Frostflame Nova"
    },
@@ -2183,7 +2183,7 @@
     "Protective"
    ],
    "reward": {
-    "idx": 5231,
+    "idx": 5251,
     "id": "Metadata/Items/Gems/SkillGemRepulsion",
     "name": "Repulsion"
    },
@@ -2208,7 +2208,7 @@
     "Vision"
    ],
    "reward": {
-    "idx": 5246,
+    "idx": 5266,
     "id": "Metadata/Items/Gems/SkillGemConductiveRunes",
     "name": "Conductive Runes"
    },
@@ -2233,7 +2233,7 @@
     "Moon"
    ],
    "reward": {
-    "idx": 5221,
+    "idx": 5241,
     "id": "Metadata/Items/Gems/SupportGemConcussiveRunes",
     "name": "Concussive Runes"
    },
@@ -2258,7 +2258,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5238,
+    "idx": 5258,
     "id": "Metadata/Items/Gems/SkillGemBitterDead",
     "name": "Bitter Dead"
    },
@@ -2283,7 +2283,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5240,
+    "idx": 5260,
     "id": "Metadata/Items/Gems/SkillGemGrimPillars",
     "name": "Grim Pillars"
    },
@@ -2308,7 +2308,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5242,
+    "idx": 5262,
     "id": "Metadata/Items/Gems/SkillGemRemnantsOfKalguur",
     "name": "Remnants of Kalguur"
    },
@@ -2333,7 +2333,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5229,
+    "idx": 5249,
     "id": "Metadata/Items/Gems/SkillGemPoweredByVerisium",
     "name": "Powered by Verisium"
    },
@@ -2358,7 +2358,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5241,
+    "idx": 5261,
     "id": "Metadata/Items/Gems/SkillGemVerisiumManifestation",
     "name": "Verisium Manifestations"
    },
@@ -2383,7 +2383,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5228,
+    "idx": 5248,
     "id": "Metadata/Items/Gems/SupportGemRuneforgedBlades",
     "name": "Runeforged Blades"
    },
@@ -2408,7 +2408,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5249,
+    "idx": 5269,
     "id": "Metadata/Items/Gems/SupportGemScouringFlame",
     "name": "Scouring Flame"
    },
@@ -2433,7 +2433,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5248,
+    "idx": 5268,
     "id": "Metadata/Items/Gems/SkillGemAnimusSplinters",
     "name": "Animus Splinters"
    },
@@ -2458,7 +2458,7 @@
     "Fire"
    ],
    "reward": {
-    "idx": 5470,
+    "idx": 5490,
     "id": "Metadata/Items/Gems/SkillGemExplosiveTransmutation",
     "name": "Explosive Transmutation"
    },
@@ -2483,7 +2483,7 @@
     "Earth"
    ],
    "reward": {
-    "idx": 5224,
+    "idx": 5244,
     "id": "Metadata/Items/Gems/SkillGemHollowShell",
     "name": "Hollow Shell"
    },
@@ -2508,7 +2508,7 @@
     "Lightning"
    ],
    "reward": {
-    "idx": 5467,
+    "idx": 5487,
     "id": "Metadata/Items/Gems/SkillGemVoltaicBarrier",
     "name": "Voltaic Barrier"
    },
@@ -2533,7 +2533,7 @@
     "Cyclonic"
    ],
    "reward": {
-    "idx": 5244,
+    "idx": 5264,
     "id": "Metadata/Items/Gems/SkillGemWardboundMinions",
     "name": "Wardbound Minions"
    },
@@ -2558,7 +2558,7 @@
     "Rage"
    ],
    "reward": {
-    "idx": 5466,
+    "idx": 5486,
     "id": "Metadata/Items/Gems/SupportGemFistOfKalguur",
     "name": "Fist Of Kalguur"
    },
@@ -2583,7 +2583,7 @@
     "Cyclonic"
    ],
    "reward": {
-    "idx": 5243,
+    "idx": 5263,
     "id": "Metadata/Items/Gems/SupportGemRunicExtraction",
     "name": "Runic Extraction"
    },
@@ -2608,7 +2608,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5226,
+    "idx": 5246,
     "id": "Metadata/Items/Gems/SupportGemRunicInfusion",
     "name": "Runic Infusion"
    },
@@ -2633,7 +2633,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5471,
+    "idx": 5491,
     "id": "Metadata/Items/Gems/SkillGemRainOfBlades",
     "name": "Rain of Blades"
    },
@@ -2704,7 +2704,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5080,
+    "idx": 5100,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial1",
     "name": "Warding Rune of Reinforcement"
    },
@@ -2729,7 +2729,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5081,
+    "idx": 5101,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial2",
     "name": "Warding Rune of Protection"
    },
@@ -2754,7 +2754,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5082,
+    "idx": 5102,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial3",
     "name": "Warding Rune of Disintegration"
    },
@@ -2779,7 +2779,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5083,
+    "idx": 5103,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial4",
     "name": "Warding Rune of Desperation"
    },
@@ -2804,7 +2804,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5085,
+    "idx": 5105,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial9",
     "name": "Warding Rune of Courage"
    },
@@ -2829,7 +2829,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5089,
+    "idx": 5109,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial15",
     "name": "Warding Rune of Nourishment"
    },
@@ -2881,7 +2881,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5237,
+    "idx": 5257,
     "id": "Metadata/Items/Gems/SkillGemAnimusExchange",
     "name": "Animus Exchange"
    },
@@ -2908,7 +2908,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5222,
+    "idx": 5242,
     "id": "Metadata/Items/Gems/SkillGemLeylines",
     "name": "Leylines"
    },
@@ -2935,7 +2935,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5465,
+    "idx": 5485,
     "id": "Metadata/Items/Gems/SkillGemRunicReprieve",
     "name": "Runic Reprieve"
    },
@@ -2962,7 +2962,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5230,
+    "idx": 5250,
     "id": "Metadata/Items/Gems/SkillGemRefutation",
     "name": "Refutation"
    },
@@ -2989,7 +2989,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5232,
+    "idx": 5252,
     "id": "Metadata/Items/Gems/SkillGemTriskelionCascade",
     "name": "Triskelion Cascade"
    },
@@ -3016,7 +3016,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5235,
+    "idx": 5255,
     "id": "Metadata/Items/Gems/SkillGemSkyfall",
     "name": "Skyfall"
    },
@@ -3043,7 +3043,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5468,
+    "idx": 5488,
     "id": "Metadata/Items/Gems/SupportGemHealingRunes",
     "name": "Healing Runes"
    },
@@ -3450,7 +3450,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5086,
+    "idx": 5106,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial10",
     "name": "Warding Rune of Stability"
    },
@@ -3477,7 +3477,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5087,
+    "idx": 5107,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial13",
     "name": "Warding Rune of Glancing"
    },
@@ -3504,7 +3504,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5088,
+    "idx": 5108,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial14",
     "name": "Warding Rune of Heart"
    },
@@ -3531,7 +3531,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5090,
+    "idx": 5110,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial16",
     "name": "Warding Rune of Annihilation"
    },
@@ -3558,7 +3558,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5094,
+    "idx": 5114,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial21",
     "name": "Warding Rune of Salvaging"
    },
@@ -3585,7 +3585,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5084,
+    "idx": 5104,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial8",
     "name": "Warding Rune of Symbiosis"
    },
@@ -3666,7 +3666,7 @@
     "Cyclonic"
    ],
    "reward": {
-    "idx": 5054,
+    "idx": 5074,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy6",
     "name": "Cyclonic Alloy"
    },
@@ -3720,7 +3720,7 @@
     "Rebirth"
    ],
    "reward": {
-    "idx": 5053,
+    "idx": 5073,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy5",
     "name": "Swift Alloy"
    },
@@ -3770,7 +3770,7 @@
     "Adaptive"
    ],
    "reward": {
-    "idx": 5114,
+    "idx": 5134,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients14",
     "name": "Rune of Vitality"
    },
@@ -3797,7 +3797,7 @@
     "Gasp"
    ],
    "reward": {
-    "idx": 5115,
+    "idx": 5135,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients15",
     "name": "Rune of the Hunt"
    },
@@ -3824,7 +3824,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5116,
+    "idx": 5136,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients16",
     "name": "Rune of Acrobatics"
    },
@@ -3851,7 +3851,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5117,
+    "idx": 5137,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients17",
     "name": "Rune of Culmination"
    },
@@ -3878,7 +3878,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5118,
+    "idx": 5138,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients18",
     "name": "Rune of Renown"
    },
@@ -3905,7 +3905,7 @@
     "Moon"
    ],
    "reward": {
-    "idx": 5119,
+    "idx": 5139,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients19",
     "name": "Rune of Accumulation"
    },
@@ -3932,7 +3932,7 @@
     "Protective"
    ],
    "reward": {
-    "idx": 5120,
+    "idx": 5140,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients20",
     "name": "Rune of Foundations"
    },
@@ -3959,7 +3959,7 @@
     "Protective"
    ],
    "reward": {
-    "idx": 5121,
+    "idx": 5141,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients21",
     "name": "Rune of the Prism"
    },
@@ -3986,7 +3986,7 @@
     "Protective"
    ],
    "reward": {
-    "idx": 5122,
+    "idx": 5142,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients22",
     "name": "Rune of the Blossom"
    },
@@ -4013,7 +4013,7 @@
     "Vision"
    ],
    "reward": {
-    "idx": 5123,
+    "idx": 5143,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients23",
     "name": "Rune of Consistency"
    },
@@ -4040,7 +4040,7 @@
     "Vision"
    ],
    "reward": {
-    "idx": 5124,
+    "idx": 5144,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients24",
     "name": "Rune of Reach"
    },
@@ -4067,7 +4067,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5101,
+    "idx": 5121,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients1",
     "name": "Ancient Rune of Splinters"
    },
@@ -4094,7 +4094,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5110,
+    "idx": 5130,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients10",
     "name": "Ancient Rune of the Horde"
    },
@@ -4121,7 +4121,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5111,
+    "idx": 5131,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients11",
     "name": "Ancient Rune of Animosity"
    },
@@ -4148,7 +4148,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5112,
+    "idx": 5132,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients12",
     "name": "Ancient Rune of Detonation"
    },
@@ -4175,7 +4175,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5113,
+    "idx": 5133,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients13",
     "name": "Ancient Rune of Retaliation"
    },
@@ -4202,7 +4202,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5102,
+    "idx": 5122,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients2",
     "name": "Ancient Rune of Dueling"
    },
@@ -4229,7 +4229,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5125,
+    "idx": 5145,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients25",
     "name": "Rune of Vital Flame"
    },
@@ -4256,7 +4256,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5126,
+    "idx": 5146,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients26",
     "name": "Rune of Confrontation"
    },
@@ -4283,7 +4283,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5103,
+    "idx": 5123,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients3",
     "name": "Ancient Rune of the Titan"
    },
@@ -4310,7 +4310,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5104,
+    "idx": 5124,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients4",
     "name": "Ancient Rune of Shattering"
    },
@@ -4337,7 +4337,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5105,
+    "idx": 5125,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients5",
     "name": "Ancient Rune of Prowess"
    },
@@ -4364,7 +4364,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5106,
+    "idx": 5126,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients6",
     "name": "Ancient Rune of Control"
    },
@@ -4391,7 +4391,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5107,
+    "idx": 5127,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients7",
     "name": "Ancient Rune of Discovery"
    },
@@ -4418,7 +4418,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5108,
+    "idx": 5128,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients8",
     "name": "Ancient Rune of Decay"
    },
@@ -4445,7 +4445,7 @@
     "Opulent"
    ],
    "reward": {
-    "idx": 5109,
+    "idx": 5129,
     "id": "Metadata/Items/SoulCores/RuneOfTheAncients9",
     "name": "Ancient Rune of Witchcraft"
    },
@@ -4651,7 +4651,7 @@
     "Tidal"
    ],
    "reward": {
-    "idx": 4922,
+    "idx": 4942,
     "id": "Metadata/Items/Gems/ReservationGemUncut19",
     "name": "Uncut Spirit Gem (Level 19)"
    },
@@ -4680,7 +4680,7 @@
     "Prismatic"
    ],
    "reward": {
-    "idx": 4900,
+    "idx": 4920,
     "id": "Metadata/Items/Gems/SkillGemUncut19",
     "name": "Uncut Skill Gem (Level 19)"
    },
@@ -4734,7 +4734,7 @@
     "Vision"
    ],
    "reward": {
-    "idx": 5091,
+    "idx": 5111,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial18",
     "name": "Warding Rune of Armature"
    },
@@ -4763,7 +4763,7 @@
     "Fire"
    ],
    "reward": {
-    "idx": 5092,
+    "idx": 5112,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial19",
     "name": "Warding Rune of Obsession"
    },
@@ -4792,7 +4792,7 @@
     "Bloodletting"
    ],
    "reward": {
-    "idx": 5093,
+    "idx": 5113,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial20",
     "name": "Warding Rune of Equinox"
    },
@@ -4821,7 +4821,7 @@
     "Prismatic"
    ],
    "reward": {
-    "idx": 5095,
+    "idx": 5115,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial23",
     "name": "Warding Rune of Bodyguards"
    },
@@ -4850,7 +4850,7 @@
     "Arcane"
    ],
    "reward": {
-    "idx": 5096,
+    "idx": 5116,
     "id": "Metadata/Items/SoulCores/RuneWardSpecial24",
     "name": "Warding Rune of Hollowing"
    },
@@ -4937,7 +4937,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5236,
+    "idx": 5256,
     "id": "Metadata/Items/Gems/SkillGemDetonateLiving",
     "name": "Detonate Living"
    },
@@ -4966,7 +4966,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5239,
+    "idx": 5259,
     "id": "Metadata/Items/Gems/SkillGemEternalMarch",
     "name": "Eternal March"
    },
@@ -4995,7 +4995,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5245,
+    "idx": 5265,
     "id": "Metadata/Items/Gems/SkillGemFragmentsOfThePast",
     "name": "Fragments Of The Past"
    },
@@ -5024,7 +5024,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5223,
+    "idx": 5243,
     "id": "Metadata/Items/Gems/SkillGemFrostflameNova",
     "name": "Frostflame Nova"
    },
@@ -5053,7 +5053,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5231,
+    "idx": 5251,
     "id": "Metadata/Items/Gems/SkillGemRepulsion",
     "name": "Repulsion"
    },
@@ -5082,7 +5082,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5246,
+    "idx": 5266,
     "id": "Metadata/Items/Gems/SkillGemConductiveRunes",
     "name": "Conductive Runes"
    },
@@ -5111,7 +5111,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5238,
+    "idx": 5258,
     "id": "Metadata/Items/Gems/SkillGemBitterDead",
     "name": "Bitter Dead"
    },
@@ -5140,7 +5140,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5240,
+    "idx": 5260,
     "id": "Metadata/Items/Gems/SkillGemGrimPillars",
     "name": "Grim Pillars"
    },
@@ -5169,7 +5169,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5242,
+    "idx": 5262,
     "id": "Metadata/Items/Gems/SkillGemRemnantsOfKalguur",
     "name": "Remnants of Kalguur"
    },
@@ -5198,7 +5198,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5229,
+    "idx": 5249,
     "id": "Metadata/Items/Gems/SkillGemPoweredByVerisium",
     "name": "Powered by Verisium"
    },
@@ -5227,7 +5227,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5241,
+    "idx": 5261,
     "id": "Metadata/Items/Gems/SkillGemVerisiumManifestation",
     "name": "Verisium Manifestations"
    },
@@ -5339,7 +5339,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5055,
+    "idx": 5075,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy7",
     "name": "Prismatic Alloy"
    },
@@ -5397,7 +5397,7 @@
     "Electrocuting"
    ],
    "reward": {
-    "idx": 5056,
+    "idx": 5076,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy8",
     "name": "Mystic Alloy"
    },
@@ -6066,7 +6066,7 @@
     "Oath"
    ],
    "reward": {
-    "idx": 5237,
+    "idx": 5257,
     "id": "Metadata/Items/Gems/SkillGemAnimusExchange",
     "name": "Animus Exchange"
    },
@@ -6097,7 +6097,7 @@
     "Life"
    ],
    "reward": {
-    "idx": 5222,
+    "idx": 5242,
     "id": "Metadata/Items/Gems/SkillGemLeylines",
     "name": "Leylines"
    },
@@ -6128,7 +6128,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 5465,
+    "idx": 5485,
     "id": "Metadata/Items/Gems/SkillGemRunicReprieve",
     "name": "Runic Reprieve"
    },
@@ -6159,7 +6159,7 @@
     "Death"
    ],
    "reward": {
-    "idx": 5230,
+    "idx": 5250,
     "id": "Metadata/Items/Gems/SkillGemRefutation",
     "name": "Refutation"
    },
@@ -6190,7 +6190,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5232,
+    "idx": 5252,
     "id": "Metadata/Items/Gems/SkillGemTriskelionCascade",
     "name": "Triskelion Cascade"
    },
@@ -6221,7 +6221,7 @@
     "Oath"
    ],
    "reward": {
-    "idx": 5235,
+    "idx": 5255,
     "id": "Metadata/Items/Gems/SkillGemSkyfall",
     "name": "Skyfall"
    },
@@ -6345,7 +6345,7 @@
     "Wisdom"
    ],
    "reward": {
-    "idx": 1443,
+    "idx": 1461,
     "id": "Metadata/Items/Expedition/Expedition2LogbookMedved",
     "name": "Medved's Saga"
    },
@@ -6376,7 +6376,7 @@
     "Time"
    ],
    "reward": {
-    "idx": 1445,
+    "idx": 1463,
     "id": "Metadata/Items/Expedition/Expedition2LogbookUhtred",
     "name": "Uhtred's Saga"
    },
@@ -6407,7 +6407,7 @@
     "Toxic"
    ],
    "reward": {
-    "idx": 1444,
+    "idx": 1462,
     "id": "Metadata/Items/Expedition/Expedition2LogbookVorana",
     "name": "Vorana's Saga"
    },
@@ -6438,7 +6438,7 @@
     "Power"
    ],
    "reward": {
-    "idx": 1446,
+    "idx": 1464,
     "id": "Metadata/Items/Expedition/Expedition2LogbookOlroth",
     "name": "Olroth's Saga"
    },
@@ -6469,7 +6469,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5248,
+    "idx": 5268,
     "id": "Metadata/Items/Gems/SkillGemAnimusSplinters",
     "name": "Animus Splinters"
    },
@@ -6500,7 +6500,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5470,
+    "idx": 5490,
     "id": "Metadata/Items/Gems/SkillGemExplosiveTransmutation",
     "name": "Explosive Transmutation"
    },
@@ -6531,7 +6531,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5224,
+    "idx": 5244,
     "id": "Metadata/Items/Gems/SkillGemHollowShell",
     "name": "Hollow Shell"
    },
@@ -6562,7 +6562,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5467,
+    "idx": 5487,
     "id": "Metadata/Items/Gems/SkillGemVoltaicBarrier",
     "name": "Voltaic Barrier"
    },
@@ -6593,7 +6593,7 @@
     "Ward"
    ],
    "reward": {
-    "idx": 5244,
+    "idx": 5264,
     "id": "Metadata/Items/Gems/SkillGemWardboundMinions",
     "name": "Wardbound Minions"
    },
@@ -6624,7 +6624,7 @@
     "Rage"
    ],
    "reward": {
-    "idx": 5471,
+    "idx": 5491,
     "id": "Metadata/Items/Gems/SkillGemRainOfBlades",
     "name": "Rain of Blades"
    },
@@ -6655,7 +6655,7 @@
     "Moon"
    ],
    "reward": {
-    "idx": 5068,
+    "idx": 5088,
     "id": "Metadata/Items/Currency/CurrencyArcaneFluxCold",
     "name": "Chilling Flux"
    },
@@ -6686,7 +6686,7 @@
     "Rebirth"
    ],
    "reward": {
-    "idx": 5067,
+    "idx": 5087,
     "id": "Metadata/Items/Currency/CurrencyArcaneFluxFire",
     "name": "Blazing Flux"
    },
@@ -6717,7 +6717,7 @@
     "Tempest"
    ],
    "reward": {
-    "idx": 5069,
+    "idx": 5089,
     "id": "Metadata/Items/Currency/CurrencyArcaneFluxLightning",
     "name": "Crackling Flux"
    },
@@ -6872,7 +6872,7 @@
     "Death"
    ],
    "reward": {
-    "idx": 5070,
+    "idx": 5090,
     "id": "Metadata/Items/Currency/CurrencyArcaneFluxChaos",
     "name": "Void Flux"
    },
@@ -6903,7 +6903,7 @@
     "Oath"
    ],
    "reward": {
-    "idx": 4923,
+    "idx": 4943,
     "id": "Metadata/Items/Gems/ReservationGemUncut20",
     "name": "Uncut Spirit Gem (Level 20)"
    },
@@ -6934,7 +6934,7 @@
     "Soul"
    ],
    "reward": {
-    "idx": 4901,
+    "idx": 4921,
     "id": "Metadata/Items/Gems/SkillGemUncut20",
     "name": "Uncut Skill Gem (Level 20)"
    },
@@ -7027,7 +7027,7 @@
     "Oath"
    ],
    "reward": {
-    "idx": 5057,
+    "idx": 5077,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy9",
     "name": "Sovereign Alloy"
    },
@@ -7101,6 +7101,39 @@
   },
   {
    "row": 269,
+   "id": "7SlotChaosOrb10",
+   "size": 7,
+   "runeIdx": [
+    22,
+    13,
+    15,
+    21,
+    32,
+    8,
+    7
+   ],
+   "runes": [
+    "Wisdom",
+    "Vision",
+    "Rebirth",
+    "Rage",
+    "Power",
+    "Arcane",
+    "Adaptive"
+   ],
+   "reward": {
+    "idx": 3,
+    "id": "Metadata/Items/Currency/CurrencyRerollRare",
+    "name": "Chaos Orb"
+   },
+   "rewardCount": 10,
+   "description": "",
+   "category": 0,
+   "minLevel": 1,
+   "maxLevel": 100
+  },
+  {
+   "row": 270,
    "id": "7SlotAldursLogbook1",
    "size": 7,
    "runeIdx": [
@@ -7122,7 +7155,7 @@
     "Time"
    ],
    "reward": {
-    "idx": 1442,
+    "idx": 1460,
     "id": "Metadata/Items/Expedition/Expedition2LogbookSpecial",
     "name": "Aldur's Saga"
    },
@@ -7133,7 +7166,7 @@
    "maxLevel": 100
   },
   {
-   "row": 270,
+   "row": 271,
    "id": "7SlotOrbofAnnulment2",
    "size": 7,
    "runeIdx": [
@@ -7166,7 +7199,7 @@
    "maxLevel": 100
   },
   {
-   "row": 271,
+   "row": 272,
    "id": "7SlotCelestialAlloy1",
    "size": 7,
    "runeIdx": [
@@ -7188,7 +7221,7 @@
     "Cyclonic"
    ],
    "reward": {
-    "idx": 5058,
+    "idx": 5078,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy10",
     "name": "Celestial Alloy"
    },
@@ -7199,7 +7232,7 @@
    "maxLevel": 100
   },
   {
-   "row": 272,
+   "row": 273,
    "id": "7SlotKalguuranAlloy1",
    "size": 7,
    "runeIdx": [
@@ -7221,7 +7254,7 @@
     "Death"
    ],
    "reward": {
-    "idx": 5059,
+    "idx": 5079,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy11",
     "name": "Transcendent Alloy"
    },
@@ -7232,7 +7265,7 @@
    "maxLevel": 100
   },
   {
-   "row": 273,
+   "row": 274,
    "id": "7SlotBreathofAldur1",
    "size": 7,
    "runeIdx": [
@@ -7254,7 +7287,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5098,
+    "idx": 5118,
     "id": "Metadata/Items/SoulCores/RuneConvertCold",
     "name": "Breath of Aldur"
    },
@@ -7265,7 +7298,7 @@
    "maxLevel": 100
   },
   {
-   "row": 274,
+   "row": 275,
    "id": "7SlotPassionofAldur1",
    "size": 7,
    "runeIdx": [
@@ -7287,7 +7320,7 @@
     "Earth"
    ],
    "reward": {
-    "idx": 5097,
+    "idx": 5117,
     "id": "Metadata/Items/SoulCores/RuneConvertFire",
     "name": "Passion of Aldur"
    },
@@ -7298,7 +7331,7 @@
    "maxLevel": 100
   },
   {
-   "row": 275,
+   "row": 276,
    "id": "7SlotIreofAldur1",
    "size": 7,
    "runeIdx": [
@@ -7320,7 +7353,7 @@
     "Celestial"
    ],
    "reward": {
-    "idx": 5099,
+    "idx": 5119,
     "id": "Metadata/Items/SoulCores/RuneConvertLightning",
     "name": "Ire of Aldur"
    },
@@ -7331,7 +7364,7 @@
    "maxLevel": 100
   },
   {
-   "row": 276,
+   "row": 277,
    "id": "7SlotAstridsCreativity1",
    "size": 7,
    "runeIdx": [
@@ -7353,7 +7386,7 @@
     "Death"
    ],
    "reward": {
-    "idx": 5138,
+    "idx": 5158,
     "id": "Metadata/Items/SoulCores/RuneWarpingAdditionalCraftedMod",
     "name": "Astrid's Creativity"
    },
@@ -7364,7 +7397,7 @@
    "maxLevel": 100
   },
   {
-   "row": 277,
+   "row": 278,
    "id": "7SlotBetrayalofAldur1",
    "size": 7,
    "runeIdx": [
@@ -7386,7 +7419,7 @@
     "Gasp"
    ],
    "reward": {
-    "idx": 5100,
+    "idx": 5120,
     "id": "Metadata/Items/SoulCores/RuneConvertChaos",
     "name": "Betrayal of Aldur"
    },
@@ -7397,7 +7430,7 @@
    "maxLevel": 100
   },
   {
-   "row": 278,
+   "row": 279,
    "id": "7SlotCadigansEpiphany1",
    "size": 7,
    "runeIdx": [
@@ -7419,7 +7452,7 @@
     "Bloodletting"
    ],
    "reward": {
-    "idx": 5137,
+    "idx": 5157,
     "id": "Metadata/Items/SoulCores/RuneWarpingCreateJewelSocket",
     "name": "Cadigan's Epiphany"
    },
@@ -7430,7 +7463,7 @@
    "maxLevel": 100
   },
   {
-   "row": 279,
+   "row": 280,
    "id": "8SlotAldurAlloy1",
    "size": 8,
    "runeIdx": [
@@ -7454,7 +7487,7 @@
     "Wisdom"
    ],
    "reward": {
-    "idx": 5060,
+    "idx": 5080,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy12",
     "name": "The Runebinder's Alloy"
    },
@@ -7465,7 +7498,7 @@
    "maxLevel": 100
   },
   {
-   "row": 280,
+   "row": 281,
    "id": "8SlotAncientAlloy1",
    "size": 8,
    "runeIdx": [
@@ -7489,7 +7522,7 @@
     "Wisdom"
    ],
    "reward": {
-    "idx": 5061,
+    "idx": 5081,
     "id": "Metadata/Items/Currency/CurrencyVerisiumAlloy13",
     "name": "The Runefather's Alloy"
    },
@@ -7500,7 +7533,7 @@
    "maxLevel": 100
   },
   {
-   "row": 281,
+   "row": 282,
    "id": "8SlotVoranasCarnage1",
    "size": 8,
    "runeIdx": [
@@ -7524,7 +7557,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 5141,
+    "idx": 5161,
     "id": "Metadata/Items/SoulCores/RuneWarpingBerserkerInfluence",
     "name": "Vorana's Carnage"
    },
@@ -7535,7 +7568,7 @@
    "maxLevel": 100
   },
   {
-   "row": 282,
+   "row": 283,
    "id": "8SlotKatlasGloom1",
    "size": 8,
    "runeIdx": [
@@ -7559,7 +7592,7 @@
     "Celestial"
    ],
    "reward": {
-    "idx": 5144,
+    "idx": 5164,
     "id": "Metadata/Items/SoulCores/RuneWarpingDecayInfluence",
     "name": "Katla's Gloom"
    },
@@ -7570,7 +7603,7 @@
    "maxLevel": 100
   },
   {
-   "row": 283,
+   "row": 284,
    "id": "8SlotThrudsMight1",
    "size": 8,
    "runeIdx": [
@@ -7594,7 +7627,7 @@
     "Rebirth"
    ],
    "reward": {
-    "idx": 5142,
+    "idx": 5162,
     "id": "Metadata/Items/SoulCores/RuneWarpingDestructionInfluence",
     "name": "Thrud's Might"
    },
@@ -7605,7 +7638,7 @@
    "maxLevel": 100
   },
   {
-   "row": 284,
+   "row": 285,
    "id": "8SlotKolrsHunt1",
    "size": 8,
    "runeIdx": [
@@ -7629,7 +7662,7 @@
     "Moon"
    ],
    "reward": {
-    "idx": 5140,
+    "idx": 5160,
     "id": "Metadata/Items/SoulCores/RuneWarpingMarksmanInfluence",
     "name": "Kolr's Hunt"
    },
@@ -7640,7 +7673,7 @@
    "maxLevel": 100
   },
   {
-   "row": 285,
+   "row": 286,
    "id": "8SlotMedvedsTending1",
    "size": 8,
    "runeIdx": [
@@ -7664,7 +7697,7 @@
     "Adaptive"
    ],
    "reward": {
-    "idx": 5143,
+    "idx": 5163,
     "id": "Metadata/Items/SoulCores/RuneWarpingSoulInfluence",
     "name": "Medved's Tending"
    },
@@ -7675,7 +7708,7 @@
    "maxLevel": 100
   },
   {
-   "row": 286,
+   "row": 287,
    "id": "8SlotUhtredsSidereus1",
    "size": 8,
    "runeIdx": [
@@ -7699,7 +7732,7 @@
     "Cold"
    ],
    "reward": {
-    "idx": 5139,
+    "idx": 5159,
     "id": "Metadata/Items/SoulCores/RuneWarpingTimeInfluence",
     "name": "Uhtred's Sidereus"
    },
@@ -7710,7 +7743,7 @@
    "maxLevel": 100
   },
   {
-   "row": 287,
+   "row": 288,
    "id": "8SlotSerlesTriumph1",
    "size": 8,
    "runeIdx": [
@@ -7734,7 +7767,7 @@
     "Tidal"
    ],
    "reward": {
-    "idx": 5136,
+    "idx": 5156,
     "id": "Metadata/Items/SoulCores/RuneWarpingAdditionalSuffix",
     "name": "Serle's Triumph"
    },
@@ -7745,7 +7778,7 @@
    "maxLevel": 100
   },
   {
-   "row": 288,
+   "row": 289,
    "id": "8SlotPerfectOrbofAugmentation3",
    "size": 8,
    "runeIdx": [
@@ -7780,7 +7813,7 @@
    "maxLevel": 100
   },
   {
-   "row": 289,
+   "row": 290,
    "id": "8SlotPerfectOrbofTransmutation3",
    "size": 8,
    "runeIdx": [
@@ -7815,7 +7848,7 @@
    "maxLevel": 100
   },
   {
-   "row": 290,
+   "row": 291,
    "id": "8SlotPerfectRegalOrb3",
    "size": 8,
    "runeIdx": [
@@ -7850,7 +7883,7 @@
    "maxLevel": 100
   },
   {
-   "row": 291,
+   "row": 292,
    "id": "9SlotExtremelyRareUnique1",
    "size": 9,
    "runeIdx": [
@@ -7883,7 +7916,7 @@
    "maxLevel": 100
   },
   {
-   "row": 292,
+   "row": 293,
    "id": "9SlotOrbofChance3",
    "size": 9,
    "runeIdx": [
@@ -7920,7 +7953,7 @@
    "maxLevel": 100
   },
   {
-   "row": 293,
+   "row": 294,
    "id": "9SlotOrbofAnnulment3",
    "size": 9,
    "runeIdx": [
@@ -7957,7 +7990,7 @@
    "maxLevel": 100
   },
   {
-   "row": 294,
+   "row": 295,
    "id": "9SlotDivineOrb10",
    "size": 9,
    "runeIdx": [
@@ -7994,7 +8027,7 @@
    "maxLevel": 100
   },
   {
-   "row": 295,
+   "row": 296,
    "id": "9SlotPerfectExaltedOrb3",
    "size": 9,
    "runeIdx": [
@@ -8031,7 +8064,7 @@
    "maxLevel": 100
   },
   {
-   "row": 296,
+   "row": 297,
    "id": "9SlotPerfectChaosOrb3",
    "size": 9,
    "runeIdx": [
@@ -8068,7 +8101,7 @@
    "maxLevel": 100
   },
   {
-   "row": 297,
+   "row": 298,
    "id": "9SlotHinekorasLock1",
    "size": 9,
    "runeIdx": [
@@ -8105,7 +8138,7 @@
    "maxLevel": 100
   },
   {
-   "row": 298,
+   "row": 299,
    "id": "9SlotMirrorofKalandra1",
    "size": 9,
    "runeIdx": [
@@ -8142,7 +8175,7 @@
    "maxLevel": 100
   },
   {
-   "row": 299,
+   "row": 300,
    "id": "10SlotOlrothsBoon1",
    "size": 10,
    "runeIdx": [
@@ -8170,7 +8203,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5209,
+    "idx": 5229,
     "id": "Metadata/Items/QuestItems/Gallows/Endgame/LogbookQuestRune1",
     "name": "Olroth's Boon"
    },
@@ -8181,7 +8214,7 @@
    "maxLevel": 100
   },
   {
-   "row": 300,
+   "row": 301,
    "id": "10SlotVoranasBoon1",
    "size": 10,
    "runeIdx": [
@@ -8209,7 +8242,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5210,
+    "idx": 5230,
     "id": "Metadata/Items/QuestItems/Gallows/Endgame/LogbookQuestRune2",
     "name": "Vorana's Boon"
    },
@@ -8220,7 +8253,7 @@
    "maxLevel": 100
   },
   {
-   "row": 301,
+   "row": 302,
    "id": "10SlotUhtredsBoon1",
    "size": 10,
    "runeIdx": [
@@ -8248,7 +8281,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5211,
+    "idx": 5231,
     "id": "Metadata/Items/QuestItems/Gallows/Endgame/LogbookQuestRune3",
     "name": "Uhtred's Boon"
    },
@@ -8259,7 +8292,7 @@
    "maxLevel": 100
   },
   {
-   "row": 302,
+   "row": 303,
    "id": "10SlotMedvedsBoon1",
    "size": 10,
    "runeIdx": [
@@ -8287,7 +8320,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5212,
+    "idx": 5232,
     "id": "Metadata/Items/QuestItems/Gallows/Endgame/LogbookQuestRune4",
     "name": "Medved's Boon"
    },
@@ -8298,7 +8331,7 @@
    "maxLevel": 100
   },
   {
-   "row": 303,
+   "row": 304,
    "id": "10SlotOlrothsLegacyRune1",
    "size": 10,
    "runeIdx": [
@@ -8326,7 +8359,7 @@
     "Bond"
    ],
    "reward": {
-    "idx": 5145,
+    "idx": 5165,
     "id": "Metadata/Items/SoulCores/RuneWarpingOlrothsLegacy",
     "name": "Aldur's Legacy"
    },
@@ -8337,7 +8370,7 @@
    "maxLevel": 100
   },
   {
-   "row": 304,
+   "row": 305,
    "id": "8SlotCurrencyPerfectFlux1",
    "size": 8,
    "runeIdx": [
@@ -8361,7 +8394,7 @@
     "Lightning"
    ],
    "reward": {
-    "idx": 5135,
+    "idx": 5155,
     "id": "Metadata/Items/Currency/CurrencyUpgradeInherentTo20",
     "name": "Perfect Flux"
    },
@@ -8372,7 +8405,7 @@
    "maxLevel": 100
   },
   {
-   "row": 305,
+   "row": 306,
    "id": "3SlotLevel5Flux1",
    "size": 3,
    "runeIdx": [
@@ -8386,7 +8419,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4928,
+    "idx": 4948,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel5",
     "name": "Thaumaturgic Flux (Level 5)"
    },
@@ -8397,7 +8430,7 @@
    "maxLevel": 18
   },
   {
-   "row": 306,
+   "row": 307,
    "id": "3SlotLevel6Flux1",
    "size": 3,
    "runeIdx": [
@@ -8411,7 +8444,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4929,
+    "idx": 4949,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel6",
     "name": "Thaumaturgic Flux (Level 6)"
    },
@@ -8422,7 +8455,7 @@
    "maxLevel": 22
   },
   {
-   "row": 307,
+   "row": 308,
    "id": "3SlotLevel7Flux1",
    "size": 3,
    "runeIdx": [
@@ -8436,7 +8469,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4930,
+    "idx": 4950,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel7",
     "name": "Thaumaturgic Flux (Level 7)"
    },
@@ -8447,7 +8480,7 @@
    "maxLevel": 26
   },
   {
-   "row": 308,
+   "row": 309,
    "id": "3SlotLevel8Flux1",
    "size": 3,
    "runeIdx": [
@@ -8461,7 +8494,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4931,
+    "idx": 4951,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel8",
     "name": "Thaumaturgic Flux (Level 8)"
    },
@@ -8472,7 +8505,7 @@
    "maxLevel": 31
   },
   {
-   "row": 309,
+   "row": 310,
    "id": "3SlotLevel9Flux1",
    "size": 3,
    "runeIdx": [
@@ -8486,7 +8519,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4932,
+    "idx": 4952,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel9",
     "name": "Thaumaturgic Flux (Level 9)"
    },
@@ -8497,7 +8530,7 @@
    "maxLevel": 36
   },
   {
-   "row": 310,
+   "row": 311,
    "id": "3SlotLevel10Flux1",
    "size": 3,
    "runeIdx": [
@@ -8511,7 +8544,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4933,
+    "idx": 4953,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel10",
     "name": "Thaumaturgic Flux (Level 10)"
    },
@@ -8522,7 +8555,7 @@
    "maxLevel": 41
   },
   {
-   "row": 311,
+   "row": 312,
    "id": "3SlotLevel11Flux1",
    "size": 3,
    "runeIdx": [
@@ -8536,7 +8569,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4934,
+    "idx": 4954,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel11",
     "name": "Thaumaturgic Flux (Level 11)"
    },
@@ -8547,7 +8580,7 @@
    "maxLevel": 46
   },
   {
-   "row": 312,
+   "row": 313,
    "id": "3SlotLevel12Flux1",
    "size": 3,
    "runeIdx": [
@@ -8561,7 +8594,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4935,
+    "idx": 4955,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel12",
     "name": "Thaumaturgic Flux (Level 12)"
    },
@@ -8572,7 +8605,7 @@
    "maxLevel": 52
   },
   {
-   "row": 313,
+   "row": 314,
    "id": "3SlotLevel13Flux1",
    "size": 3,
    "runeIdx": [
@@ -8586,7 +8619,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4936,
+    "idx": 4956,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel13",
     "name": "Thaumaturgic Flux (Level 13)"
    },
@@ -8597,7 +8630,7 @@
    "maxLevel": 58
   },
   {
-   "row": 314,
+   "row": 315,
    "id": "3SlotLevel14Flux1",
    "size": 3,
    "runeIdx": [
@@ -8611,7 +8644,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4937,
+    "idx": 4957,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel14",
     "name": "Thaumaturgic Flux (Level 14)"
    },
@@ -8622,7 +8655,7 @@
    "maxLevel": 61
   },
   {
-   "row": 315,
+   "row": 316,
    "id": "3SlotLevel15Flux1",
    "size": 3,
    "runeIdx": [
@@ -8636,7 +8669,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4938,
+    "idx": 4958,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel15",
     "name": "Thaumaturgic Flux (Level 15)"
    },
@@ -8647,7 +8680,7 @@
    "maxLevel": 65
   },
   {
-   "row": 316,
+   "row": 317,
    "id": "3SlotLevel16Flux1",
    "size": 3,
    "runeIdx": [
@@ -8661,7 +8694,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4939,
+    "idx": 4959,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel16",
     "name": "Thaumaturgic Flux (Level 16)"
    },
@@ -8672,7 +8705,7 @@
    "maxLevel": 70
   },
   {
-   "row": 317,
+   "row": 318,
    "id": "3SlotLevel17Flux1",
    "size": 3,
    "runeIdx": [
@@ -8686,7 +8719,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4940,
+    "idx": 4960,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel17",
     "name": "Thaumaturgic Flux (Level 17)"
    },
@@ -8697,7 +8730,7 @@
    "maxLevel": 76
   },
   {
-   "row": 318,
+   "row": 319,
    "id": "3SlotLevel18Flux1",
    "size": 3,
    "runeIdx": [
@@ -8711,7 +8744,7 @@
     "Stone"
    ],
    "reward": {
-    "idx": 4941,
+    "idx": 4961,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel18",
     "name": "Thaumaturgic Flux (Level 18)"
    },
@@ -8722,7 +8755,7 @@
    "maxLevel": 100
   },
   {
-   "row": 319,
+   "row": 320,
    "id": "5SlotLevel19Flux1",
    "size": 5,
    "runeIdx": [
@@ -8740,7 +8773,7 @@
     "Arcane"
    ],
    "reward": {
-    "idx": 4942,
+    "idx": 4962,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel19",
     "name": "Thaumaturgic Flux (Level 19)"
    },
@@ -8751,7 +8784,7 @@
    "maxLevel": 100
   },
   {
-   "row": 320,
+   "row": 321,
    "id": "6SlotLevel20Flux1",
    "size": 6,
    "runeIdx": [
@@ -8771,7 +8804,7 @@
     "Oath"
    ],
    "reward": {
-    "idx": 4943,
+    "idx": 4963,
     "id": "Metadata/Items/Currency/CurrencySetKalguuranSkillGemLevel20",
     "name": "Thaumaturgic Flux (Level 20)"
    },
@@ -8785,1052 +8818,1052 @@
  "runeWeights": [
   {
    "rune": 3,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 1
   },
   {
    "rune": 4,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 1
   },
   {
    "rune": 0,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 4
   },
   {
    "rune": 1,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 4
   },
   {
    "rune": 2,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 4
   },
   {
    "rune": 0,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 4,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 4
   },
   {
    "rune": 3,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 4
   },
   {
    "rune": 6,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 8,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 1,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 6,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 100
   },
   {
    "rune": 18,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 5
   },
   {
    "rune": 10,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 8
   },
   {
    "rune": 16,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 21,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 18,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 14,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 11,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 12,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 15,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 17,
-   "pos": 1,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 13,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 19,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 25
   },
   {
    "rune": 7,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 18
   },
   {
    "rune": 11,
-   "pos": 2,
-   "size": 2,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 21,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 18,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 14,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 11,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 12,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 11,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 13
   },
   {
    "rune": 27,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 19,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 8
   },
   {
    "rune": 10,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 13,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 28
   },
   {
    "rune": 14,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 17
   },
   {
    "rune": 7,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 17
   },
   {
    "rune": 16,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 25
   },
   {
    "rune": 4,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 44
   },
   {
    "rune": 5,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 24
   },
   {
    "rune": 8,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 8
   },
   {
    "rune": 27,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 23
   },
   {
    "rune": 24,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 44
   },
   {
    "rune": 16,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 55
   },
   {
    "rune": 23,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 33
   },
   {
    "rune": 6,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 100
   },
   {
    "rune": 6,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 15,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 21,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 30,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 4,
-   "pos": 4,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 11,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 12
   },
   {
    "rune": 14,
-   "pos": 3,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 24
   },
   {
    "rune": 18,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 27,
-   "pos": 4,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 44
   },
   {
    "rune": 12,
-   "pos": 4,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 45
   },
   {
    "rune": 6,
-   "pos": 4,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 100
   },
   {
    "rune": 27,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 30
   },
   {
    "rune": 8,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 16,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 45
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 24
   },
   {
    "rune": 28,
-   "pos": 3,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 24
   },
   {
    "rune": 18,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 24,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 23,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 9,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 50
   },
   {
    "rune": 30,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 45
   },
   {
    "rune": 17,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 50
   },
   {
    "rune": 22,
-   "pos": 4,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 32,
-   "pos": 3,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 35
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 38
   },
   {
    "rune": 19,
-   "pos": 1,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 26,
-   "pos": 5,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 44
   },
   {
    "rune": 6,
-   "pos": 4,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 45
   },
   {
    "rune": 27,
-   "pos": 3,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 8,
-   "pos": 4,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 55
   },
   {
    "rune": 0,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 8,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 26,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 14,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 5,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 16,
-   "pos": 1,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 23,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 21,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 1,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 10,
-   "pos": 3,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 9,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 29,
-   "pos": 3,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 14,
-   "pos": 5,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 23,
-   "pos": 3,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 3,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 55
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 44
   },
   {
    "rune": 30,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 13,
-   "pos": 2,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 18,
-   "pos": 4,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 26,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 31,
-   "pos": 6,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 6,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 4,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 23,
-   "pos": 2,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 16,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 0,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 1,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 2,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 19,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 9,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 31,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 23,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 12,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 8,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 5,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 3,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 65
   },
   {
    "rune": 32,
-   "pos": 4,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 4,
-   "pos": 3,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 1,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 2,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 0,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 9,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 28,
-   "pos": 1,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 13,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 78
   },
   {
    "rune": 22,
-   "pos": 1,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 78
   },
   {
    "rune": 28,
-   "pos": 6,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 7,
-   "pos": 4,
-   "size": 7,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 5,
-   "pos": 7,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 18,
-   "pos": 7,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 15,
-   "pos": 2,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 26,
-   "pos": 2,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 15,
-   "pos": 8,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 0,
-   "pos": 4,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 13,
-   "pos": 6,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 3,
-   "pos": 4,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 25,
-   "pos": 6,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 1,
-   "pos": 8,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 18,
-   "pos": 4,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 8,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 4,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 6,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 7,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 9,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 3,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 7,
-   "pos": 1,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 19,
-   "pos": 1,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 2,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 1,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 32,
-   "pos": 3,
-   "size": 10,
+   "pos": 0,
+   "size": 0,
    "minLevel": 78
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 12,
-   "pos": 1,
-   "size": 9,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 27,
-   "pos": 4,
-   "size": 6,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 2,
-   "pos": 8,
-   "size": 8,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 5,
-   "pos": 4,
-   "size": 5,
+   "pos": 0,
+   "size": 0,
    "minLevel": 70
   },
   {
    "rune": 6,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 15
   },
   {
    "rune": 10,
-   "pos": 3,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 27,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 7,
-   "pos": 2,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 4,
-   "pos": 1,
-   "size": 3,
+   "pos": 0,
+   "size": 0,
    "minLevel": 78
   },
   {
    "rune": 27,
-   "pos": 2,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 8,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 18,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 24,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 23,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 9,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   },
   {
    "rune": 17,
-   "pos": 1,
-   "size": 4,
+   "pos": 0,
+   "size": 0,
    "minLevel": 75
   }
  ]

@@ -129,7 +129,7 @@ namespace LootValue
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
-            client.DefaultRequestHeaders.Add("User-Agent", "RitualHelper-GameHelper-Plugin");
+            client.DefaultRequestHeaders.Add("User-Agent", "LootValue-GameHelper-Plugin");
             return client;
         }
 

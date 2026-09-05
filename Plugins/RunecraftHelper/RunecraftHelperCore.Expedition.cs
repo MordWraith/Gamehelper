@@ -12,6 +12,7 @@ namespace RunecraftHelper
     using GameHelper.RemoteEnums.Entity;
     using GameHelper.RemoteObjects.Components;
     using GameHelper.RemoteObjects.States.InGameStateObjects;
+    using GameHelper.Utils;
     using GameOffsets.Natives;
     using GameOffsets.Objects.UiElement;
     using ImGuiNET;
@@ -37,19 +38,47 @@ namespace RunecraftHelper
     public sealed partial class RunecraftHelperCore
     {
         private static readonly int[] ExpWidgetPath = { 97, 9, 17, 1 };
-        private const int ExpControllerOffset = 0x378;
-        private const int ExpCtrlTotalOffset = 0x2b0;       // byte: total explosives
-        private const int ExpCtrlPlacedVecOffset = 0x220;   // std::vector<placed charge> {begin,end}
+        private const int ExpControllerOffset = 0x360;      // 0.5.5: -0x18 (was 0x378), UI-element field
+        // 0.5.5: the counts left the controller. It shrank 0x2b8 -> 0x278 (dtor frees 0x278), so the old
+        // total at +0x2b0 and placed-vector at +0x220 both fall outside the object now -- +0x220 reads a
+        // stale pointer that faults on access. They live in a PLACEMENT-STATE sub-object instead, held by
+        // a one-element container at controller+0x1E0 (the ctor's FUN_1417441c0(this+0x3c, 1) reserves it):
+        //
+        //   sub = [controller + 0x1E0]           (0x70 bytes, its own vtable)
+        //   sub + 0x40  std::vector<GridPoint>   placed charges, element = {int32 x, int32 y}
+        //   sub + 0x58  (1023, 724)              constant, looks like grid bounds
+        //   sub + 0x60  {int32 x, int32 y}       last placed position (mirrors the vector's tail)
+        //   sub + 0x68  u8                       TOTAL charges for the map (the MAX, not the remainder)
+        //
+        // Verified live: with two charges placed and the HUD showing 13, +0x68 still read 15 -- so it is
+        // the max, which is what the planner budgets against; and the vector held exactly 2 entries,
+        // (1113,666) and (1098,711), in the same grid space as the monoliths' GridPos.
+        private const int ExpCtrlPlacementStateOffset = 0x1E0;  // -> one-element container {begin,end,cap}
+        private const int ExpPlacementTotalOffset = 0x68;       // u8: max charges for the map
+        private const int ExpPlacementPlacedVecOffset = 0x40;   // std::vector<{i32 x, i32 y}>
+
+        // Structural fingerprint of the controller, from ExpeditionExplosiveController_ctor:
+        // ServerController_ctorBase(this, manager, 0x33) puts the controller TYPE ID at +0x30, and the base
+        // stores its manager -- the very ServerData we walked from -- at +0x48. Both were identical in
+        // 0.5.4HF3 and 0.5.5 while the class body around them shifted, and the +0x48 BACK-POINTER is
+        // self-verifying: only the real controller of THIS ServerData points back at it.
+        private const int ExpCtrlTypeIdOffset = 0x30;
+        private const int ExpCtrlTypeId = 0x33;
+        private const int ExpCtrlManagerOffset = 0x48;      // -> the owning ServerData
 
         // Stable controller anchor (RE 2026-06-28, PoE2 0.5.4HF3 — Ghidra ExpeditionExplosiveController_ctor,
         // vtable 0x…3311e60). The controller is a ServerData field, NOT fundamentally a UI object:
-        // AreaInstance.PlayerInfo.ServerDataPtr (AreaInstance+0x598, +0x00) -> +0x2618 = controller. This source
-        // is UI-independent AND range-independent, so it survives walking away from the detonator and any UI
-        // child-index / state drift that broke the old GameUi->[97][9][17][1]->+0x378 path.
-        private const int AreaPlayerInfoOffset = 0x598;     // AreaInstance.PlayerInfo (ServerDataPtr @ +0x00)
-        private const int ServerDataExpCtrlOffset = 0x2618; // ServerData -> ExpeditionExplosiveController
-        private const int ServerDataScanStart = 0x2580;     // drift-recovery scan window around +0x2618
-        private const int ServerDataScanEnd = 0x26b0;
+        // ServerData -> +0x2618 = controller, where ServerData comes from GameHelper's own
+        // AreaInstance.ServerDataObject (it parses PlayerInfo.ServerDataPtr with offsets that upstream keeps
+        // patched). This source is UI-independent AND range-independent, so it survives walking away from the
+        // detonator and any UI child-index / state drift that broke the old GameUi->[97][9][17][1]->+0x378 path.
+        // 0.5.5 moved the slot: +0x2618 -> +0x2598. Both are tried, and if neither holds it the window is
+        // scanned with the fingerprint above -- which needs no prior successful resolve, unlike the old
+        // vtable-matched scan (that could only run AFTER a resolve had already captured a vtable, so on a
+        // patch day it never ran at all). The window is deliberately wide: this slot has now moved twice.
+        private static readonly int[] ServerDataExpCtrlOffsets = { 0x2598, 0x2618 };
+        private const int ServerDataScanStart = 0x2400;     // drift-recovery scan window
+        private const int ServerDataScanEnd = 0x2700;
 
         // Map/zone modifiers: the AreaInstance exposes its active mods as a std::vector<{ i32 StatsKey; i32 Value }>
         // at +0x158 (begin) / +0x160 (end) — locale-free, Value = signed integer percent (RE 2026-07-03, obsidian
@@ -242,13 +271,53 @@ namespace RunecraftHelper
         // When unconfirmed we default to NORMAL physics: it's the safe direction (90<108 reach, 28<35 radius never
         // suggests an illegal/over-reaching point), and it flips to Grand the moment the controller/HUD resolves.
         private bool ExpCurrentIsGrand() =>
-            (this.expCtrlResolved || this.expHudResolved) && ExpIsGrand(this.ExpEffectiveTotal());
+            this.ExpAreaIsLogbook() ||
+            ((this.expCtrlResolved || this.expHudResolved) && ExpIsGrand(this.ExpEffectiveTotal()));
+
+        // AUTHORITATIVE half of the Grand/Normal physics decision: a Logbook expedition is its own
+        // WorldArea (`ExpeditionLogBook_*`, plus the `ExpeditionSubArea_*Boss` zones), and every one of
+        // them carries the "expedition" tag in GameHelper's Data/WorldAreaTags.json — a locale-free zone
+        // identity available the instant the area loads, long before the explosive controller exists.
+        //
+        // Why this is needed: the engine picks 108/37 vs 90/30 by an AREA-TYPE test (the same test in both
+        // ExpeditionExplosive_BuildPlacementPath and ComputeBlastRadius), while `ExpIsGrand(total)` is only
+        // a charge-count PROXY for it — and the proxy fails in both directions. Live case that exposed it:
+        // ExpeditionLogBook_Tropical ("Lush Isle", area level 80) read as "normal base 90/30" and the drawn
+        // blast ring came out visibly smaller than the game's own circle. The reverse failure is worse — a
+        // normal map pushed to 10+ charges by the atlas would claim Grand reach and the planner would
+        // propose points the game refuses to place.
+        //
+        // Charge count is kept as the fallback for the case this cannot see: a Grand Expedition rolled as
+        // CONTENT on an ordinary map WorldArea, whose id carries no expedition tag. Replacing that half too
+        // needs the engine's actual area-type predicate out of Ghidra.
+        // Cached per area id: this is called from the physics getters, i.e. every frame that draws a ring and
+        // every route computation, while the answer only changes on a zone load.
+        private string expAreaTagId = string.Empty;
+        private bool expAreaTagIsLogbook;
+
+        private bool ExpAreaIsLogbook()
+        {
+            var id = Core.States.InGameStateObject.CurrentWorldInstance.AreaDetails.Id;
+            if (string.IsNullOrEmpty(id)) return false;
+            if (string.Equals(id, this.expAreaTagId, StringComparison.Ordinal)) return this.expAreaTagIsLogbook;
+
+            bool found = false;
+            var tags = WorldAreaTags.GetMeta(id)?.Tags;
+            if (tags != null)
+                for (int i = 0; i < tags.Count; i++)
+                    if (string.Equals(tags[i], "expedition", StringComparison.Ordinal)) { found = true; break; }
+
+            this.expAreaTagId = id;
+            this.expAreaTagIsLogbook = found;
+            return found;
+        }
 
         // Confirmed-normal = an expedition IS resolved AND it is not Grand. Distinct from !ExpCurrentIsGrand()
         // (which is also true when nothing is resolved yet). Used to hide the Grand-only route-planner controls
         // (Reward/Buff weight profiles, Min-markers gate) only once we KNOW the current map is a normal
         // Expedition — so those controls stay available out of a map (unresolved) for setup.
         private bool ExpCurrentIsNormal() =>
+            !this.ExpAreaIsLogbook() &&
             (this.expCtrlResolved || this.expHudResolved) && !ExpIsGrand(this.ExpEffectiveTotal());
 
         private float ExpBasePlacementDistance() =>
@@ -299,8 +368,8 @@ namespace RunecraftHelper
         private bool expHasDetonator;
         private bool expDetonatorActivated;  // detonator StateMachine "activated" != 0 ⇒ dig started, plan is locked in
         private Vector2 expDetonatorPos;
-        private int expTotalCharges;        // controller +0x2b0
-        private int expPlacedFromCtrl;      // controller placed-vector count
+        private int expTotalCharges;        // placement state +0x68 (max charges for the map)
+        private int expPlacedFromCtrl;      // placement state +0x40 placed-vector count
         private int expPlacedFromEntities;  // distinct ExpeditionExplosive entity ids seen this area (accumulated)
         private readonly HashSet<uint> expPlacedIds = new();  // every placed-charge id seen — accumulates, so the
                                                               // count is right even for charges placed far apart
@@ -399,6 +468,11 @@ namespace RunecraftHelper
         // charges along is visible independent of the charge placements themselves.
         private readonly List<Vector2> expSpinePts = new();
         private readonly List<float> expSpineZs = new();
+
+        // Index into expSpinePts of each ORDERED anchor -- i.e. the detonation order of the monoliths the
+        // plan collects. Kept because the rune chain needs it: a rune only buffs what comes after it, so
+        // "how many waves are still ahead of this monolith" is a question about this list.
+        private readonly List<int> expSpineAnchorIdx = new();
 
         private double expRouteWeight;
         private int expRouteCovered;
@@ -549,6 +623,16 @@ namespace RunecraftHelper
             public List<StdTuple3D<float>> TWorld = new();
             public List<double> TW = new();
 
+            // Rune-chain shape per target (parallel to TPos), read by ExpChainReorder to price a candidate
+            // spine ORDER: waves the monolith spawns, the uplift it can propagate, and the rune's identity.
+            public List<int> TWaves = new();
+            public List<double> TUplift = new();
+            public List<int> TRuneId = new();
+
+            // Rune chain opted into routing, and the ex/wave the player values monster loot at.
+            public bool ChainOrder;
+            public float ChainBaseEx;
+
             // Per-target role (parallel to TPos): true = PRIMARY (monolith, ex-weighted, may drive a long pursuit
             // bridge), false = SECONDARY (reward marker — uniform coverage weight; never drives the route because we
             // can't tell good markers from trash from client memory, see project-expedition-marker-types).
@@ -622,7 +706,8 @@ namespace RunecraftHelper
         // the route is recomputed only when a knob / the target data / the charge budget changes.
         private readonly struct ExpCachedTarget
         {
-            public ExpCachedTarget(Vector2 pos, StdTuple3D<float> world, ExpKind kind, string info, double value, float groundZ = 0f)
+            public ExpCachedTarget(Vector2 pos, StdTuple3D<float> world, ExpKind kind, string info, double value,
+                                   float groundZ = 0f, int waves = 0, double uplift = 0.0, int runeId = -1)
             {
                 this.Pos = pos;
                 this.World = world;
@@ -630,6 +715,9 @@ namespace RunecraftHelper
                 this.Info = info;
                 this.Value = value;
                 this.GroundZ = groundZ;
+                this.Waves = waves;
+                this.Uplift = uplift;
+                this.RuneId = runeId;
             }
 
             public Vector2 Pos { get; }
@@ -640,6 +728,16 @@ namespace RunecraftHelper
 
             // See ExpMarkerTierWeight.
             public float GroundZ { get; }
+
+            // Rune-chain shape of a MONOLITH target (0 / 0 / -1 on everything else): the monster waves it will
+            // spawn, the best loot uplift it can propagate, and that rune's identity for duplicate suppression.
+            // Cached alongside Value for the same reason -- so the spine ORDER search keeps working for monoliths
+            // that have dropped out of the awake bubble.
+            public int Waves { get; }
+
+            public double Uplift { get; }
+
+            public int RuneId { get; }
         }
 
         private readonly Dictionary<long, ExpCachedTarget> expTargetCache = new();
@@ -660,11 +758,17 @@ namespace RunecraftHelper
                 this.expNextScanUtc = now.AddMilliseconds(500);
             }
 
+            // The scan above still runs while a panel is open (state stays fresh, so nothing has to be
+            // recomputed on close); only the drawing is suppressed. The debug/planner ImGui WINDOWS are
+            // left alone -- they are GameHelper windows the user can move or close, not overlay clutter
+            // painted over the game.
+            bool covered = IsAnyLargePanelOpen;
+
             if (this.Settings.ShowExpeditionDebug) this.DrawExpeditionDebugWindow();
-            if (this.Settings.ShowExpeditionGridValue) this.DrawExpeditionGridValues();
+            if (this.Settings.ShowExpeditionGridValue && !covered) this.DrawExpeditionGridValues();
             if (this.Settings.ShowExpeditionPlanner) this.DrawExpeditionPlannerWindow();
-            if (this.Settings.ShowExpeditionGates) this.DrawExpeditionGatesLargeMap();
-            if (this.Settings.ShowExpeditionHeatmap || this.Settings.ShowExpeditionHeatmapMarkers) this.DrawExpeditionHeatmapLargeMap();
+            if (this.Settings.ShowExpeditionGates && !covered) this.DrawExpeditionGatesLargeMap();
+            if ((this.Settings.ShowExpeditionHeatmap || this.Settings.ShowExpeditionHeatmapMarkers) && !covered) this.DrawExpeditionHeatmapLargeMap();
         }
 
         private void ScanExpedition()
@@ -692,6 +796,7 @@ namespace RunecraftHelper
                 this.expRoute.Clear();
                 this.expSpinePts.Clear();
                 this.expSpineZs.Clear();
+                this.expSpineAnchorIdx.Clear();
                 this.expRouteFingerprint = string.Empty;
                 this.expPlacedMax = 0;
                 this.expHudTotal = 0;
@@ -711,13 +816,23 @@ namespace RunecraftHelper
             // Monolith ex-values reused from RunecraftHelper's own (patch-current) scan.
             this.EnsureExpeditionMonoliths();
             var monoByAddr = new Dictionary<long, double>();
+            var monoChainByAddr = new Dictionary<long, (int Waves, double Uplift, int RuneId)>();
             var foreignMonos = new HashSet<long>();
             foreach (var mv in this.monolithViews)
             {
                 // Standalone non-Expedition monolith (activated==1): collected by hand, NOT by the explosive
                 // chain — drop it from the route value map entirely so it can never become an anchor.
                 if (mv.IsForeign) { foreignMonos.Add(mv.EntityId); continue; }
-                monoByAddr[mv.EntityId] = mv.Best;
+                // Rune chain opted into routing: value the monolith by the best JOINT (reward + propagated
+                // rune) recipe instead of the reward alone, so a monolith that can seed a strong chain can
+                // outrank a slightly pricier one that cannot. Upper bound — the true chain value depends on
+                // the detonation order, which the router only fixes later. Off ⇒ reward price, as before.
+                monoByAddr[mv.EntityId] = this.ExpMonolithRouteValue(mv);
+
+                // Chain SHAPE (waves + best propagatable uplift), kept separate from the ex value because the
+                // spine order is decided from it before any order exists. See RuneChainRouteUplift.
+                this.RuneChainRouteUplift(mv, out var mvRuneId, out var mvUplift);
+                monoChainByAddr[mv.EntityId] = (RuneChainWavesOf(mv), mvUplift, mvRuneId);
             }
 
             // Pass 1: collect non-charge items + the detonator; charges go to a separate list (chained by Id).
@@ -747,7 +862,8 @@ namespace RunecraftHelper
                     e.TryGetComponent<TriggerableBlockage>(out var tb))
                 {
                     blockers.Add(((int)Math.Round(pos.X), (int)Math.Round(pos.Y), world.Z, tb.IsBlocked, e.Id));
-                    // fall through: a blocker won't match any of the target classifications below.
+                    // Fall through on purpose: the Gully DevourerSegment is BOTH the path gate and a remnant
+                    // ("Dormant Burrower"), so it must also reach the remnant classification below.
                 }
 
                 if (path.Equals(ExpDetonatorPath, StringComparison.OrdinalIgnoreCase))
@@ -796,8 +912,15 @@ namespace RunecraftHelper
                     others.Add((ExpKind.Monolith, pos, world, "monolith", best));
                     // Cache it; keep the last KNOWN ex value when this scan reads 0 (out of bubble).
                     double keep = best;
-                    if (best <= 0 && this.expTargetCache.TryGetValue((long)e.Id, out var oldMono)) keep = oldMono.Value;
-                    this.expTargetCache[(long)e.Id] = new ExpCachedTarget(pos, world, ExpKind.Monolith, "monolith", keep);
+                    monoChainByAddr.TryGetValue(e.Address.ToInt64(), out var chain);
+                    if (best <= 0 && this.expTargetCache.TryGetValue((long)e.Id, out var oldMono))
+                    {
+                        keep = oldMono.Value;
+                        if (chain.Waves <= 0) chain = (oldMono.Waves, oldMono.Uplift, oldMono.RuneId);
+                    }
+
+                    this.expTargetCache[(long)e.Id] = new ExpCachedTarget(
+                        pos, world, ExpKind.Monolith, "monolith", keep, 0f, chain.Waves, chain.Uplift, chain.RuneId);
                     continue;
                 }
 
@@ -824,6 +947,25 @@ namespace RunecraftHelper
                         : "marker";
                     others.Add((ExpKind.Marker, pos, world, icon, 0));
                     this.expTargetCache[(long)e.Id] = new ExpCachedTarget(pos, world, ExpKind.Marker, icon, 0, groundZ);
+                    continue;
+                }
+
+                // Per-logbook terrain remnant (Sulphite Stalagmite, Runic Henge, ...) -- a relic in behaviour and
+                // in the data, but not the generic ExpeditionRelic entity, so it needs its own match. Its type
+                // pins the mod (one per type), and we still prefer whatever the entity itself carries in case a
+                // future build starts rolling them like ordinary relics. See ExpeditionRelicCatalog.LogbookRemnants.
+                if (ExpeditionRelicCatalog.TryMatchLogbookRemnant(path, out _, out var typeMod))
+                {
+                    string lrMods = string.Empty;
+                    if (e.TryGetComponent<ObjectMagicProperties>(out var lrOmp))
+                    {
+                        lrMods = string.Join(';', lrOmp.ModNames);
+                        if (this.Settings.ShowExpeditionDebug) relics.Add((pos, lrOmp));
+                    }
+
+                    if (string.IsNullOrEmpty(lrMods)) lrMods = typeMod;
+                    others.Add((ExpKind.Remnant, pos, world, lrMods, 0));
+                    this.expTargetCache[(long)e.Id] = new ExpCachedTarget(pos, world, ExpKind.Remnant, lrMods, 0);
                     continue;
                 }
 
@@ -1212,46 +1354,52 @@ namespace RunecraftHelper
         {
             controller = IntPtr.Zero;
 
+            // Ask GameHelper for ServerData rather than walking AreaInstance ourselves. We used to read
+            // AreaInstance+0x598, which silently became null on the 2026-09 build (the pointer had moved to
+            // +0x5A0) -- with the HUD widget absent unless you stand at the detonator and no vtable captured
+            // yet for the recovery scan, the controller never resolved and the planner fell back to the manual
+            // 15-charge default on an 18-charge logbook. GH parses this field itself, so it stays patched.
             var area = Core.States.InGameStateObject.CurrentAreaInstance;
-            IntPtr serverData = IntPtr.Zero;
-            if (area != null && area.Address != IntPtr.Zero)
-                serverData = this.ReadPtr(area.Address + AreaPlayerInfoOffset);
+            IntPtr serverData = area?.ServerDataObject?.Address ?? IntPtr.Zero;
 
-            // (1) Stable ServerData field.
+            // (1) Known ServerData slots, newest build first.
             if (serverData != IntPtr.Zero)
             {
-                var c = this.ReadPtr(serverData + ServerDataExpCtrlOffset);
-                if (this.ExpControllerLooksValid(c))
+                foreach (var off in ServerDataExpCtrlOffsets)
                 {
+                    var c = this.ReadPtr(serverData + off);
+                    if (!this.ExpControllerLooksValid(c, serverData)) continue;
                     this.CaptureControllerVtable(c);
-                    this.expCtrlSource = "serverData+0x2618";
+                    this.expCtrlSource = $"GH serverData+0x{off:x}";
                     controller = c;
                     return true;
                 }
             }
 
-            // (2) HUD widget fallback.
-            if (this.TryGetExpeditionWidget(out var widget))
-            {
-                var c = this.ReadPtr(widget + ExpControllerOffset);
-                if (this.ExpControllerLooksValid(c))
-                {
-                    this.CaptureControllerVtable(c);
-                    this.expCtrlSource = "widget+0x378";
-                    controller = c;
-                    return true;
-                }
-            }
-
-            // (3) Drift-recovery scan (only trusts an exact vtable match).
-            if (serverData != IntPtr.Zero && this.expCtrlVtable != IntPtr.Zero)
+            // (2) Drift-recovery scan of the whole window. The fingerprint (type id + a back-pointer to
+            // THIS ServerData) is specific enough to run unconditionally, so the next time the slot moves
+            // it self-heals instead of leaving the planner on a guessed charge budget.
+            if (serverData != IntPtr.Zero)
             {
                 for (int off = ServerDataScanStart; off <= ServerDataScanEnd; off += 8)
                 {
                     var c = this.ReadPtr(serverData + off);
-                    if (c == IntPtr.Zero || this.ReadPtr(c) != this.expCtrlVtable) continue;
-                    if (!this.ExpControllerLooksValid(c)) continue;
+                    if (!this.ExpControllerLooksValid(c, serverData)) continue;
+                    this.CaptureControllerVtable(c);
                     this.expCtrlSource = $"serverData+0x{off:x} (scan)";
+                    controller = c;
+                    return true;
+                }
+            }
+
+            // (3) HUD widget fallback (exists only while standing at the detonator).
+            if (this.TryGetExpeditionWidget(out var widget))
+            {
+                var c = this.ReadPtr(widget + ExpControllerOffset);
+                if (this.ExpControllerLooksValid(c, serverData))
+                {
+                    this.CaptureControllerVtable(c);
+                    this.expCtrlSource = $"widget+0x{ExpControllerOffset:x}";
                     controller = c;
                     return true;
                 }
@@ -1261,29 +1409,44 @@ namespace RunecraftHelper
             return false;
         }
 
-        // Structural validation (no build-specific vtable hardcode): a small total explosive count at +0x2b0
-        // and a well-formed placed-charge std::vector at +0x220 whose element count never exceeds the total.
-        // These invariants reject the unrelated objects that occupy the same ServerData slot outside expedition.
-        private bool ExpControllerLooksValid(IntPtr c)
+        // Structural validation, build-stable and self-verifying: the type id at +0x30 is the 0x33 the ctor
+        // passes to ServerController_ctorBase, and the manager pointer at +0x48 points back at the very
+        // ServerData we walked from. No vtable hardcode, no dependence on a field that patch days keep moving.
+        //
+        // This used to validate on "a small total at +0x2b0 and a placed vector no longer than it". On 0.5.5
+        // the class shrank (0x2b8 -> 0x278), +0x2b0 fell outside the object and read a neighbouring
+        // allocation, so the controller failed validation AT ITS CORRECT ADDRESS and the planner fell back to
+        // a guessed charge budget. A count is DATA -- the wrong thing to prove identity with.
+        private bool ExpControllerLooksValid(IntPtr c, IntPtr serverData)
         {
             if (c == IntPtr.Zero) return false;
-            if (!this.TryReadI32(c + ExpCtrlTotalOffset, out var raw)) return false;
-            int total = raw & 0xFF;
-            if (total < 1 || total > 64) return false;
-            if (!this.TryReadPlacedCount(c, out var placed)) return false;
-            return placed >= 0 && placed <= total;
+            if (!this.TryReadI32(c + ExpCtrlTypeIdOffset, out var typeId) || typeId != ExpCtrlTypeId) return false;
+            if (serverData == IntPtr.Zero) return this.ReadPtr(c) != IntPtr.Zero; // widget path: no back-ref to test
+            return this.ReadPtr(c + ExpCtrlManagerOffset) == serverData;
         }
 
-        // Read the placed-charge count from the controller's std::vector at +0x220, TOLERATING an empty
-        // (null) vector. Pre-placement the vector is genuinely {begin=0,end=0} — TryReadStdVector rejects
-        // that null begin, which used to make ExpControllerLooksValid fail and the controller "disappear"
-        // until the first charge was placed (symptom: "Controller + HUD unreadable", manual fallback shown).
-        // Empty ⇒ 0 placed; a non-empty vector must be 8-aligned with last ≥ first.
-        private bool TryReadPlacedCount(IntPtr c, out int placed)
+        // Resolve the placement-state sub-object that carries both counts (see the offsets above). The
+        // container at controller+0x1E0 is {begin,end,cap}; begin is the single element we want.
+        private bool TryGetExpPlacementState(IntPtr c, out IntPtr state)
+        {
+            state = IntPtr.Zero;
+            if (c == IntPtr.Zero) return false;
+            var s = this.ReadPtr(c + ExpCtrlPlacementStateOffset);
+            if (s == IntPtr.Zero) return false;
+            if (this.ReadPtr(s) == IntPtr.Zero) return false;   // must have a vtable
+            state = s;
+            return true;
+        }
+
+        // Read the placed-charge count from the placement state's std::vector, TOLERATING an empty (null)
+        // vector: before the first placement it is genuinely {begin=0,end=0}, and treating that as a
+        // failure used to make the controller "disappear" until a charge was placed.
+        // Empty ⇒ 0 placed; a non-empty vector must be 8-aligned (element = two int32) with last ≥ first.
+        private bool TryReadPlacedCount(IntPtr state, out int placed)
         {
             placed = 0;
             var buf = new byte[16];
-            if (!ReadProcessMemory(this.processHandle, c + ExpCtrlPlacedVecOffset, buf, (uint)buf.Length, out _))
+            if (!ReadProcessMemory(this.processHandle, state + ExpPlacementPlacedVecOffset, buf, (uint)buf.Length, out _))
                 return false;
             long first = BitConverter.ToInt64(buf, 0);
             long last = BitConverter.ToInt64(buf, 8);
@@ -1310,8 +1473,18 @@ namespace RunecraftHelper
             total = 0;
             placed = 0;
             if (!this.TryGetExpeditionController(out var c)) return false;
-            if (this.TryReadI32(c + ExpCtrlTotalOffset, out var raw)) total = raw & 0xFF;
-            this.TryReadPlacedCount(c, out placed);
+            if (!this.TryGetExpPlacementState(c, out var state)) return false;
+
+            // Range-check the total and report 0 = "unknown" rather than a fabricated budget: the HUD
+            // remaining-count path and the manual setting already cover an unknown total, and a wrong
+            // budget silently mis-plans a whole map.
+            if (this.TryReadI32(state + ExpPlacementTotalOffset, out var raw))
+            {
+                int t = raw & 0xFF;
+                if (t >= 1 && t <= 64) total = t;
+            }
+
+            this.TryReadPlacedCount(state, out placed);
             return true;
         }
 
@@ -1330,7 +1503,10 @@ namespace RunecraftHelper
             }
 
             // Counter glyphs live at +0x4C0; fall back to the +0x390 duplicate if that's empty.
-            string txt = this.ReadStdWString(leaf + 0x4C0);
+            // 0.5.5: -0x30 (was 0x4C0), same as NameWStringOffset -- these are two wstrings on the SAME
+            // text element and they move together. Verified on a recipe row's text child: the duplicate at
+            // +0x490 reads the identical label, size 17 / capacity 23 at +0x4A0 / +0x4A8.
+            string txt = this.ReadStdWString(leaf + 0x490);
             if (string.IsNullOrEmpty(txt)) txt = this.ReadStdWString(leaf + NameWStringOffset);
             if (string.IsNullOrEmpty(txt)) return false;
 
@@ -1760,10 +1936,17 @@ namespace RunecraftHelper
                 foreach (var kv in new SortedDictionary<string, float>(bp.Weights, StringComparer.Ordinal))
                     bb.Append(kv.Key).Append('=').Append(kv.Value.ToString("F2")).Append(',');
 
+            // Rune chain: only the knobs that can change a monolith's routed weight. monoSum above already
+            // reflects the (possibly chain-boosted) values, but the toggles/factors are included so flipping
+            // one re-plans even when the sum happens to land the same.
+            var rc = (s.RuneChainEnabled && s.RuneChainAffectsRoute)
+                ? $"1,{s.RuneChainBaseMonsterEx:F2},{s.RuneChainPowerInChain},{s.RuneChainPowerFactor:F2}"
+                : "0";
+
             return $"{s.ExpPlacementDistancePct}|{s.ExpBlastRadiusPct}|{s.ExpMonolithMinEx}|" +
                    $"{wb}|{mb}|{monoN}|{monoSum:F0}|{anchor.X:F0},{anchor.Y:F0}|" +
                    $"{this.ExpEffectiveTotal()}|{this.expCtrlResolved}|{this.expHasDetonator}|" +
-                   $"{s.ExpMinMarkersPerSpareCharge}|{bb}|{rb}";
+                   $"{s.ExpMinMarkersPerSpareCharge}|{bb}|{rb}|{rc}";
         }
 
         // Total charges to plan for: controller count if resolved → else the HUD-counter total (remaining +
@@ -1805,6 +1988,8 @@ namespace RunecraftHelper
                 MinMarkers = ExpIsGrand(this.expHasDetonator ? this.ExpEffectiveTotal() : 0)
                     ? Math.Max(1, s.ExpMinMarkersPerSpareCharge)
                     : 1,
+                ChainOrder = s.RuneChainEnabled && s.RuneChainAffectsRoute,
+                ChainBaseEx = s.RuneChainBaseMonsterEx,
                 Log = s.ExpLogPlanner ? new List<string>() : null,
             };
 
@@ -1859,6 +2044,18 @@ namespace RunecraftHelper
                 sentinelWorthwhile = hasLogbookFlag;
             }
 
+            this.ExpFillRouteTargets(inp, markerBaseline, sentinelWorthwhile);
+
+            return inp;
+        }
+
+        // Turns the scanned target cache into the planner's parallel target arrays: per-kind weight,
+        // primary/secondary role and the Sentinel pin, then the no-primary fallback promotion. Split out of
+        // BuildRouteInputs so the offline simulator (Tools/ExpeditionSim) can drive these REAL selection rules
+        // over a synthetic target set — everything else BuildRouteInputs does reads live game memory.
+        private void ExpFillRouteTargets(ExpRouteInputs inp, float markerBaseline, bool sentinelWorthwhile)
+        {
+            var s = this.Settings;
             foreach (var t in this.expTargetCache.Values)
             {
                 double w = 0;
@@ -1898,6 +2095,9 @@ namespace RunecraftHelper
                 inp.TW.Add(w);
                 inp.TPrimary.Add(primary);
                 inp.TSentinel.Add(t.Kind == ExpKind.Sentinel);
+                inp.TWaves.Add(t.Waves);
+                inp.TUplift.Add(t.Uplift);
+                inp.TRuneId.Add(t.RuneId);
             }
 
             // FALLBACK route drivers: a Normal expedition often has NO monolith passing the price filter and no
@@ -1913,9 +2113,16 @@ namespace RunecraftHelper
                 for (int i = 0; i < inp.TPrimary.Count; i++) { inp.TPrimary[i] = true; promoted++; }
                 ExpLog(inp, $"[fallback] no primary anchors — promoted {promoted} reward flag(s) to route drivers");
             }
-
-            return inp;
         }
+
+        // Route weight of one monolith, and the single place the rune chain enters routing: value it by the
+        // best JOINT (reward + propagated rune) recipe instead of the reward alone, so a monolith that can
+        // seed a strong chain can outrank a slightly pricier one that cannot. Upper bound — the true chain
+        // value depends on the detonation order, which the router only fixes later. Off ⇒ reward price.
+        private double ExpMonolithRouteValue(MonoView mv) =>
+            (this.Settings.RuneChainEnabled && this.Settings.RuneChainAffectsRoute)
+                ? Math.Max(mv.Best, mv.BestCombined)
+                : mv.Best;
 
         // Kick the heavy A* planner onto a Task (the UI froze when it ran inline on "Run"). The result is
         // published into expPendingResult and applied on the next planner frame (ApplyPendingRouteResult).
@@ -1956,6 +2163,8 @@ namespace RunecraftHelper
             this.expSpinePts.AddRange(res.SpinePts);
             this.expSpineZs.Clear();
             this.expSpineZs.AddRange(res.SpineZs);
+            this.expSpineAnchorIdx.Clear();
+            this.expSpineAnchorIdx.AddRange(res.SpineAnchorIdx);
             this.expRouteWeight = res.Weight;
             this.expRouteCovered = res.Covered;
             this.expRouteTargets = res.Targets;
@@ -2551,7 +2760,16 @@ namespace RunecraftHelper
             foreach (var i in anchors) anchorPos.Add(inp.TPos[i]);
 
             // Phase A2: order the anchors into the spine (NN + 2-opt over walkable distances, from the detonator).
-            var ordered = ExpTourOrder(inp, anchorPos);
+            var ordered = ExpTourOrder(inp, anchorPos, out var geoOrderIdx, out var ddetA, out var dmatA);
+
+            // Phase A2b: re-score that order by what the rune chain actually propagates along it (free -- reuses
+            // the tour's distance matrix). Runs BEFORE the sentinel pin so the pin still owns position 1.
+            var chainOrderIdx = ExpChainReorder(inp, anchors, geoOrderIdx, ddetA, dmatA);
+            if (chainOrderIdx != null)
+            {
+                ordered.Clear();
+                foreach (var gi in chainOrderIdx) ordered.Add(anchorPos[gi]);
+            }
 
             // Pin the Kalguur Sentinel buff FIRST (a monolith-level anchor, forced to the head of the tour): detonating
             // it as early as possible maximises the mob-buffing drone's uptime ⇒ more empowered Logbook drops. The rest
@@ -2596,8 +2814,17 @@ namespace RunecraftHelper
                 prev = a;
             }
 
-            ExpLog(inp, $"  spine total path≈{spineLen:F0}, est charges≈{spineChargesEst} / budget {inp.Budget}" +
-                        (spineChargesEst > inp.Budget ? "  ⚠ over budget — far/cheap anchors should be dropped (pruning = next brick)" : string.Empty));
+            // Two estimates, and only one of them is honest. The per-hop sum above ceils EVERY hop separately,
+            // which double-counts the leftover of each one -- it read 19 charges for a spine the placer laid in
+            // 14. The placer chains charges continuously along the whole polyline, so ceil(total / effDist) is
+            // its actual cost, and that is what the budget verdict (and ExpChainReorder's own pricing) uses.
+            // The per-hop numbers stay in the lines above because they show WHERE the walking goes.
+            int spineChargesReal = (int)Math.Ceiling(spineLen / effDist);
+            ExpLog(inp, $"  spine total path≈{spineLen:F0}, charges≈{spineChargesReal} (per-hop ceil sum " +
+                        $"{spineChargesEst}, over-counts) / budget {inp.Budget}" +
+                        (spineChargesReal > inp.Budget
+                            ? "  ⚠ over budget — far/cheap anchors should be dropped (pruning = next brick)"
+                            : string.Empty));
 
             // Phase A3: lay charges along the spine with the PLACER (Algorithm 2) — a forward sweep over the Router
             // polyline that edge-places coverage charges (anchor at the forward blast EDGE, not dead-centre) and
@@ -2662,11 +2889,33 @@ namespace RunecraftHelper
         // Order the coverage stops into a short open tour from the detonator: nearest-neighbour seed + 2-opt on
         // a precomputed walkable-distance matrix (unreachable pairs penalised). This is what turns the greedy's
         // value-ordered zig-zag into a spatial loop, so far fewer bridge charges are needed to connect clusters.
-        private static List<Vector2> ExpTourOrder(ExpRouteInputs inp, List<Vector2> stops)
+        // `orderIdx` / `ddet` / `dmat` are handed back so a second pass can re-score orders for FREE: the
+        // all-pairs matrix below is the expensive part (m^2 cross-map A*), and re-ordering only needs arithmetic
+        // over it. See ExpChainReorder.
+        private static List<Vector2> ExpTourOrder(ExpRouteInputs inp, List<Vector2> stops,
+                                                  out List<int> orderIdx, out float[] ddet, out float[,] dmat)
         {
             var data = inp.WalkData; int bpr = inp.Bpr; var doors = inp.Doors;
             int m = stops.Count;
-            if (m <= 2) return new List<Vector2>(stops);
+            orderIdx = new List<int>(m);
+            for (int i = 0; i < m; i++) orderIdx.Add(i);
+            ddet = new float[m];
+            dmat = new float[m, m];
+            if (m <= 2)
+            {
+                for (int i = 0; i < m; i++)
+                {
+                    ddet[i] = ExpTourDist(inp, inp.DetonatorPos, stops[i]);
+                    for (int j = i + 1; j < m; j++)
+                    {
+                        float d0 = ExpTourDist(inp, stops[i], stops[j]);
+                        dmat[i, j] = d0;
+                        dmat[j, i] = d0;
+                    }
+                }
+
+                return new List<Vector2>(stops);
+            }
 
             float Dist(Vector2 a, Vector2 b)
             {
@@ -2679,12 +2928,12 @@ namespace RunecraftHelper
             // since no gate ever opens), and the calls are heavy enough that thread-pool overhead is negligible, so
             // fill the matrix in PARALLEL. Race-free: outer row i writes only ddet[i] and dmat[i,j]/dmat[j,i] for
             // j>i, and each off-diagonal cell is owned by exactly one row.
-            var dmat = new float[m, m];
-            var ddet = new float[m];
+            var dmatL = dmat;
+            var ddetL = ddet;
             Parallel.For(0, m, i =>
             {
-                ddet[i] = Dist(inp.DetonatorPos, stops[i]);
-                for (int j = i + 1; j < m; j++) { float d = Dist(stops[i], stops[j]); dmat[i, j] = d; dmat[j, i] = d; }
+                ddetL[i] = Dist(inp.DetonatorPos, stops[i]);
+                for (int j = i + 1; j < m; j++) { float d = Dist(stops[i], stops[j]); dmatL[i, j] = d; dmatL[j, i] = d; }
             });
 
             var used = new bool[m];
@@ -2726,9 +2975,157 @@ namespace RunecraftHelper
                 }
             }
 
+            orderIdx = order;
             var result = new List<Vector2>(m);
             foreach (int idx in order) result.Add(stops[idx]);
             return result;
+        }
+
+        // Walkable distance between two stops, with the same "no path => discourage but stay finite" rule the
+        // tour matrix uses. Lifted out of ExpTourOrder's local so the m<=2 shortcut can fill the matrix too.
+        private static float ExpTourDist(ExpRouteInputs inp, Vector2 a, Vector2 b)
+        {
+            float d = ExpFullPath(inp.WalkData, inp.Bpr, inp.Doors, a, b);
+            return d < 0f ? Vector2.Distance(a, b) * 4f : d;
+        }
+
+        // Opportunity cost of one extra spine charge, in ex. Measured, not guessed: the SPARE optimiser's own
+        // log prices the clusters it buys, and the tail of that ladder -- the cheapest cluster still worth a
+        // charge -- runs 2-4 ex on a Grand map (a rich one hits 25-46). Pricing a charge at 8 ex therefore means
+        // "spend a walking charge only when the rune gain clearly beats a mediocre cluster", while a genuinely
+        // good cluster still outbids a marginal reorder. Reordering also NEVER exceeds the charge budget.
+        private const double ExpChargeOpportunityEx = 8.0;
+
+        // Chain-aware spine ORDER. The geometric tour (ExpTourOrder) minimises walking and never looks at what
+        // a monolith propagates, while the rune chain's value is computed FOR whatever order is in force -- so a
+        // strong rune that lands at the tail of the tour reaches zero monoliths, prices itself at zero, and
+        // nothing ever pulls it forward. Measured on a live map (obsidian poe2/mehanics/expedition-rune-chain
+        // §19): Opulent last was worth 52 ex where the same rune taken first was worth 346 ex, i.e. the shipped
+        // order gave up 27% of the map.
+        //
+        // So re-score orders by what the run is actually worth:
+        //     J(order) = baseEx * SUM_j waves_j * (SUM_{i<=j} uplift_i)  -  chargeCost * ceil(walk / effDist)
+        // Recipe rewards are deliberately absent: every candidate order visits every anchor, so they contribute
+        // the same constant to all of them and only the propagation term and the walking differ.
+        //
+        // Search: hill-climb (2-opt segment reversal + single-anchor relocation) from two starts -- the geometric
+        // tour and its reverse, the reverse being the move that usually matters (the strong rune is typically the
+        // far end of the tour). Costs no A*: everything reads the matrix ExpTourOrder already built. Returns null
+        // when the geometric order stands, so an equal-value order never churns the route.
+        private static List<int>? ExpChainReorder(ExpRouteInputs inp, List<int> anchors, List<int> geo,
+                                                  float[] ddet, float[,] dmat)
+        {
+            if (!inp.ChainOrder || inp.ChainBaseEx <= 0f || geo.Count < 2) return null;
+
+            // Nothing to gain unless at least one anchor can actually propagate something.
+            bool anyUplift = false;
+            foreach (var g in geo) if (inp.TUplift[anchors[g]] > 0.0) { anyUplift = true; break; }
+            if (!anyUplift) return null;
+
+            float effDist = Math.Max(1f, inp.EffDist);
+
+            float Walk(List<int> ord)
+            {
+                float w = ddet[ord[0]];
+                for (int i = 1; i < ord.Count; i++) w += dmat[ord[i - 1], ord[i]];
+                return w;
+            }
+
+            double Propagated(List<int> ord)
+            {
+                double cum = 0.0, sum = 0.0;
+                ulong seen = 0UL;
+                foreach (var g in ord)
+                {
+                    int t = anchors[g];
+                    double up = inp.TUplift[t];
+                    int rid = inp.TRuneId[t];
+                    if (up > 0.0 && rid >= 0 && rid < 64)
+                    {
+                        ulong bit = 1UL << rid;
+                        if ((seen & bit) != 0) up = 0.0;   // duplicates do not stack
+                        else seen |= bit;
+                    }
+
+                    cum += up;
+                    sum += inp.TWaves[t] * cum;
+                }
+
+                return inp.ChainBaseEx * sum;
+            }
+
+            double J(List<int> ord)
+            {
+                int charges = (int)Math.Ceiling(Walk(ord) / effDist);
+                if (charges > inp.Budget) return double.NegativeInfinity;   // a plan that cannot be laid
+                return Propagated(ord) - (ExpChargeOpportunityEx * charges);
+            }
+
+            List<int> Climb(List<int> start)
+            {
+                var cur = new List<int>(start);
+                double curJ = J(cur);
+                bool better = true;
+                int guard = 0;
+                while (better && guard++ < 40)
+                {
+                    better = false;
+
+                    // 2-opt: reverse a segment (this is what turns a tour around).
+                    for (int i = 0; i < cur.Count - 1 && !better; i++)
+                    {
+                        for (int k = i + 1; k < cur.Count && !better; k++)
+                        {
+                            cur.Reverse(i, k - i + 1);
+                            double j2 = J(cur);
+                            if (j2 > curJ + 1e-6) { curJ = j2; better = true; }
+                            else cur.Reverse(i, k - i + 1);
+                        }
+                    }
+
+                    // Or-opt: pull one anchor out and reinsert it elsewhere (moves a strong rune to the front).
+                    for (int i = 0; i < cur.Count && !better; i++)
+                    {
+                        int v = cur[i];
+                        cur.RemoveAt(i);
+                        for (int k = 0; k <= cur.Count && !better; k++)
+                        {
+                            cur.Insert(k, v);
+                            double j2 = J(cur);
+                            if (j2 > curJ + 1e-6) { curJ = j2; better = true; }
+                            else cur.RemoveAt(k);
+                        }
+
+                        if (!better) cur.Insert(i, v);
+                    }
+                }
+
+                return cur;
+            }
+
+            var rev = new List<int>(geo);
+            rev.Reverse();
+            var bestOrd = Climb(geo);
+            double bestJ = J(bestOrd);
+            var altOrd = Climb(rev);
+            double altJ = J(altOrd);
+            if (altJ > bestJ) { bestOrd = altOrd; bestJ = altJ; }
+
+            double geoJ = J(geo);
+            int geoCharges = (int)Math.Ceiling(Walk(geo) / effDist);
+            int newCharges = (int)Math.Ceiling(Walk(bestOrd) / effDist);
+            ExpLog(inp, $"--- ORDER (chain-aware) --- geometric: rune {Propagated(geo):F0} ex over {geoCharges} chg " +
+                        $"⇒ J={geoJ:F0}  |  best: rune {Propagated(bestOrd):F0} ex over {newCharges} chg ⇒ J={bestJ:F0}");
+
+            if (!(bestJ > geoJ + 1e-6))
+            {
+                ExpLog(inp, "  keeping the geometric order (no order propagates more than it costs)");
+                return null;
+            }
+
+            ExpLog(inp, $"  REORDERED: +{Propagated(bestOrd) - Propagated(geo):F0} ex of propagation for " +
+                        $"{newCharges - geoCharges:+0;-0;0} charge(s) @ {ExpChargeOpportunityEx:F0} ex");
+            return bestOrd;
         }
 
         // FULL route on the in-game LARGE map (Tab): white dot = anchor, gold line = order, blue numbered
@@ -3173,9 +3570,17 @@ namespace RunecraftHelper
             // (camera-nearer) ring rendered LARGER than the on-ground blast actually is. Sampling ground height per
             // point drops the ring onto the terrain and lets it follow slopes, so its size reads correctly.
             float effRadius = this.ExpBaseBlastRadius() * (1f + (this.Settings.ExpBlastRadiusPct / 100f));
-            // VISUAL-ONLY shrink: the ground-plane camera projection reads a touch larger than the game's in-game
-            // coverage circle, so draw the ring at 0.95× the true blast radius to match by eye. Routing/coverage keep
-            // the true effRadius (a charge still grabs exactly what the planner counted) — this only affects the ring.
+            // VISUAL-ONLY shrink: the ground-plane camera projection reads a touch larger than the game's own
+            // coverage circle, so draw the ring at 0.95× the true blast radius to match by eye. Routing and
+            // coverage keep the true effRadius (a charge still grabs exactly what the planner counted) — this
+            // affects the ring only.
+            //
+            // This factor was briefly removed on the theory that it was compensating for the Grand/Normal
+            // base being mis-picked (a Logbook zone reading as normal ⇒ 30 instead of 37). It was not:
+            // re-checked in-game AFTER the area-type fix, the unshrunk ring at the correct 37 draws LARGER
+            // than the game's circle, so the projection overshoot is real and independent of that bug.
+            // Corollary worth keeping: since the true radius already reads slightly big, the engine's
+            // +8×(nearby-uncovered) term was evidently NOT in play in that measurement.
             float drawRadius = effRadius * 0.95f;
             var heights = Core.States.InGameStateObject.CurrentAreaInstance?.GridHeightData;
             float GroundZ(float gx, float gy)

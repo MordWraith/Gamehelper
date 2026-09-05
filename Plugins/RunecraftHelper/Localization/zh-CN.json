@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "显示发光符文",
   "mono.glow_hint": "在大地图上以发光插槽中所监视的符文标注石碑。显示权重最高的匹配项；\n平局则全部显示。默认项可关闭但无法移除。",
-  "mono.highlight_locked": "突出锁定配方（已封印石碑）",
-  "mono.highlight_locked_hint": "在已封印石碑锁定配方的面板行上加金色边框。",
   "mono.show_rewards": "显示石碑奖励窗口",
   "mono.price_color": "价格颜色",
   "mono.price_off": "关闭",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "按最佳奖励价值为石碑标题着色：达到／超过阈值为绿色，\n0.6× 到阈值之间为黄色，以下不着色。0 = 关闭（改用“价格颜色”）。",
   "mono.map_value_hint": "在大地图叠加层上绘制每个石碑的最佳价值（ex）",
   "mono.draw_on_map": "在地图叠加层上绘制价值",
-  "mono.hide_map_when_panel": "组合面板开启时隐藏地图价值",
-  "mono.map_scale": "地图价值缩放",
-  "mono.map_x": "地图价值 X 偏移",
-  "mono.map_y": "地图价值 Y 偏移",
 
   "exp.planner_caption": "炸药连锁路线规划器",
   "exp.show_planner": "显示路线规划器",

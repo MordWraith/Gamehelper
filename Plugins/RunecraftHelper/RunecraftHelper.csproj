@@ -18,6 +18,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Sim\ is the offline route-planner harness (Sim/ExpeditionSim.csproj). It compiles THESE sources into
+         a console app, so its own files must stay out of the shipped plugin. -->
+    <Compile Remove="Sim\**" />
+    <None Remove="Sim\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\GameHelper\GameHelper.csproj">
       <Private>false</Private>
       <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>

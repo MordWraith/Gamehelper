@@ -1,6 +1,20 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.3",
+                         "published":  "2026-09-04T23:45:51.5931322Z",
+                         "changelog":  [
+                                           "Version 1.5.3 release || Version 1.5.3 Release"
+                                       ]
+                     },
+                     {
+                         "version":  "1.5.2",
+                         "published":  "2026-09-04T23:14:13.0261040Z",
+                         "changelog":  [
+                                           "Yokken Sync"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.1",
                          "published":  "2026-09-04T22:15:52.2702127Z",
                          "changelog":  [

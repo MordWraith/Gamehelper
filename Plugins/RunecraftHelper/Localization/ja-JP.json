@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "発光ルーンを表示",
   "mono.glow_hint": "発光ソケットで見つかった監視中のルーンで、大マップ上のモノリスにラベルを付けます。\n最も重みの高い一致を表示し、同点はすべて表示。既定はオフにできますが削除はできません。",
-  "mono.highlight_locked": "ロック済みレシピを強調（封印モノリス）",
-  "mono.highlight_locked_hint": "封印モノリスの確定レシピのパネル行に金色の枠を付けます。",
   "mono.show_rewards": "モノリス報酬ウィンドウを表示",
   "mono.price_color": "価格の色",
   "mono.price_off": "オフ",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "最良報酬の価値でモノリスのヘッダーを色付け：しきい値以上は緑、\n0.6× からしきい値までは黄、それ未満はなし。0 = オフ（「価格の色」を使用）。",
   "mono.map_value_hint": "各モノリスの最良価値（ex）を大マップのオーバーレイに描画",
   "mono.draw_on_map": "マップオーバーレイに価値を描画",
-  "mono.hide_map_when_panel": "組み合わせパネルが開いている間はマップの価値を非表示",
-  "mono.map_scale": "マップ価値のスケール",
-  "mono.map_x": "マップ価値 X オフセット",
-  "mono.map_y": "マップ価値 Y オフセット",
 
   "exp.planner_caption": "爆薬チェーン経路プランナー",
   "exp.show_planner": "経路プランナーを表示",

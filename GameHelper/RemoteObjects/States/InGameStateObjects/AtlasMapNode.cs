@@ -22,6 +22,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             string mapId,
             StdTuple2D<int> gridPosition,
             byte biomeId,
+            byte rawStatus,
             AtlasMapNodeState state,
             IReadOnlyList<string> contentNames,
             IReadOnlyList<IntPtr> badgeAddresses,
@@ -34,6 +35,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             this.MapId = mapId;
             this.GridPosition = gridPosition;
             this.BiomeId = biomeId;
+            this.RawStatus = rawStatus;
             this.State = state;
             this.ContentNames = new ReadOnlyCollection<string>(new List<string>(contentNames));
             this.BadgeAddresses = new ReadOnlyCollection<IntPtr>(new List<IntPtr>(badgeAddresses));
@@ -95,6 +97,12 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         public byte BiomeId { get; }
 
         /// <summary>
+        ///     Gets the raw atlas-node status byte. Retained for patch-day diagnostics because its
+        ///     bit assignments can change independently of the semantic completion value.
+        /// </summary>
+        public byte RawStatus { get; }
+
+        /// <summary>
         ///     Gets the discovered completion/accessibility state.
         /// </summary>
         public AtlasMapNodeState State { get; }
@@ -145,7 +153,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         //   * A content TOKEN (see ContentTokens) is one effect line. Its low 16 bits are the effect id
         //     and its high 16 bits normally encode the magnitude as (magnitude × 64) — i.e. magnitude =
         //     high16/64 (1 for plain effects, the number in the text for "N additional"/"N% …", 100 for
-        //     binary "always"/"doubles" effects). The Delirious token (0x685A) is an exception: its top
+        //     binary "always"/"doubles" effects). Delirious tokens (0x685A on older builds,
+        //     0x685C currently) are an exception: their top
         //     two high-word bits are flags, so its magnitude is (high16 & 0x3FFF)/64. So the same
         //     effect at a different magnitude is a different full u32; we key on the low 16 bits and
         //     substitute the magnitude into a "{0}" template.
@@ -257,12 +266,16 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
 
             if (template.Contains("{0}", StringComparison.Ordinal))
             {
-                var magnitude = (token >> 16) / 64;
+                var magnitude = IsDeliriousToken(token)
+                    ? GetDeliriousPercent(token)
+                    : (token >> 16) / 64;
                 return template.Replace("{0}", magnitude.ToString());
             }
 
             return template;
         }
+
+        private static bool IsDeliriousToken(uint token) => (token & 0xFFFFu) is 0x685Au or 0x685Cu;
 
         private static uint GetDeliriousPercent(uint token) => ((token >> 16) & 0x3FFFu) / 64u;
 
@@ -316,7 +329,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             var deliriousPercent = 0u;
             foreach (var token in this.ContentTokens)
             {
-                if ((token & 0xFFFFu) == 0x685Au)
+                if (IsDeliriousToken(token))
                 {
                     deliriousTokens.Add(token);
                     deliriousPercent = Math.Max(deliriousPercent, GetDeliriousPercent(token));

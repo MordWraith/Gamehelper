@@ -1,3 +1,9 @@
 bin/
 obj/
 player.png
+
+# Offline route-planner harness. Compiles the plugin sources into its own console app,
+# so it needs their dependencies (ImGuiNET, GameOffsets) that it does not reference --
+# it does not build, and the plugin excludes it anyway (<Compile Remove="Sim\**" />).
+# Kept on disk for local experiments, out of the repo.
+Sim/

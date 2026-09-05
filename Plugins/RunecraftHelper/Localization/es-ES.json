@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "Mostrar runas brillantes",
   "mono.glow_hint": "Etiqueta un monolito en el mapa grande con una runa vigilada hallada en una\nranura brillante. Muestra la coincidencia de mayor peso; los empates se muestran todos. Los valores por defecto se desactivan pero no se eliminan.",
-  "mono.highlight_locked": "Resaltar receta bloqueada (monolito sellado)",
-  "mono.highlight_locked_hint": "Borde dorado en la fila del panel de la receta fijada de un monolito sellado.",
   "mono.show_rewards": "Mostrar ventana de recompensas del monolito",
   "mono.price_color": "Color del precio",
   "mono.price_off": "Desactivado",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "Tiñe la cabecera de un monolito según su mejor recompensa: verde en/por encima del\numbral, amarillo de 0,6× hasta él, nada por debajo. 0 = desactivado (usar Color del precio).",
   "mono.map_value_hint": "Dibuja el mejor valor (ex) de cada monolito en la superposición del mapa grande",
   "mono.draw_on_map": "Dibujar valor en la superposición del mapa",
-  "mono.hide_map_when_panel": "Ocultar valores del mapa mientras el panel de combinaciones está abierto",
-  "mono.map_scale": "Escala del valor en el mapa",
-  "mono.map_x": "Desplazamiento X del valor en el mapa",
-  "mono.map_y": "Desplazamiento Y del valor en el mapa",
 
   "exp.planner_caption": "Planificador de cadena de explosivos",
   "exp.show_planner": "Mostrar planificador de ruta",

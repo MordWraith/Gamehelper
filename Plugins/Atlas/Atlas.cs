@@ -63,9 +63,18 @@ namespace Atlas
         // the hidden nodes of that chunk are already materialized client-side with their map
         // assigned — so the reveal set is known in advance. Verified live 0.5.4BHF3 (2026-07);
         // see obsidian poe2/Atlas.md §"Sea / ships".
-        private const int RegionButtonRowPtrOffset = 0x320;   // ptr → EndgameRegionActionButtons row
-        private const int RegionButtonGridOffset = 0x330;     // int32 x, int32 y (button grid coords)
-        private const int RegionButtonRowIndexOffset = 0x338; // int32 row index; 2 = Ocean/ship
+        // 0.5.5: all three moved -0x18 (the region button is a UiElement, and UiElementBase lost 0x18
+        // this patch). With the stale values nothing matched the Ocean row check, shipCache stayed
+        // empty, and both ship features silently did nothing -- no ship icons in fog and no reveal
+        // lines on hover. Verified on live tower buttons (the same widget class, easier to find than a
+        // ship): +0x308 holds an odd-aligned pointer shared by every tower (a packed dat row), +0x318
+        // holds plausible atlas grid pairs like (-24,33) and (31,24), and +0x320 reads 3 -- which is
+        // Tower's row in EndgameRegionActionButtons (0=Breach, 1=Forest, 2=Ocean, 3=Tower, unchanged
+        // in the 0.5.5 dump). Map nodes still read 0 at both +0x320 and +0x308, so the discriminator
+        // below keeps separating them.
+        private const int RegionButtonRowPtrOffset = 0x308;   // ptr → EndgameRegionActionButtons row
+        private const int RegionButtonGridOffset = 0x318;     // int32 x, int32 y (button grid coords)
+        private const int RegionButtonRowIndexOffset = 0x320; // int32 row index; 2 = Ocean/ship
         private const int RegionButtonOceanRow = 2;
         // icons\UnchartedShip.png — the ship graphic drawn on fog ships. Game asset:
         // Art/2DArt/UIImages/InGame/MapQuickUseButton/QuickUseItemIconLogbook (the dat row's
@@ -1760,8 +1769,8 @@ namespace Atlas
                 if (addr == IntPtr.Zero)
                     continue;
 
-                // Cheap discriminator first: map nodes keep zeros at +0x338, the other button
-                // kinds (Breach 0 / Forest 1 / Tower 3) fail the exact Ocean row-index check.
+                // Cheap discriminator first: map nodes keep zeros at the row-index slot, the other
+                // button kinds (Breach 0 / Forest 1 / Tower 3) fail the exact Ocean row-index check.
                 if (Read<int>(IntPtr.Add(addr, RegionButtonRowIndexOffset)) != RegionButtonOceanRow)
                     continue;
                 if (Read<IntPtr>(IntPtr.Add(addr, RegionButtonRowPtrOffset)) == IntPtr.Zero)
@@ -4828,8 +4837,24 @@ namespace Atlas
         //   • the 5 atlas mechanics OVERRIDE with their dedicated map_atlas_node_has_* display stat
         //     (delirium/abyss/ritual/incursion→"Vaal Beacons"/breach)
         //   • map_spawn_atlas_point_doodad_after_boss_kill → "(atlas skill point)" (suppressed marker)
-        // Cross-checked LIVE on 8 nodes: boss 0x4C59, Delirium 0x6871, Abyss 0x6872, Ritual 0x6873,
-        // Vaal Beacons 0x6874, Breach 0x6875, Notable Location 0x3A5E, skill-point 0x65F7 — all match.
+        // Cross-checked on 8 nodes for the 0.5.4 build: boss 0x4C59, Delirium 0x6871, Abyss 0x6872,
+        // Ritual 0x6873, Vaal Beacons 0x6874, Breach 0x6875, Notable Location 0x3A5E, skill-point
+        // 0x65F7. ALL OF THOSE ARE STALE as of 0.5.5 — the table below is the regenerated one.
+        //
+        // The id is `Stats row + 1`, so every insertion into Stats shifts everything after it. 0.5.5
+        // added 106 rows in several places, so the shift GROWS along the table: +1 by the boss, +2 by
+        // the atlas-content block. Verified directly in the 0.5.5 Stats dump:
+        //     row 19545 map_contains_powerful_map_boss   -> 0x4C5A  (was 0x4C59)
+        //     row 26738 map_atlas_node_has_delirium      -> 0x6873  (0x6873 used to be Ritual)
+        //     row 26740 map_atlas_node_has_ritual        -> 0x6875  (0x6875 used to be Breach)
+        // and live on a node the player confirmed as Ritual, whose only token is 0x65D1 = row 26064
+        // map_is_rite_of_the_nameless.
+        //
+        // DO NOT verify this table against GameHelper core's AtlasMapNode / AtlasMapNodeContent id
+        // tables: those are a SEPARATE hardcoded copy carrying the 0.5.4 ids, so the effect
+        // descriptions they hand out (and everything downstream of them, including McpBridge's
+        // `effects` field) name 0.5.4 content for a 0.5.5 id. Reading them as ground truth is what
+        // made this table look wrong when it is right; the client's own Stats rows are the source.
         //
         // REGENERATE PER PATCH (ids are Stats rows, which drift — e.g. Vaal Beacons 0x686D→0x6874 since
         // the previous build): re-dump EndgameMapContent.tsv + Stats.tsv and remap Stats[0]+1.
@@ -4857,50 +4882,52 @@ namespace Atlas
             [0x3252] = "Surprising Alliances",
             [0x336E] = "Ritual",
             [0x3411] = "Expedition",
-            [0x3898] = "Azmeri Champion",
-            [0x3A5E] = "Notable Location",
-            [0x3DCB] = "Crystalised Twinning",
-            [0x4C59] = "Powerful Map Boss",
-            [0x4E89] = "Energized Ley Lines",
-            [0x5477] = "Mirage of Riches",
-            [0x55C1] = "Immured Fury",
-            [0x592C] = "Overrun by the Abyssal",
-            [0x5DFC] = "Breach",
-            [0x5DFD] = "Irradiated",
-            [0x5E2B] = "Scattered Stones",
-            [0x60C4] = "Breach Hive",
-            [0x6112] = "Azmeri Energisation",
-            [0x613B] = "Tight Pockets",
-            [0x615A] = "Grand Mirror",     // stat-based (map_delirium_has_giga_mirror+1), no EndgameMapContent row
-            [0x61CA] = "Twinned Terrors",
-            [0x6206] = "Rites of the Rogues",
-            [0x6229] = "Stolen Power",
-            [0x622F] = "Large Congregation",
-            [0x6247] = "Nature Shrines",
-            [0x6301] = "Hunting Grounds",
-            [0x634D] = "Power Struggle",
-            [0x6350] = "Indomitable Essence",
-            [0x6355] = "Azmeri Bloodline",
-            [0x6361] = "Exceptional Find",
-            [0x64E3] = "Essence Trove",
-            [0x64E4] = "Spirit Guide",
-            [0x6504] = "Water Influence",
-            [0x6505] = "Mountain Influence",
-            [0x6506] = "Grass Influence",
-            [0x6507] = "Forest Influence",
-            [0x6508] = "Swamp Influence",
-            [0x6509] = "Desert Influence",
-            [0x653D] = "Persistent Devotion",
-            [0x65F7] = "(atlas skill point)",
-            [0x6762] = "Trialmaster's Trainee",
-            [0x6763] = "Sekhema's Student",
-            [0x6764] = "Gigantic Uprising",
-            [0x6765] = "Glimmering Mutation",
-            [0x6871] = "Delirium",
-            [0x6872] = "Abyss",
-            [0x6873] = "Ritual",
-            [0x6874] = "Vaal Beacons",
-            [0x6875] = "Breach",
+            [0x3899] = "Azmeri Champion",
+            [0x3A5F] = "Notable Location",
+            [0x3DCC] = "Crystalised Twinning",
+            [0x4C5A] = "Powerful Map Boss",
+            [0x4E8A] = "Energized Ley Lines",
+            [0x5479] = "Mirage of Riches",
+            [0x55C3] = "Immured Fury",
+            [0x592E] = "Overrun by the Abyssal",
+            [0x5DFE] = "Breach",
+            [0x5DFF] = "Irradiated",
+            [0x5E2D] = "Scattered Stones",
+            [0x60C6] = "Breach Hive",
+            [0x6114] = "Azmeri Energisation",
+            [0x613D] = "Tight Pockets",
+            [0x615C] = "Grand Mirror",
+            [0x61CC] = "Twinned Terrors",
+            [0x6208] = "Rites of the Rogues",
+            [0x622B] = "Stolen Power",
+            [0x6231] = "Large Congregation",
+            [0x6249] = "Nature Shrines",
+            [0x6303] = "Hunting Grounds",
+            [0x634F] = "Power Struggle",
+            [0x6352] = "Indomitable Essence",
+            [0x6357] = "Azmeri Bloodline",
+            [0x6363] = "Exceptional Find",
+            [0x64E5] = "Essence Trove",
+            [0x64E6] = "Spirit Guide",
+            [0x6506] = "Water Influence",
+            [0x6507] = "Mountain Influence",
+            [0x6508] = "Grass Influence",
+            [0x6509] = "Forest Influence",
+            [0x650A] = "Swamp Influence",
+            [0x650B] = "Desert Influence",
+            [0x653F] = "Persistent Devotion",
+            [0x65F9] = "(atlas skill point)",
+            [0x6764] = "Trialmaster's Trainee",
+            [0x6765] = "Sekhema's Student",
+            [0x6766] = "Gigantic Uprising",
+            [0x6767] = "Glimmering Mutation",
+            [0x6873] = "Delirium",
+            [0x6874] = "Abyss",
+            [0x6875] = "Ritual",
+            [0x6876] = "Vaal Beacons",
+            [0x6877] = "Breach",
+            [0x6A75] = "Viridian Wildwood",
+            [0x6A86] = "Abyssal Fissure",
         };
 
         // Resolve a content token to its display name via its LOW16 id (see ContentTokenNames). Unknown

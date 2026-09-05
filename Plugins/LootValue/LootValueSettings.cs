@@ -21,6 +21,9 @@ namespace LootValue
         /// <summary>Draw value labels over items in the open inventory panel.</summary>
         public bool ShowInventoryOverlay = false;
 
+        /// <summary>Draw value labels over items in the open Ritual reward window.</summary>
+        public bool ShowRitualOverlay = true;
+
         /// <summary>Draw owned-stack values in the Currency Exchange item list.</summary>
         public bool ShowCurrencyExchangeOverlay = true;
 

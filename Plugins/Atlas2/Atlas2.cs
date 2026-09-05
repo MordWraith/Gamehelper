@@ -397,7 +397,7 @@
                 allCenters[nd.GridPosition] = nu.Position + nu.Size * 0.5f;
             }
 
-            bool ritualLineMode = Read<byte>(atlasUi.Address + 0x637) != 0;
+            bool ritualLineMode = Read<byte>(atlasUi.Address + PanelLineModeOffset) != 0;
             ritualHoverGrid = nodeCache.Where(node => node.State == AtlasNodeState.AccessibleNow)
                 .Select(node => (Node: node, Ui: atlasUi[node.Index]))
                 .Where(entry => entry.Ui != null && ImGui.GetMousePos().X >= entry.Ui.Position.X &&
@@ -746,6 +746,12 @@
                 if (map.Index < 0 || map.Index >= atlasCount)
                     continue;
 
+                var mapName = NormalizeName(map.DisplayName);
+                var hasGraphIdentity = map.ConnectedGridPositions.Count > 0;
+                var drawable = !string.IsNullOrWhiteSpace(mapName) || hasGraphIdentity;
+                if (string.IsNullOrWhiteSpace(mapName) && hasGraphIdentity)
+                    mapName = $"Unknown Map [{map.Index}]";
+
                 nodeCache.Add(new NodeData
                 {
                     Index = map.Index,
@@ -753,7 +759,7 @@
                     GridPosition = map.GridPosition,
                     ConnectedGridPositions = map.ConnectedGridPositions.ToList(),
                     InternalId = map.MapId,
-                    MapName = NormalizeName(map.DisplayName),
+                    MapName = mapName,
                     BiomeId = map.BiomeId,
                     State = ToAtlasNodeState(map.State),
                     BadgeCount = map.BadgeCount,
@@ -770,7 +776,7 @@
                         .Where(icon => !string.IsNullOrWhiteSpace(icon)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                     Type = map.Type ?? "normal",
                     Tags = map.Tags.ToList(),
-                    Drawable = !string.IsNullOrWhiteSpace(map.DisplayName),
+                    Drawable = drawable,
                     RitualSpecial = IsRitualSpecialNode(map.Address),
                 });
             }

@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "顯示發光符文",
   "mono.glow_hint": "在大地圖上以發光插槽中所監看的符文標註石碑。顯示權重最高的符合項；\n平手則全部顯示。預設項目可關閉但無法移除。",
-  "mono.highlight_locked": "突顯鎖定配方（已封印石碑）",
-  "mono.highlight_locked_hint": "在已封印石碑鎖定配方的面板列上加金色邊框。",
   "mono.show_rewards": "顯示石碑獎勵視窗",
   "mono.price_color": "價格顏色",
   "mono.price_off": "關閉",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "依最佳獎勵價值為石碑標題著色：達到／超過門檻為綠色，\n0.6× 到門檻之間為黃色，以下不著色。0 = 關閉（改用「價格顏色」）。",
   "mono.map_value_hint": "在大地圖疊層上繪製每個石碑的最佳價值（ex）",
   "mono.draw_on_map": "在地圖疊層上繪製價值",
-  "mono.hide_map_when_panel": "組合面板開啟時隱藏地圖價值",
-  "mono.map_scale": "地圖價值縮放",
-  "mono.map_x": "地圖價值 X 偏移",
-  "mono.map_y": "地圖價值 Y 偏移",
 
   "exp.planner_caption": "炸藥連鎖路線規劃器",
   "exp.show_planner": "顯示路線規劃器",

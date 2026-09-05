@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "Afficher les runes lumineuses",
   "mono.glow_hint": "Étiquette un monolithe sur la grande carte avec une rune surveillée trouvée dans un\nemplacement lumineux. Affiche la correspondance au poids le plus élevé ; les égalités sont toutes affichées. Les valeurs par défaut se désactivent mais ne se suppriment pas.",
-  "mono.highlight_locked": "Surligner la recette verrouillée (monolithe scellé)",
-  "mono.highlight_locked_hint": "Bordure dorée sur la ligne du panneau de la recette verrouillée d'un monolithe scellé.",
   "mono.show_rewards": "Afficher la fenêtre de récompenses du monolithe",
   "mono.price_color": "Couleur du prix",
   "mono.price_off": "Désactivé",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "Teinte l'en-tête d'un monolithe selon sa meilleure récompense : vert au-dessus du\nseuil, jaune de 0,6× jusqu'au seuil, rien en dessous. 0 = désactivé (utiliser Couleur du prix).",
   "mono.map_value_hint": "Dessine la meilleure valeur (ex) de chaque monolithe sur la superposition de la grande carte",
   "mono.draw_on_map": "Dessiner la valeur sur la superposition de carte",
-  "mono.hide_map_when_panel": "Masquer les valeurs de carte quand le panneau de combinaisons est ouvert",
-  "mono.map_scale": "Échelle de la valeur sur la carte",
-  "mono.map_x": "Décalage X de la valeur sur la carte",
-  "mono.map_y": "Décalage Y de la valeur sur la carte",
 
   "exp.planner_caption": "Planificateur de chaîne d'explosifs",
   "exp.show_planner": "Afficher le planificateur d'itinéraire",

@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "발광 룬 표시",
   "mono.glow_hint": "발광 소켓에서 발견된 감시 중인 룬으로 큰 지도의 모노리스에 라벨을 붙입니다.\n가중치가 가장 높은 일치를 표시하고, 동점이면 모두 표시합니다. 기본값은 끌 수 있지만 제거할 수 없습니다.",
-  "mono.highlight_locked": "잠긴 레시피 강조(봉인된 모노리스)",
-  "mono.highlight_locked_hint": "봉인된 모노리스의 확정 레시피 패널 행에 금색 테두리를 표시합니다.",
   "mono.show_rewards": "모노리스 보상 창 표시",
   "mono.price_color": "가격 색상",
   "mono.price_off": "끄기",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "최고 보상 가치로 모노리스 헤더에 색을 입힙니다: 임계값 이상은 초록,\n0.6×부터 임계값까지는 노랑, 그 미만은 없음. 0 = 끔(가격 색상 사용).",
   "mono.map_value_hint": "각 모노리스의 최고 가치(ex)를 큰 지도 오버레이에 그립니다",
   "mono.draw_on_map": "지도 오버레이에 가치 표시",
-  "mono.hide_map_when_panel": "조합 패널이 열려 있는 동안 지도 가치 숨기기",
-  "mono.map_scale": "지도 가치 배율",
-  "mono.map_x": "지도 가치 X 오프셋",
-  "mono.map_y": "지도 가치 Y 오프셋",
 
   "exp.planner_caption": "폭약 연쇄 경로 플래너",
   "exp.show_planner": "경로 플래너 표시",

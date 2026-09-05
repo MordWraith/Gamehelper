@@ -15,7 +15,6 @@
   "settings.league_adopted": "League \"{0}\" is gone from poe.ninja; switched to \"{1}\".",
   "settings.refresh_interval": "Refresh interval (min)",
   "settings.refresh_now": "Refresh now",
-
   "status.syncing": "syncing…",
   "status.ready_nodata": "ready (no data yet)",
   "status.updated_ago": "updated {0} ago",
@@ -29,11 +28,8 @@
   "tab.monoliths": "Runestone monoliths",
   "tab.expedition": "Expedition",
   "common.debug": "Debug",
-
   "mono.show_glow_runes": "Show glow runes",
-  "mono.glow_hint": "Labels a monolith on the large map with a watched rune found on a glowing\nsocket. Highest-weight match shows; ties show all. Defaults can be toggled off but not removed.",
-  "mono.highlight_locked": "Highlight locked recipe (sealed monolith)",
-  "mono.highlight_locked_hint": "Gold border on the panel row of a sealed monolith's locked-in recipe.",
+  "mono.glow_hint": "Labels a monolith on the large map with the rune(s) it would propagate from its gold\nsocket, best first, joined by \" | \". Only runes the rune-chain table values above\n1.00 are shown — a monolith with nothing worth propagating stays unlabelled.",
   "mono.show_rewards": "Show monolith reward window",
   "mono.price_color": "Price color",
   "mono.price_off": "Off",
@@ -45,11 +41,6 @@
   "mono.highlight_threshold_hint": "Tints a monolith's header by its best reward value: green at/above the\nthreshold, yellow from 0.6× up to it, none below. 0 = off (use Price color).",
   "mono.map_value_hint": "Paints each monolith's best value (ex) on the large-map overlay",
   "mono.draw_on_map": "Draw value on map overlay",
-  "mono.hide_map_when_panel": "Hide map values while Combinations panel open",
-  "mono.map_scale": "Map value scale",
-  "mono.map_x": "Map value X offset",
-  "mono.map_y": "Map value Y offset",
-
   "exp.planner_caption": "Explosive-chain route planner",
   "exp.show_planner": "Show route planner",
   "exp.planner_hint": "A planner window appears while the in-game explosive HUD is visible",
@@ -63,7 +54,6 @@
   "exp.log_lines": "planner log: {0} lines",
   "exp.open_log": "open log",
   "exp.copy_path": "copy path",
-
   "exp.planner_title": "Expedition Planner",
   "exp.charges_ctrl": "Charges: {0} left / {1} total",
   "exp.grand_suffix": "  (Grand)",
@@ -96,7 +86,6 @@
   "exp.marker_magic": "Magic remnant chests",
   "exp.marker_gold": "Gold remnant chests",
   "exp.marker_logbook": "Logbook flag (tall 2▲)",
-
   "prof.reward_hint": "Weight each reward marker (0 = ignore, blank types default to 1). Monoliths are\nvalued by their real reward price — this profile only weights the markers.",
   "prof.no_markers": "(no reward markers discovered yet)",
   "prof.reset_values": "reset values",
@@ -110,5 +99,18 @@
   "prof.dup": "dup",
   "prof.del": "del",
   "prof.popup_new": "New profile name",
-  "prof.popup_rename": "Rename profile"
+  "prof.popup_rename": "Rename profile",
+  "panel.rune_taken": "(taken)",
+  "runechain.header": "Rune settings",
+  "runechain.enable": "Value the rune chain (proliferation)",
+  "runechain.enable_hint": "The gold-framed socket marks the rune that propagates to every pack unearthed LATER in\nthe chain, and buffing those monsters raises their drops. In the panel the GREEN frame\nkeeps meaning \"most valuable reward\"; an AMBER frame around a rune name marks the\nstrongest rune this monolith can propagate. Two separate calls, not one merged number.",
+  "runechain.base_ex": "Loot per monster pack (ex)",
+  "runechain.base_ex_hint": "Expected drop value of ONE pack of Runic monsters. The chain value scales linearly with\nthis, so it is the main calibration knob — measure it, don't trust the default.",
+  "runechain.power_in_chain": "Force Power empowerment (override)",
+  "runechain.power_factor": "Power empowerment factor",
+  "runechain.affects_route": "Let the chain value steer the route",
+  "runechain.affects_route_hint": "Adds each monolith's best achievable chain value to its route weight. This is an UPPER\nBOUND — the real value depends on how many packs come after that monolith, which is\nonly known once the order is fixed. Off keeps the router exactly as it is today.",
+  "runechain.table_hint": "Loot multiplier per propagated rune. 1.00 = no loot effect (pure danger). Below 1.00 = a\nnet cost (Oath seeds immortal loot-less waves; Wisdom only grants experience). Magnitudes\nare server-side, so these are estimates ordered by the community tier list.",
+  "runechain.reset": "Reset to tier-list defaults",
+  "runechain.power_factor_hint": "A propagated Power rune empowers the other runes in the chain (official 0.5.4 fix). Whether\nPower is live is READ per monolith from the station (the same flag the game uses to draw the\nempowered rune art), so this only says by how much it multiplies their uplift."
 }

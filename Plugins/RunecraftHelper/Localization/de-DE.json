@@ -20,8 +20,6 @@
 
   "mono.show_glow_runes": "Leuchtende Runen anzeigen",
   "mono.glow_hint": "Beschriftet einen Monolithen auf der großen Karte mit einer beobachteten Rune in einem\nleuchtenden Sockel. Zeigt die Übereinstimmung mit höchstem Gewicht; bei Gleichstand alle. Standards abschaltbar, aber nicht entfernbar.",
-  "mono.highlight_locked": "Gesperrtes Rezept hervorheben (versiegelter Monolith)",
-  "mono.highlight_locked_hint": "Goldener Rahmen in der Panel-Zeile des festgelegten Rezepts eines versiegelten Monolithen.",
   "mono.show_rewards": "Monolith-Belohnungsfenster anzeigen",
   "mono.price_color": "Preisfarbe",
   "mono.price_off": "Aus",
@@ -33,10 +31,6 @@
   "mono.highlight_threshold_hint": "Färbt die Kopfzeile eines Monolithen nach bester Belohnung: grün ab/über der\nSchwelle, gelb von 0,6× bis dahin, nichts darunter. 0 = aus (Preisfarbe nutzen).",
   "mono.map_value_hint": "Zeichnet den besten Wert (ex) jedes Monolithen auf das Overlay der großen Karte",
   "mono.draw_on_map": "Wert auf Karten-Overlay zeichnen",
-  "mono.hide_map_when_panel": "Kartenwerte ausblenden, während das Kombinations-Panel offen ist",
-  "mono.map_scale": "Kartenwert-Skalierung",
-  "mono.map_x": "Kartenwert-X-Versatz",
-  "mono.map_y": "Kartenwert-Y-Versatz",
 
   "exp.planner_caption": "Sprengstoff-Ketten-Routenplaner",
   "exp.show_planner": "Routenplaner anzeigen",

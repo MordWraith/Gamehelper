@@ -53,7 +53,7 @@
       },
       "german": {
         "name": "Riss",
-        "desc": "Gebiet enthält einen andersweltlichen Riss"
+        "desc": "Gebiet enthält einen jenseitigen Riss"
       },
       "japanese": {
         "name": "ブリーチ",
@@ -182,7 +182,7 @@
       },
       "german": {
         "name": "Ritual",
-        "desc": "Gebiet enthält Ritualaltäre"
+        "desc": "Gebiet enthält Ritual-Altäre"
       },
       "japanese": {
         "name": "リチュアル",
@@ -306,7 +306,7 @@
     "desc": "Area contains Vaal Beacons",
     "translates": {
       "french": {
-        "name": "Vaal Beacons",
+        "name": "Balises vaal",
         "desc": "Area contains Vaal Beacons"
       },
       "german": {
@@ -349,7 +349,7 @@
     "desc": "Area contains Abysses",
     "translates": {
       "french": {
-        "name": "Abyss",
+        "name": "Abysse",
         "desc": "Area contains Abysses"
       },
       "german": {
@@ -392,7 +392,7 @@
     "desc": "Area contains an important objective",
     "translates": {
       "french": {
-        "name": "Notable Location",
+        "name": "Point d'intérêt",
         "desc": "Area contains an important objective"
       },
       "german": {
@@ -478,7 +478,7 @@
     "desc": "Slay the Great Beast to earn Hilda's Favour",
     "translates": {
       "french": {
-        "name": "Great Beast",
+        "name": "Bête colossale",
         "desc": "Slay the Great Beast to earn Hilda's Favour"
       },
       "german": {
@@ -521,7 +521,7 @@
     "desc": "All Rare monsters are Essence monsters",
     "translates": {
       "french": {
-        "name": "Essence Trove",
+        "name": "Réserve d'Essences",
         "desc": "All Rare monsters are Essence monsters"
       },
       "german": {
@@ -564,7 +564,7 @@
     "desc": "Contains many extra Strongboxes with monsters waiting in ambush",
     "translates": {
       "french": {
-        "name": "Monstrous Treasure",
+        "name": "Trésor monstrueux",
         "desc": "Contains many extra Strongboxes with monsters waiting in ambush"
       },
       "german": {
@@ -607,7 +607,7 @@
     "desc": "Contains an Azmeri Spirit that will be released when Possessed Monsters are slain",
     "translates": {
       "french": {
-        "name": "Spirit Guide",
+        "name": "Guide spirituel",
         "desc": "Contains an Azmeri Spirit that will be released when Possessed Monsters are slain"
       },
       "german": {
@@ -650,7 +650,7 @@
     "desc": "All Monsters are at least Magic",
     "translates": {
       "french": {
-        "name": "Arcane Hordes",
+        "name": "Hordes arcaniques",
         "desc": "All Monsters are at least Magic"
       },
       "german": {
@@ -693,7 +693,7 @@
     "desc": "Contains 2 additional Rogue Exiles and 5 additional Rare Beasts",
     "translates": {
       "french": {
-        "name": "Hunting Grounds",
+        "name": "Terrains de chasse",
         "desc": "Contains 2 additional Rogue Exiles and 5 additional Rare Beasts"
       },
       "german": {
@@ -740,36 +740,36 @@
         "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
       },
       "german": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "Naturschreine",
+        "desc": "Enthält 2 zusätzliche Schreine \nSchreine lassen bei Aktivierung Azmeri-Geister frei"
       },
       "japanese": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "自然のシュライン",
+        "desc": "シュラインが追加で2個出現sるう\nシュラインを起動した時にアズメリの精霊が放たれる"
       },
       "korean": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "자연 성소",
+        "desc": "성소 2개 추가 등장\n성소가 활성화될 때 아즈메리 혼백 방출"
       },
       "portuguese": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "Altares da Natureza",
+        "desc": "Contém 2 altares adicionais\nAltares liberam um Espírito Azmeri quando ativados"
       },
       "russian": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "Алтари природы",
+        "desc": "В области можно встретить 2 дополнительных алтаря\nАлтари высвобождают духа азмири при активации"
       },
       "spanish": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "Santuarios de la naturaleza",
+        "desc": "Contiene 2 santuarios adicionales\nLos santuarios liberan un espíritu azmeri cuando se activan"
       },
       "thai": {
         "name": "แท่นบูชาธรรมชาติ",
         "desc": "มีแท่นบูชา เพิ่มเติม 2 แท่น\nแท่นบูชา ปลดปล่อย วิญญาณแอสเมรี 1 ตน เมื่อใช้งาน"
       },
       "traditional chinese": {
-        "name": "Nature Shrines",
-        "desc": "Contains 2 additional Shrines\nShrines release an Azmeri Spirit when activated"
+        "name": "自然神殿",
+        "desc": "含有2座額外神殿\n神殿會於啟動時釋放一個阿茲莫里魂靈"
       }
     }
   },
@@ -779,7 +779,7 @@
     "desc": "Contains 3 additional Essence Packs Essence Packs have an additional Rare Monster",
     "translates": {
       "french": {
-        "name": "Crystalised Twinning",
+        "name": "Jumelage cristallisé",
         "desc": "Contains 3 additional Essence Packs\nEssence Packs have an additional Rare Monster"
       },
       "german": {
@@ -822,7 +822,7 @@
     "desc": "Contains 3 additional Essence Essences transfer to a random Unique Monster on death",
     "translates": {
       "french": {
-        "name": "Indomitable Essence",
+        "name": "Essence indomptable",
         "desc": "Contains 3 additional Essence\nEssences transfer to a random Unique Monster on death"
       },
       "german": {
@@ -865,7 +865,7 @@
     "desc": "Contains 2 additional Azmeri Spirits Azmeri Spirits have 1000% increased maximum Empowerment",
     "translates": {
       "french": {
-        "name": "Azmeri Energisation",
+        "name": "Énergisation azmérienne",
         "desc": "Contains 2 additional Azmeri Spirits\nAzmeri Spirits have 1000% increased maximum Empowerment"
       },
       "german": {
@@ -908,7 +908,7 @@
     "desc": "An Azmeri Spirit moves to a nearby map on completion, eventually ascending to a Sacred Spirit",
     "translates": {
       "french": {
-        "name": "Spirit Migration",
+        "name": "Migration spirituelle",
         "desc": "An Azmeri Spirit moves to a nearby map on completion, eventually ascending to a Sacred Spirit"
       },
       "german": {
@@ -951,7 +951,7 @@
     "desc": "The Azmeri Spirit has ascended to a Sacred Spirit",
     "translates": {
       "french": {
-        "name": "Sacred Spirit",
+        "name": "Esprit sacré",
         "desc": "The Azmeri Spirit has ascended to a Sacred Spirit"
       },
       "german": {
@@ -994,7 +994,7 @@
     "desc": "Contains a Unique Strongbox",
     "translates": {
       "french": {
-        "name": "Ancient Trove",
+        "name": "Trésor antique",
         "desc": "Contains a Unique Strongbox"
       },
       "german": {
@@ -1037,7 +1037,7 @@
     "desc": "Contains 3 additional Strongboxes Strongboxes are openable twice",
     "translates": {
       "french": {
-        "name": "Twice-Locked Boxes",
+        "name": "Coffres à double verrou",
         "desc": "Contains 3 additional Strongboxes\nStrongboxes are openable twice"
       },
       "german": {
@@ -1080,7 +1080,7 @@
     "desc": "Contains 3 additional Shrines",
     "translates": {
       "french": {
-        "name": "Power of Faith",
+        "name": "Pouvoir de la foi",
         "desc": "Contains 3 additional Shrines"
       },
       "german": {
@@ -1123,12 +1123,12 @@
     "desc": "Contains 3 additional Shrines Shrines have 2 additional packs of Worshippers",
     "translates": {
       "french": {
-        "name": "Large Congregation",
+        "name": "Grande congrégation",
         "desc": "Contains 3 additional Shrines\nShrines have 2 additional packs of Worshippers"
       },
       "german": {
         "name": "Große Versammlung",
-        "desc": "Enthält 3 zusätzliche Schreine\nSchreine haben 2 zusätzliche Gruppen von Anbetern"
+        "desc": "Enthält 3 zusätzliche Schreine\nSchreine haben 2 zusätzliche Gruppen von Verehrern"
       },
       "japanese": {
         "name": "大規模な集会",
@@ -1166,7 +1166,7 @@
     "desc": "Contains 2 additional Shrines Elemental Shrines do not appear in area Shrine Duration increased by 1000%",
     "translates": {
       "french": {
-        "name": "Zealous Reverence",
+        "name": "Vénération zélée",
         "desc": "Contains 2 additional Shrines\nElemental Shrines do not appear in area\nShrine Duration increased by 1000%"
       },
       "german": {
@@ -1209,7 +1209,7 @@
     "desc": "Shrine Buffs are reapplied when entering the Map Boss Arena",
     "translates": {
       "french": {
-        "name": "Persistent Devotion",
+        "name": "Dévotion persistante",
         "desc": "Shrine Buffs are reapplied when entering the Map Boss Arena"
       },
       "german": {
@@ -1252,12 +1252,12 @@
     "desc": "Contains 2 additional Shrines Shrines are Worshipped by a Rogue Exile",
     "translates": {
       "french": {
-        "name": "Rites of the Rogues",
+        "name": "Rites des Renégats",
         "desc": "Contains 2 additional Shrines\nShrines are Worshipped by a Rogue Exile"
       },
       "german": {
         "name": "Riten der Schurken",
-        "desc": "Enthält 2 zusätzliche Schreine\nSchreine werden von einem Abtrünnigen Verbannten angebetet"
+        "desc": "Enthält 2 zusätzliche Schreine\nSchreine werden von einem Abtrünnigen Verbannten verehrt"
       },
       "japanese": {
         "name": "ローグの儀式",
@@ -1295,7 +1295,7 @@
     "desc": "Contains 2 additional Rogue Exiles Rogue Exiles appear in Pairs",
     "translates": {
       "french": {
-        "name": "Surprising Alliances",
+        "name": "Alliances surprenantes",
         "desc": "Contains 2 additional Rogue Exiles\nRogue Exiles appear in Pairs"
       },
       "german": {
@@ -1338,7 +1338,7 @@
     "desc": "Contains an additional Rogue Exile and 2 additional Azmeri Spirits Rogue Exiles are Possessed when a Possessed Monster is killed in Area",
     "translates": {
       "french": {
-        "name": "Azmeri Bloodline",
+        "name": "Lignée azmérienne",
         "desc": "Contains an additional Rogue Exile and 2 additional Azmeri Spirits\nRogue Exiles are Possessed when a Possessed Monster is killed in Area"
       },
       "german": {
@@ -1381,7 +1381,7 @@
     "desc": "Contains an additional Summoning Circles Summoning Circles always summon an additional Boss",
     "translates": {
       "french": {
-        "name": "Twinned Terrors",
+        "name": "Terreurs jumelées",
         "desc": "Contains an additional Summoning Circles\nSummoning Circles always summon an additional Boss"
       },
       "german": {
@@ -1424,7 +1424,7 @@
     "desc": "Contains 3 additional Summoning Circles",
     "translates": {
       "french": {
-        "name": "Scattered Stones",
+        "name": "Pierres disséminées",
         "desc": "Contains 3 additional Summoning Circles"
       },
       "german": {
@@ -1467,7 +1467,7 @@
     "desc": "World Area has been manipulated and cannot be manipulated again",
     "translates": {
       "french": {
-        "name": "Map Area Modified",
+        "name": "Zone de carte modifiée",
         "desc": "World Area has been manipulated and cannot be manipulated again"
       },
       "german": {
@@ -1510,7 +1510,7 @@
     "desc": "",
     "translates": {
       "french": {
-        "name": "Fleeing Exile",
+        "name": "Exilé fugitif",
         "desc": ""
       },
       "german": {
@@ -1553,7 +1553,7 @@
     "desc": "Contains a Breach Hive",
     "translates": {
       "french": {
-        "name": "Breach Hive",
+        "name": "Ruche de Brèche",
         "desc": "Contains a Breach Hive"
       },
       "german": {
@@ -1596,11 +1596,11 @@
     "desc": "Contains a manifestation of Delirium",
     "translates": {
       "french": {
-        "name": "Simulacrum",
-        "desc": "Contains a manifestation of Delirium that requires 100% Delirousness to enter"
+        "name": "Simulacre",
+        "desc": "Contains a manifestation of Delirium"
       },
       "german": {
-        "name": "Simulacrum",
+        "name": "Simulakrum",
         "desc": "Enthält eine Manifestation von Delirium"
       },
       "japanese": {
@@ -1625,7 +1625,7 @@
       },
       "thai": {
         "name": "เมืองจำแลง",
-        "desc": "มีเดลิเรียม ที่สำแดงอยู่\nที่ต้องการระดับเดลิเรียม 100% ในการเข้า"
+        "desc": "มีเดลิเรียม ที่สำแดงอยู่"
       },
       "traditional chinese": {
         "name": "幻像異界",
@@ -1639,7 +1639,7 @@
     "desc": "Contains an extra of each type of content",
     "translates": {
       "french": {
-        "name": "Chaotic Cacophony",
+        "name": "Cacophonie chaotique",
         "desc": "Contains an extra of each type of content"
       },
       "german": {
@@ -1682,7 +1682,7 @@
     "desc": "50% increased Rarity of items found in area",
     "translates": {
       "french": {
-        "name": "Affluent Armies",
+        "name": "Armées prospères",
         "desc": "50% increased Rarity of items found in area"
       },
       "german": {
@@ -1725,7 +1725,7 @@
     "desc": "Map Boss drops a Unique item",
     "translates": {
       "french": {
-        "name": "Monstrous Treasure",
+        "name": "Butin du Béhémoth",
         "desc": "Map Boss drops a Unique item"
       },
       "german": {
@@ -1753,11 +1753,11 @@
         "desc": "El jefe de mapa arroja un objeto único"
       },
       "thai": {
-        "name": "สมบัติมหึมา",
+        "name": "ค่าหัวยักษ์ใหญ่",
         "desc": "บอสประจำแผนที่ ดรอป ไอเทมยูนิค 1 ชิ้น"
       },
       "traditional chinese": {
-        "name": "巨大的寶物",
+        "name": "巨獸懸賞",
         "desc": "地圖頭目掉落一件傳奇物品"
       }
     }
@@ -1768,7 +1768,7 @@
     "desc": "Map Boss drops an Inscribed Ultimatum",
     "translates": {
       "french": {
-        "name": "Trialmaster's Trainee",
+        "name": "Apprenti du Maître des Épreuves",
         "desc": "Map Boss drops an Inscribed Ultimatum"
       },
       "german": {
@@ -1811,7 +1811,7 @@
     "desc": "Map Boss drops a Djinn Barya",
     "translates": {
       "french": {
-        "name": "Sekhema's Student",
+        "name": "Disciple de Sekhema",
         "desc": "Map Boss drops a Djinn Barya"
       },
       "german": {
@@ -1854,7 +1854,7 @@
     "desc": "Map Boss is Possessed",
     "translates": {
       "french": {
-        "name": "Azmeri Champion",
+        "name": "Champion azmérien",
         "desc": "Map Boss is Possessed"
       },
       "german": {
@@ -1897,7 +1897,7 @@
     "desc": "Monsters are Gigantic, have 50% reduced pack size and drop 50% increased items",
     "translates": {
       "french": {
-        "name": "Gigantic Uprising",
+        "name": "Soulèvement gigantesque",
         "desc": "Monsters are Gigantic, have 50% reduced pack size and drop 50% increased items"
       },
       "german": {
@@ -1940,7 +1940,7 @@
     "desc": "Currency found is replaced with rarer varieties",
     "translates": {
       "french": {
-        "name": "Glimmering Mutation",
+        "name": "Mutation scintillante",
         "desc": "Currency found is replaced with rarer varieties"
       },
       "german": {
@@ -1983,7 +1983,7 @@
     "desc": "Contains an additional Summoning Circle Summoning Circle Bosses have increased difficulty and reward per power of enemy slain",
     "translates": {
       "french": {
-        "name": "Stolen Power",
+        "name": "Pouvoir dérobé",
         "desc": "Contains an additional Summoning Circle\nSummoning Circle Bosses have increased difficulty and reward per power of enemy slain"
       },
       "german": {
@@ -2026,7 +2026,7 @@
     "desc": "When Players Kill a Rare Monster they will gain 1 of its Modifiers for 20 seconds",
     "translates": {
       "french": {
-        "name": "Headhunters",
+        "name": "Chasseurs de têtes",
         "desc": "When Players Kill a Rare Monster they will gain 1 of its Modifiers for 20 seconds"
       },
       "german": {
@@ -2069,7 +2069,7 @@
     "desc": "Contains 5 additional Azmeri Spirits",
     "translates": {
       "french": {
-        "name": "Swarming Spirits",
+        "name": "Nuée d'esprits",
         "desc": "Contains 5 additional Azmeri Spirits"
       },
       "german": {
@@ -2112,7 +2112,7 @@
     "desc": "Contains 3 additional Map Bosses throughout the area",
     "translates": {
       "french": {
-        "name": "Power Struggle",
+        "name": "Lutte pour le pouvoir",
         "desc": "Contains 3 additional Map Bosses throughout the area"
       },
       "german": {
@@ -2155,7 +2155,7 @@
     "desc": "Area has 2 additional random Waystone Modifiers",
     "translates": {
       "french": {
-        "name": "Corrupted Mirage",
+        "name": "Mirage corrompu",
         "desc": "Area has 2 additional random Waystone Modifiers"
       },
       "german": {
@@ -2198,7 +2198,7 @@
     "desc": "Doubles Effect of Tablets used on Area",
     "translates": {
       "french": {
-        "name": "Energized Ley Lines",
+        "name": "Lignes telluriques énergisées",
         "desc": "Doubles Effect of Tablets used on Area"
       },
       "german": {
@@ -2226,7 +2226,7 @@
         "desc": "Duplica el efecto de las tablillas que se usan en el área"
       },
       "thai": {
-        "name": "เส้นพลังงานแรงกล้า",
+        "name": "เส้นพลังแรงกล้า",
         "desc": "เพิ่มผลของ แผ่นหิน ที่ใช้ในด่าน เป็นสองเท่า"
       },
       "traditional chinese": {
@@ -2241,7 +2241,7 @@
     "desc": "1000% increased Exceptional Items found in Area Monster may drop anyExceptional Items",
     "translates": {
       "french": {
-        "name": "Exceptional Find",
+        "name": "Trouvaille exceptionnelle",
         "desc": "1000% increased Exceptional Items found in Area\nMonster may drop anyExceptional Items"
       },
       "german": {
@@ -2284,7 +2284,7 @@
     "desc": "Also counts as a Water Area",
     "translates": {
       "french": {
-        "name": "Water Influence",
+        "name": "Influence aquatique",
         "desc": "Also counts as a Water Area"
       },
       "german": {
@@ -2327,7 +2327,7 @@
     "desc": "Also counts as a Mountain Area",
     "translates": {
       "french": {
-        "name": "Mountain Influence",
+        "name": "Influence de la montagne",
         "desc": "Also counts as a Mountain Area"
       },
       "german": {
@@ -2370,7 +2370,7 @@
     "desc": "Also counts as a Grass Area",
     "translates": {
       "french": {
-        "name": "Grass Influence",
+        "name": "Influence de la prairie",
         "desc": "Also counts as a Grass Area"
       },
       "german": {
@@ -2413,7 +2413,7 @@
     "desc": "Also counts as a Forest Area",
     "translates": {
       "french": {
-        "name": "Forest Influence",
+        "name": "Influence de la forêt",
         "desc": "Also counts as a Forest Area"
       },
       "german": {
@@ -2456,7 +2456,7 @@
     "desc": "Also counts as a Swamp Area",
     "translates": {
       "french": {
-        "name": "Swamp Influence",
+        "name": "Influence du marécage",
         "desc": "Also counts as a Swamp Area"
       },
       "german": {
@@ -2499,7 +2499,7 @@
     "desc": "Also counts as a Desert Area",
     "translates": {
       "french": {
-        "name": "Desert Influence",
+        "name": "Influence du désert",
         "desc": "Also counts as a Desert Area"
       },
       "german": {
@@ -2542,7 +2542,7 @@
     "desc": "Doryani has spotted The Immured Fury in this Area",
     "translates": {
       "french": {
-        "name": "Immured Fury",
+        "name": "Fureur emmurée",
         "desc": "Doryani has spotted The Immured Fury in this Area"
       },
       "german": {
@@ -2585,7 +2585,7 @@
     "desc": "Equipment dropped by monsters is replaced with other items",
     "translates": {
       "french": {
-        "name": "Mirage of Riches",
+        "name": "Mirage de richesses",
         "desc": "Equipment dropped by monsters is replaced with other items"
       },
       "german": {
@@ -2628,7 +2628,7 @@
     "desc": "Monsters grant 100% increased Experience",
     "translates": {
       "french": {
-        "name": "Wisdom's Teachings",
+        "name": "Enseignements de la sagesse",
         "desc": "Monsters grant 100% increased Experience"
       },
       "german": {
@@ -2671,7 +2671,7 @@
     "desc": "Gold dropped by monsters is replaced with other items",
     "translates": {
       "french": {
-        "name": "Tight Pockets",
+        "name": "Poches serrées",
         "desc": "Gold dropped by monsters is replaced with other items"
       },
       "german": {
@@ -2714,7 +2714,7 @@
     "desc": "Players have unlimited Revivals in area Monsters have 100% increased Effectiveness",
     "translates": {
       "french": {
-        "name": "Fragment of Immortality",
+        "name": "Fragment d'immortalité",
         "desc": "Players have unlimited Revivals in area\nMonsters have 100% increased Effectiveness"
       },
       "german": {
@@ -2757,12 +2757,12 @@
     "desc": "100% increased Rarity of items found in area",
     "translates": {
       "french": {
-        "name": "Prosperous Populous",
+        "name": "Prospère et populeux",
         "desc": "100% increased Rarity of items found in area"
       },
       "german": {
         "name": "Blühendes Volk",
-        "desc": "100% höhere Seltenheit der in diesem Gebiet gefundenen Gegenstände"
+        "desc": "100% erhöhte Seltenheit gefundener Gegenstände im Gebiet"
       },
       "japanese": {
         "name": "繫栄する民衆",
@@ -2800,7 +2800,7 @@
     "desc": "5 Rare Monsters are Duplicated",
     "translates": {
       "french": {
-        "name": "Echoes of Power",
+        "name": "Échos du pouvoir",
         "desc": "5 Rare Monsters are Duplicated"
       },
       "german": {
@@ -2840,7 +2840,174 @@
   "166": {
     "name": "Grand Expedition",
     "icon": "ExpeditionNode1",
-    "desc": "Area contains a Grand Expedition"
+    "desc": "Area contains a Grand Expedition",
+    "translates": {
+      "french": {
+        "name": "Grande Expédition",
+        "desc": "Area contains a Grand Expedition"
+      },
+      "german": {
+        "name": "Große Expedition",
+        "desc": "Gebiet enthält eine Große Expedition"
+      },
+      "japanese": {
+        "name": "グランドエクスペディション",
+        "desc": "エリアにグランドエクスペディションが出現する"
+      },
+      "korean": {
+        "name": "대탐험",
+        "desc": "지역에 대탐험 등장"
+      },
+      "portuguese": {
+        "name": "Grande Expedição",
+        "desc": "Área contém uma Grande Expedição"
+      },
+      "russian": {
+        "name": "Большая экспедиция",
+        "desc": "В области можно встретить большую экспедицию"
+      },
+      "spanish": {
+        "name": "Expedición grande",
+        "desc": "El área contiene una expedición grande"
+      },
+      "thai": {
+        "name": "กองสำรวจยิ่งใหญ่",
+        "desc": "ด่านมี กองสำรวจยิ่งใหญ่ 1 แห่ง"
+      },
+      "traditional chinese": {
+        "name": "大型探險",
+        "desc": "區域含有一個大型探險"
+      }
+    }
+  },
+  "167": {
+    "name": "Abyssal Depths",
+    "icon": "AtlasIconContentAbyssalDepths",
+    "desc": "Area contains an Abyssal Depths",
+    "translates": {
+      "french": {
+        "name": "Profondeurs abyssales",
+        "desc": "Area contains an Abyssal Depths"
+      },
+      "german": {
+        "name": "Abgründige Tiefen",
+        "desc": "Gebiet enthält Abgründige Tiefen"
+      },
+      "japanese": {
+        "name": "アビスの深淵",
+        "desc": "エリアにアビスの深淵が出現する"
+      },
+      "korean": {
+        "name": "심연 지하",
+        "desc": "지역에 심연 지하 1개 추가 등장"
+      },
+      "portuguese": {
+        "name": "Profundezas Abissais",
+        "desc": "Área contém uma Profundeza Abissal"
+      },
+      "russian": {
+        "name": "Глубины Бездны",
+        "desc": "В области можно найти Глубины Бездны"
+      },
+      "spanish": {
+        "name": "Profundidades abisales",
+        "desc": "El área contiene unas Profundidades abisales"
+      },
+      "thai": {
+        "name": "เบื้องลึกอะบิส",
+        "desc": "ด่านมี เบื้องลึกอะบิส 1 แห่ง"
+      },
+      "traditional chinese": {
+        "name": "無盡深淵",
+        "desc": "區域含有一個無盡深淵"
+      }
+    }
+  },
+  "168": {
+    "name": "Abyssal Fissure",
+    "icon": "AtlasIconContentAbyss",
+    "desc": "Area contains Abysses. Maps further along the Fissure contain stronger Abyssal Monsters and additional pits.",
+    "translates": {
+      "french": {
+        "name": "Abyssal Fissure",
+        "desc": "Area contains Abysses. Maps further along the Fissure contain stronger Abyssal Monsters and additional pits."
+      },
+      "german": {
+        "name": "Abgrund-Spalte",
+        "desc": "Gebiet enthält Abgründe. Karten entlang der Spalte enthalten stärkere Abgrund-Monster sowie zusätzliche Gruben."
+      },
+      "japanese": {
+        "name": "アビスの亀裂",
+        "desc": "エリアにはアビスが出現する。亀裂の先にあるマップほど、より強力なアビスモンスターと追加の穴が出現する。"
+      },
+      "korean": {
+        "name": "심연의 균열",
+        "desc": "지역에 심연이 등장합니다. 균열을 따라 진행할수록 지도에 더 강한 심연 몬스터와 추가 구덩이가 등장합니다."
+      },
+      "portuguese": {
+        "name": "Fissura Abissal",
+        "desc": "Área contém Abismos. Mapas mais adiante na fissura contêm monstros abissais mais fortes e fossos adicionais."
+      },
+      "russian": {
+        "name": "Трещина Бездны",
+        "desc": "В области можно найти Бездны. На дальнейших картах вдоль трещины можно встретить более сильных монстров Бездны и дополнительные провалы."
+      },
+      "spanish": {
+        "name": "Grieta abisal",
+        "desc": "El área contiene abismos. Los mapas que están más lejos en la fisura contienen monstruos abisales más fuertes y fosos adicionales."
+      },
+      "thai": {
+        "name": "รอยแยกอะบิส",
+        "desc": "ด่านมี อะบิส แผนที่ตามรอยแยกนี้จะมี มอนสเตอร์อะบิส ที่แข็งแกร่งขึ้น และมีหลุมเพิ่มเติม"
+      },
+      "traditional chinese": {
+        "name": "深淵裂谷",
+        "desc": "區域含有一個 深淵。隨著深淵裂縫的深入，會出現更強大的深淵怪物與額外的深淵坑。"
+      }
+    }
+  },
+  "169": {
+    "name": "Viridian Wildwood",
+    "icon": "AtlasIconContentAzmeriSpirit",
+    "desc": "Area contains a Viridian Wildwood",
+    "translates": {
+      "french": {
+        "name": "Viridian Wildwood",
+        "desc": "Area contains a Viridian Wildwood"
+      },
+      "german": {
+        "name": "Viridischer Finsterwald",
+        "desc": "Gebiet enthält den Viridischen Finsterwald."
+      },
+      "japanese": {
+        "name": "ヴィリジアン・ワイルドウッド",
+        "desc": "エリアにヴィリジアン・ワイルドウッドが出現する。"
+      },
+      "korean": {
+        "name": "취록의 야생림",
+        "desc": "지역에 취록의 야생림 등장"
+      },
+      "portuguese": {
+        "name": "Selva Viridiana",
+        "desc": "Área contém uma Selva Viridiana"
+      },
+      "russian": {
+        "name": "Диколесье Вириди",
+        "desc": "В области можно найти Диколесье Вириди"
+      },
+      "spanish": {
+        "name": "Bosque viridino",
+        "desc": "El área contiene un Bosque viridino"
+      },
+      "thai": {
+        "name": "ป่าวิเศษวิริเดียน",
+        "desc": "ด่านมี ป่าวิเศษวิริเดียน"
+      },
+      "traditional chinese": {
+        "name": "翠綠荒林",
+        "desc": "區域含有一個翠綠荒林。"
+      }
+    }
   },
   "1000": {
     "name": "Corruption",

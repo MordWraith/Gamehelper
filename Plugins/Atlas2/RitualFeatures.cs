@@ -27,25 +27,25 @@ namespace Atlas2
         // current numeric offsets.
         private const uint IsVisibleMask = 0x800;
 
-        // A selected line node has bit 20 set at widget+0x180. The child pointer at +0x3B8
-        // leads to a text element whose std::wstring at +0x4C0 already contains the game's
+        // A selected line node has bit 20 set in the UiElement flags. The child pointer at +0x3B8
+        // leads to a text element whose std::wstring at +0x490 already contains the game's
         // localized Rite-mod lines.
         private const int RitualModsChildOffset = 0x3B8;
-        private const int TextElementTextOffset = 0x4C0;
+        private const int TextElementTextOffset = 0x490;
 
         // Ritual state lives on the atlas node-list container: line mode is page mode 6, line id
         // is TinyMT seed word 0, and the two vectors contain clicked-but-pending and committed
         // atlas grid coordinates respectively.
-        private const int PanelLineModeOffset = 0x637;
-        private const int PanelLineIdOffset = 0x63C;
-        private const int PanelPendingVecOffset = 0x648;
-        private const int PanelCommittedVecOffset = 0x660;
+        private const int PanelLineModeOffset = 0x61F;
+        private const int PanelLineIdOffset = 0x624;
+        private const int PanelPendingVecOffset = 0x630;
+        private const int PanelCommittedVecOffset = 0x648;
 
         // The game binary-searches this precomputed candidate table. Each 0x44-byte entry is
         // 17 int32 values: node (x,y), followed by five (x,y,extra) candidate triples. candIdx is
         // the candidate's lexicographic rank after (0,0) sentinels and committed nodes are removed.
-        private const int PanelCandTableBeginOffset = 0x590;
-        private const int PanelCandTableEndOffset = 0x598;
+        private const int PanelCandTableBeginOffset = 0x578;
+        private const int PanelCandTableEndOffset = 0x580;
         private const int CandTableEntryStride = 0x44;
         private const int CandTableMaxCandidates = 5;
         private string RitualRollLogPathname => Path.Join(DllDirectory, "config", "ritual_roll_log.jsonl");
@@ -151,7 +151,7 @@ namespace Atlas2
         // predictions build before the node pass hit-tests the cursor.
         private StdTuple2D<int>? ritualHoverGrid;
 
-        // Reads the committed line grids (panel+0x660) as (x,y) int pairs.
+        // Reads the committed line grids as (x,y) int pairs.
         private static List<StdTuple2D<int>> ReadGridVector(IntPtr vecAddr)
         {
             var result = new List<StdTuple2D<int>>();
@@ -167,7 +167,7 @@ namespace Atlas2
             return result;
         }
 
-        // Read the panel's precomputed next-candidate table (panel+0x590) into a map
+        // Read the panel's precomputed next-candidate table into a map
         // node(x,y) -> its raw candidate list (up to 5, (0,0) sentinels dropped). The table is what
         // AtlasPanel_ritualLineNextCandidates looks up; the roll's candIdx is a node's rank among the
         // frontier's candidates. We read the whole span in one cross-process read and parse locally.
@@ -491,7 +491,7 @@ namespace Atlas2
         // While drawing the ritual line the game shows a header with how many maps can still
         // be picked (the first pick — the start node — consumes one). Authoritative live value,
         // so it overrides the computed 5 + additional-maps stat when readable.
-        // GameUi → [22] → [2] → [0], leaf fp 0x502EE1, wstring at +0x4C0 (found via UiExplorer).
+        // GameUi → [22] → [2] → [0], leaf fp 0x502EE1, wstring at +0x490 (0.5.5).
         private static readonly int[] RitualPickCounterPath = { 22, 2, 0 };
         private const uint RitualPickCounterFp = 0x502EE1;
 

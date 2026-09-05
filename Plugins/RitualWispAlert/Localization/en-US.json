@@ -1,0 +1,12 @@
+{
+  "plugin.description": "Draws a range circle around active Ritual wisps and changes its color when the player enters the effective range.",
+  "settings.enable_overlay": "Draw Ritual wisp range circle",
+  "settings.hide_unfocused_or_paused": "Hide while the game is unfocused or paused",
+  "settings.inside_color": "Color while inside range",
+  "settings.offset_x": "Center X offset",
+  "settings.offset_y": "Center Y offset",
+  "settings.offset_z": "Height offset",
+  "settings.outside_color": "Color while outside range",
+  "settings.radius": "Circle radius (metres)",
+  "settings.thickness": "Circle thickness"
+}
