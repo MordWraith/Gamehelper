@@ -82,6 +82,7 @@ function Sync-Plugin {
     # Release-Notes des neuesten Releases fuer Changelog-Vorschlag holen
     try {
         $releaseRaw = (& gh api "repos/$GithubRepo/releases/latest" 2>$null) -join ""
+        $global:LASTEXITCODE = 0
         if ($releaseRaw) {
             $rel  = $releaseRaw | ConvertFrom-Json
             $body = $rel.body
@@ -104,6 +105,7 @@ function Sync-Plugin {
             }
         }
     } catch {
+        $global:LASTEXITCODE = 0
         Write-Host "  Changelog-Fetch fehlgeschlagen: $Folder ($_)" -ForegroundColor DarkGray
     }
 
@@ -140,3 +142,4 @@ foreach ($entry in ($map.GetEnumerator() | Sort-Object Name)) {
 
 Write-Host ""
 Write-Host "sync-plugin-repos complete: $count Plugin(s) synchronisiert ($Set)." -ForegroundColor Green
+exit 0

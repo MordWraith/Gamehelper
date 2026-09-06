@@ -1,15 +1,15 @@
 ﻿{
-    "AmanamuVoidAlert":  "6488c67a367d2460ad930636349ee405dd3c0595",
-    "AuraTracker":  "c3f44dcfee7d8bec7b4345ddfd19e9f5e73df13b",
     "Autopot":  "8944835cef14acf20fe8721a13643e209a5d81b6",
     "Hiveblood":  "855bee2fc8aaf2a7b091adec49ea0a8f492acc57",
-    "PlayerBuffBar":  "c8adfaf1de96157eb57b6a42526985e77bfc937b",
-    "RitualHelper":  "b72a3eac3d4b1dc1f0ba89c50004c08bd6892896",
     "SimpleBars":  "e73a80cfcfacc944b2da5ab36722926a8847b8aa",
     "StashValueByZx0":  "e2ca5140337fb2092125e0b1630fd3341921f551",
     "StashUtility":  "e1adb9086440a6557e08a1644351e841b63ac725",
     "Atlas":  "55a4bd60d0eb46665df3ef716d423a2aadf825a1",
     "LootTracker":  "f54d2ba19c4b7db5382ec4926e11a2707b75aa2d",
     "RunecraftHelper":  "d5bcd0f96be7cf9a8327365ec84ce8cdeab0906a",
-    "SekhemaHelper":  "0be2acfa3eae48ecb045d87514b6cdc9971018d4"
+    "SekhemaHelper":  "0be2acfa3eae48ecb045d87514b6cdc9971018d4",
+    "AmanamuVoidAlert":  "af84ecf4196ef155d29dba8d1fa990a21d0b6b6e",
+    "AuraTracker":  "c3b6e8dd01a9c6c258f8a5843e9a0f98a66b62c7",
+    "PlayerBuffBar":  "c8dbbf19c09cbe7ee1303b20a20aef703ba298ce",
+    "RitualHelper":  "1c75f67971f1a1fdd8b5ec770f292c58274e6827"
 }
