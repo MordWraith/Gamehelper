@@ -344,7 +344,15 @@ function Sync-GithubRepoTextFile {
     $ErrorActionPreference = 'SilentlyContinue'
     $existing = gh api $apiPath 2>$null
     if ($LASTEXITCODE -eq 0 -and $existing) {
-        $sha = ($existing | ConvertFrom-Json).sha
+        $existingJson = $existing | ConvertFrom-Json
+        $sha = $existingJson.sha
+        # GitHub returns the blob content base64-encoded with embedded newlines; strip those before comparing.
+        $existingB64 = ($existingJson.content -replace '\s', '')
+        if ($existingB64 -eq $contentB64) {
+            $ErrorActionPreference = $prevEap
+            Write-Host "  $RelativePath bereits aktuell auf GitHub, kein Commit noetig." -ForegroundColor DarkGray
+            return $true
+        }
         gh api --method PUT $apiPath -f message=$CommitMessage -f content=$contentB64 -f sha=$sha 1>$null 2>$null
     }
     else {
