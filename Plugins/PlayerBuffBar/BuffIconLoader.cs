@@ -146,7 +146,7 @@ namespace PlayerBuffBar
             try
             {
                 string? relativeIconPath = null;
-                if (this.iconMap.DirectIcons.TryGetValue(watchId.Trim(), out var direct) && !string.IsNullOrWhiteSpace(direct))
+                if (BuffIconCatalog.TryResolveDirectIcon(watchId, this.iconMap.DirectIcons, out var direct))
                 {
                     relativeIconPath = direct;
                 }

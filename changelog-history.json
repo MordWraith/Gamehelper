@@ -1,6 +1,14 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.7",
+                         "published":  "2026-09-06T11:36:02.8407502Z",
+                         "changelog":  [
+                                           "Own Plugins update",
+                                           "Tell me if somethings off"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.6",
                          "published":  "2026-09-05T19:08:54.7913543Z",
                          "changelog":  [
