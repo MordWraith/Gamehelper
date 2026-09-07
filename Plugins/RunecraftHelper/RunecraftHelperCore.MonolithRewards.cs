@@ -135,6 +135,69 @@ namespace RunecraftHelper
             : (idx >= 0 && idx < AllRuneNames.Length ? AllRuneNames[idx] : null);
 
         private List<MonoRecipe> monolithRecipes = new();
+
+        // AreaInstance -> std::vector<i32> of this area’s content tags, the set HF9 intersects a
+        // gated recipe against (the panel copies it from here before calling the offer builder).
+        // Live: an Expedition logbook area holds exactly one entry, 54 — the tag the logbook recipe
+        // requires. NB this sits in AreaInstance’s early region, the one that took -8 in 0.5.5, so
+        // re-derive it rather than shifting it blindly on the next patch.
+        private const int AreaContentTagsVecOffset = 0xF8;
+
+        private readonly HashSet<int> areaContentTags = new();
+        private string areaContentTagsHash = string.Empty;   // area hash the set was read for
+        private bool areaContentTagsOk;        // false => read failed => gate is not enforced
+
+        // Refreshes areaContentTags when the area changes. Deliberately FAIL-SAFE: on any doubt the
+        // set is marked unusable and BuildCandidates stops enforcing the gate, i.e. it degrades to
+        // pre-HF9 behaviour (one recipe possibly over-offered) rather than silently dropping
+        // recipes. Two offsets broke silently in this very file during 0.5.5, so the outcome of a
+        // bad read must be visible (expScanStatus) and harmless, never a quiet empty list.
+        private void RefreshAreaContentTags()
+        {
+            var area = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (area == null || area.Address == IntPtr.Zero)
+            {
+                this.areaContentTagsOk = false;
+                return;
+            }
+
+            var hash = area.AreaHash ?? string.Empty;
+            if (this.areaContentTagsOk && hash == this.areaContentTagsHash) return;
+
+            this.areaContentTagsHash = hash;
+            this.areaContentTags.Clear();
+            this.areaContentTagsOk = false;
+
+            if (!this.TryReadStdVector(area.Address + AreaContentTagsVecOffset, out var first, out var last))
+                return;
+
+            long span = (long)last - (long)first;
+            if (span < 0 || (span % 4) != 0 || span > 4096) return;   // 1024-tag sanity cap
+            if (span == 0)
+            {
+                this.areaContentTagsOk = true;   // a genuinely tagless area: gate applies, set empty
+                return;
+            }
+
+            var buf = new byte[span];
+            if (!ReadProcessMemory(this.processHandle, first, buf, (uint)buf.Length, out _)) return;
+            for (int off = 0; off + 4 <= buf.Length; off += 4)
+                this.areaContentTags.Add(BitConverter.ToInt32(buf, off));
+
+            this.areaContentTagsOk = true;
+        }
+
+        // True when `rec` may be offered in the current area. Ungated recipes (the overwhelming
+        // majority) always pass, and so does everything if the tag read failed.
+        private bool AreaAllowsRecipe(MonoRecipe rec)
+        {
+            var tags = rec.areaTags;
+            if (tags == null || tags.Count == 0) return true;
+            if (!this.areaContentTagsOk) return true;
+            for (int i = 0; i < tags.Count; i++)
+                if (this.areaContentTags.Contains(tags[i])) return true;
+            return false;
+        }
         private readonly List<double> monoPriceScratch = new(); // per-reward totals → row-total colour median
         private Dictionary<int, string> runeNames = new();
         // (anchorRune, pos1based, size) → min area level at which that partial size is offered.
@@ -216,6 +279,10 @@ namespace RunecraftHelper
                 this.DrawMonolithDebugWindow();
                 this.DrawOverlayRowsDebugWindow();
             }
+
+            // Outside both toggles: once a report is open it must stay reachable even if the user
+            // closes the window that produced it.
+            this.DrawBugReportWindow();
         }
 
         // Camera rotation of the in-game map, mirrored from Radar.Helper.CameraAngle.
@@ -235,10 +302,7 @@ namespace RunecraftHelper
             var largeMap = gameUi.LargeMap;
             if (largeMap == null || !largeMap.IsVisible || gameUi.WorldMapPanel.IsVisible) return;
 
-            var area = Core.States.InGameStateObject.CurrentAreaInstance;
-            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender)) return;
-            var trackingPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
-            float trackingHeight = playerRender.TerrainHeight;
+            if (!this.GetTrackingPosAndHeight(out var trackingPos, out var trackingHeight)) return;
 
             // Diagonal length (UpdateLargeMapDetails): base-resolution diagonal scaled by the map's height.
             var baseRes = UiElementBaseFuncs.BaseResolution;
@@ -336,6 +400,20 @@ namespace RunecraftHelper
             ImGui.SetNextWindowSizeConstraints(new Vector2(260, 0), new Vector2(640, 900));
             if (ImGui.Begin("Monolith Rewards", ImGuiWindowFlags.AlwaysAutoResize))
             {
+                // Only shown when an 8+ hole monolith is in the area: that is the case still reported
+                // as wrong, it is rare enough that a reporter gets one shot at capturing it, and on
+                // every ordinary map the button would just be clutter.
+                if (this.HasBigMonolith())
+                {
+                    if (ImGui.Button("Copy for bug report")) this.OpenBugReport(null);
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip(
+                            "An 8+ hole monolith is nearby. Open its Runeshape Combinations panel\n" +
+                            "first, then press this: with the panel open, the report can compare\n" +
+                            "the game's own recipe list against ours.");
+                    ImGui.Separator();
+                }
+
                 float min = this.Settings.MonolithRewardsMinExalted;
 
                 // Colour thresholds reuse the recipe-overlay logic (PickColor/ColorMode). In Relative
@@ -521,8 +599,11 @@ namespace RunecraftHelper
             if (!string.IsNullOrEmpty(v.SmStates))
                 ImGui.TextColored(grey, $"SM states: {v.SmStates}");
 
+            // Same report as the rewards window's button, focused on the selected monolith. This entry
+            // point has no hole-count condition, which is the fallback when the hole count itself
+            // under-reads and the other button therefore never appears.
             if (ImGui.Button("Copy report"))
-                ImGui.SetClipboardText(BuildDebugReport(v));
+                this.OpenBugReport(v);
             ImGui.SameLine();
             ImGui.TextDisabled($"{v.Candidates.Count} recipe(s) offered");
 
@@ -625,24 +706,6 @@ namespace RunecraftHelper
             return string.Join(" · ", parts);
         }
 
-        // Discord-pasteable plain-text dump of the selected monolith.
-        private static string BuildDebugReport(MonoView v)
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"Monolith: {v.AnchorName} (idx {v.AnchorIdx})  p={v.AnchorPos} hole{v.AnchorPos + 1}  " +
-                          $"N={v.HoleCount} (sockets={v.SocketsState})  areaLvl={v.AreaLevel}  mode={v.RecipeMode}{(v.IsForeign ? " FOREIGN(mode=0)" : "")}  emp={v.RunesEmpowered}  chainFrame={RuneChainHighlightActive(v)}  activated={v.Activated}  glow={v.GlowCount}  +0x40={FmtI(v.Field40)} +0x44={FmtI(v.Field44)}");
-            sb.AppendLine($"device 0x{v.EntityId:X}  station 0x{v.StationAddr:X}");
-            if (!string.IsNullOrEmpty(v.SmStates))
-                sb.AppendLine($"SM states: {v.SmStates}");
-            if (v.AnchorIdx < 0 && !string.IsNullOrEmpty(v.StationDiag))
-                sb.AppendLine($"resolve failed: {v.StationDiag}");
-            sb.AppendLine($"offered {v.Candidates.Count}:");
-            foreach (var c in v.Candidates)
-                sb.AppendLine($"  row{c.Row} size{c.Size} [{(c.Full ? "N" : "RW")}] cat{c.Category} " +
-                              $"{c.Reward} (FK{c.RewardIdx} {c.RewardId}) lvl{c.MinLevel}-{c.MaxLevel} | {MarkAnchor(c.Runes, v.AnchorPos)}");
-            return sb.ToString();
-        }
-
         // ── enumeration / resolution ──────────────────────────────────────────
         private List<MonoView> EnumerateMonoliths()
         {
@@ -684,7 +747,13 @@ namespace RunecraftHelper
                     continue;
                 if (!e.TryGetComponent<StateMachine>(out var sm)) continue;
 
-                var v = new MonoView { EntityId = e.Address.ToInt64(), AreaLevel = areaLevel };
+                var v = new MonoView
+                {
+                    EntityId = e.Address.ToInt64(),
+                    EntityNum = e.Id,
+                    Path = path,
+                    AreaLevel = areaLevel,
+                };
 
                 // Collected gate: the device persists (IsValid stays true, Life 100/100) after the player
                 // collects a monolith, so the "still available" signal is its StateMachine "activated" state.
@@ -758,6 +827,10 @@ namespace RunecraftHelper
                     // panel is open (null on the others). Direct signal of which monolith the player is
                     // browsing — used to anchor the locked-recipe highlight to the right one.
                     v.PanelOpen = IsExeAddr(this.ReadPtr(station + StationPanelOpenOffset));
+
+                    // Area gate (HF9): resolved once per area, cheap after the first hit, and needed by
+                    // both candidate builders below.
+                    this.RefreshAreaContentTags();
 
                     // Anchor-less "unique" monolith: no pre-placed rune at station +0x28. Normal monoliths
                     // always carry one (docs §6.6), so a null anchor is the discriminator under which the
@@ -926,24 +999,57 @@ namespace RunecraftHelper
         {
             if (v.AnchorIdx < 0 || v.AnchorPos < 0 || v.HoleCount <= 0) return;
             foreach (var rec in this.monolithRecipes)
+                if (this.OfferVerdict(v, rec, areaLevel, skipAnchor: false) == OfferDrop.Offered)
+                    this.AddCandidate(v, rec);
+
+            v.Candidates.Sort((a, b) => (b.UnitEx * b.Count).CompareTo(a.UnitEx * a.Count));
+        }
+
+        // Why a catalog recipe is, or is not, offered on this monolith. Exists so the bug report can
+        // name the gate that dropped a recipe the player can see in the panel — the whole point of the
+        // report being that it identifies the fault on the FIRST submission. It is therefore the single
+        // source of truth: both builders below decide through it, so a report can never describe a rule
+        // the plugin no longer applies.
+        private enum OfferDrop
+        {
+            Offered = 0,
+            NoRuneAtAnchor,   // recipe shorter than the anchor hole index (size <= p)
+            SizeOverHoles,    // size > N
+            AnchorMismatch,   // runeIdx[p] != anchor rune
+            LevelBand,        // area level outside [minLevel, maxLevel]
+            PartialWeights,   // size < N and Expedition2RunesWeights doesn't permit (rune, p+1, size) here
+            AreaTags,         // HF9 per-area content-tag gate
+        }
+
+        private OfferDrop OfferVerdict(MonoView v, MonoRecipe rec, int areaLevel, bool skipAnchor)
+        {
+            if (rec.size > v.HoleCount) return OfferDrop.SizeOverHoles;
+
+            // Area-level gate: tiered rewards (e.g. Thaumaturgic Flux Levels 5..18) carry a
+            // [minLevel, maxLevel] band in the .dat and only the tier covering the current area
+            // level is offered. Untiered recipes use 1..100, so this never drops them.
+            if (areaLevel > 0 && rec.maxLevel > 0 &&
+                (areaLevel < rec.minLevel || areaLevel > rec.maxLevel)) return OfferDrop.LevelBand;
+
+            // The anchor-less "unique" station runs the game's skip-anchor branch, which bypasses BOTH
+            // the runeIdx[p]==anchor match AND the size==N/partial gate (see BuildCandidatesUnique).
+            if (!skipAnchor)
             {
-                if (rec.runeIdx == null || rec.runeIdx.Count <= v.AnchorPos) continue;
-                if (rec.size > v.HoleCount) continue;
-                if (rec.runeIdx[v.AnchorPos] != v.AnchorIdx) continue;
-                // Area-level gate: tiered rewards (e.g. Thaumaturgic Flux Levels 5..18) carry a
-                // [minLevel, maxLevel] band in the .dat and only the tier covering the current area
-                // level is offered. Untiered recipes use 1..100, so this never drops them.
-                if (areaLevel > 0 && rec.maxLevel > 0 &&
-                    (areaLevel < rec.minLevel || areaLevel > rec.maxLevel)) continue;
+                if (rec.runeIdx == null || rec.runeIdx.Count <= v.AnchorPos) return OfferDrop.NoRuneAtAnchor;
+                if (rec.runeIdx[v.AnchorPos] != v.AnchorIdx) return OfferDrop.AnchorMismatch;
                 // Partial-size gate: size==N is always offered; size<N only when Expedition2RunesWeights
                 // has a (rune, position, size) row whose minLevel the area level meets.
                 if (rec.size != v.HoleCount &&
-                    !this.IsPartialAllowed(v.AnchorIdx, v.AnchorPos, rec.size, areaLevel)) continue;
-
-                this.AddCandidate(v, rec);
+                    !this.IsPartialAllowed(v.AnchorIdx, v.AnchorPos, rec.size, areaLevel))
+                    return OfferDrop.PartialWeights;
             }
 
-            v.Candidates.Sort((a, b) => (b.UnitEx * b.Count).CompareTo(a.UnitEx * a.Count));
+            // Area gate (0.5.5 HF9): a recipe carrying a non-empty tag array is offered only in an
+            // area whose content-tag set shares one of those values. Ungated recipes are unaffected,
+            // and a failed tag read disables the gate rather than dropping anything.
+            if (!this.AreaAllowsRecipe(rec)) return OfferDrop.AreaTags;
+
+            return OfferDrop.Offered;
         }
 
         // Recipes an anchor-less "unique" monolith offers. Decoded from the same offer builder
@@ -956,12 +1062,8 @@ namespace RunecraftHelper
         {
             if (v.HoleCount <= 0) return;
             foreach (var rec in this.monolithRecipes)
-            {
-                if (rec.size > v.HoleCount) continue;
-                if (areaLevel > 0 && rec.maxLevel > 0 &&
-                    (areaLevel < rec.minLevel || areaLevel > rec.maxLevel)) continue;
-                this.AddCandidate(v, rec);
-            }
+                if (this.OfferVerdict(v, rec, areaLevel, skipAnchor: true) == OfferDrop.Offered)
+                    this.AddCandidate(v, rec);
 
             v.Candidates.Sort((a, b) => (b.UnitEx * b.Count).CompareTo(a.UnitEx * a.Count));
         }
@@ -994,10 +1096,23 @@ namespace RunecraftHelper
                             this.metaToLocalName.TryGetValue(rec.reward.id, out var localName))
                     ? localName
                     : rec.reward.name;
+                // Pricing keys on the English name alone. The panel overlay has a stronger resolver
+                // (metaId -> dds-art -> meta->English -> name), so the same reward can be priced on a
+                // panel row and unpriced here. Measured against the live cache, the two extra keys we
+                // could reach from the catalog recover NOTHING (metaId is a BaseItemType id, while the
+                // art dictionary is keyed by icon filename) -- only the panel's dds-art branch, whose
+                // key is read from live memory, is genuinely stronger. So the gap is recorded rather
+                // than papered over: PriceVia goes into the bug report, and a report showing the panel
+                // pricing what we miss says which branch to add.
                 if (this.priceCache.TryGetExaltedPrice(rec.reward.name, out var u) && u > 0)
                 {
                     c.UnitEx = u;
                     c.Priced = true;
+                    c.PriceVia = "name";
+                }
+                else
+                {
+                    c.PriceVia = $"MISS name=\"{rec.reward.name}\" meta={LastMetaSegment(rec.reward.id)}";
                 }
             }
             else
@@ -1297,6 +1412,11 @@ namespace RunecraftHelper
             public string description { get; set; } = string.Empty;
             public int minLevel { get; set; }
             public int maxLevel { get; set; }
+
+            // 0.5.5 HF9 area gate. Present only on a recipe the client restricts by area (one of
+            // 322 today: 7SlotAldursLogbook1, tag 54); absent/null means no restriction, which is
+            // also the pre-HF9 meaning, so an older catalog keeps working unchanged.
+            public List<int>? areaTags { get; set; }
         }
 
         private sealed class MonoReward
@@ -1309,6 +1429,8 @@ namespace RunecraftHelper
         private sealed class MonoView
         {
             public long EntityId;          // device entity address
+            public uint EntityNum;         // device entity id (the number Radar/GH show)
+            public string Path = string.Empty; // device metadata path (a "rare" monolith may be a path variant)
             public long StationAddr;       // resolved RuneStation address (0 if unresolved)
             public float Distance;
             public Vector2 GridPos;        // monolith grid position (for the radar-map projection)
@@ -1370,6 +1492,7 @@ namespace RunecraftHelper
             public int MinLevel;
             public int MaxLevel;
             public bool Full;             // true = size==N (always offered); false = partial via RunesWeights
+            public string PriceVia = string.Empty; // which price key resolved (or why none) — for the bug report
         }
     }
 }

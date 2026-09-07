@@ -256,6 +256,16 @@ namespace LootValue
             if (ImGui.RadioButton("poe.ninja", this.Settings.PriceSource == PoeNinjaPriceFetcher.SourcePoeNinja))
                 this.Settings.PriceSource = PoeNinjaPriceFetcher.SourcePoeNinja;
 
+            if (PoeNinjaPriceFetcher.IsUsingFallback)
+            {
+                ImGui.TextColored(
+                    new Vector4(0.9f, 0.7f, 0.2f, 1f),
+                    this.PluginText.F(
+                        "status.automatic_fallback",
+                        "Automatic fallback active: {0}",
+                        PoeNinjaPriceFetcher.ActiveSourceName));
+            }
+
             ImGui.InputText(this.PluginText.Label("settings.league", "League", "LootValueLeague"), ref this.Settings.League, 64);
             ImGui.SliderInt(this.PluginText.Label("settings.refresh_interval", "Refresh interval (min)", "LootValueRefreshInterval"), ref this.Settings.RefreshIntervalMin, 1, 120);
             if (ImGui.Button(this.PluginText.Label("button.refresh_prices_now", "Refresh prices now", "LootValueRefreshPricesNow")))
@@ -267,7 +277,16 @@ namespace LootValue
             ImGui.SameLine();
             if (PoeNinjaPriceFetcher.IsFetching)
             {
-                ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.2f, 1f), this.PluginText.T("status.loading", "Loading..."));
+                var status = PoeNinjaPriceFetcher.IsFailingOver
+                    ? this.PluginText.F(
+                        "status.switching_provider",
+                        "Switching to {0}...",
+                        PoeNinjaPriceFetcher.ActiveSourceName)
+                    : this.PluginText.F(
+                        "status.loading_provider",
+                        "Loading from {0}...",
+                        PoeNinjaPriceFetcher.ActiveSourceName);
+                ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.2f, 1f), status);
             }
             else if (PoeNinjaPriceFetcher.LastFetchUtc > DateTime.MinValue)
             {

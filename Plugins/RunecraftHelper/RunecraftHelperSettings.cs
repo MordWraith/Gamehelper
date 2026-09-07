@@ -178,6 +178,16 @@ namespace RunecraftHelper
         [JsonIgnore]
         public bool HideMapValueWhenPanelOpen => true;
 
+        // Local co-op map centering, ported from Radar. In split-screen co-op the camera sits between
+        // the two players, so an overlay that tracks the local player alone is offset by half the gap.
+        // Detection is automatic and there is no manual override in the UI, so both are get-only and
+        // [JsonIgnore]'d -- a stale saved config cannot strand co-op centering off.
+        [JsonIgnore]
+        public bool AutoDetectCoopMode => true;
+
+        [JsonIgnore]
+        public bool EnableCoopMode => false;
+
         // Large-map projection tuning (mirrors Radar's calibration so the label lines up with the monolith).
         // These three sliders left the settings UI: the Radar defaults they mirror are the values that
         // actually line up, so they are fixed rather than tunable.

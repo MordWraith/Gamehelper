@@ -89,7 +89,20 @@ namespace RunecraftHelper
         // names in the dumped Stats.dat for 0.5.4b (the id space is misaligned/scrambled: e.g. the radius mod reads
         // on key 13471 even though Stats.dat calls that row "explosives"). Confirm any new one by reading the vector
         // in a zone that has the mod and matching the displayed %, not by the .dat name.
-        private const int AreaMapModsVecOffset = 0x158;
+        // 0.5.5: 0x158 -> 0x150. This is AreaInstance's EARLY region, which took the -8 that also moved
+        // WorldArea row ptr 0xA0->0x98, CurrentAreaLevel 0xC4->0xBC and CurrentAreaHash 0x11C->0x114
+        // (see obsidian poe2/GameOffsets-0.5.5-drift). A plugin-private copy like this one is outside
+        // GameOffsets, so the core fix never reached it and the OffsetHelper sweep cannot see it either.
+        //
+        // It failed SILENTLY, which is why it survived so long: at 0x158 the reads land on the vector's
+        // `end` and `cap`, so begin==end, span==0, and the `span <= 0` guard returns without touching
+        // ExpPlacementDistancePct / ExpBlastRadiusPct -- the stale values simply stay. No exception, no
+        // log line, just a map mod that never gets applied.
+        //
+        // Verified live in Stagnant Basin: the triple sits at +0x150/+0x158/+0x160 spanning 0x110 = 34
+        // {i32 statId, i32 value} pairs, and it contains 13471 = 35 -- the +35% explosive radius this
+        // very map advertises. The stat ids below did NOT change.
+        private const int AreaMapModsVecOffset = 0x150;
         private const int StatMapExpeditionExplosiveRadiusPct = 13471;   // "Increased Expedition Explosive Radius" (confirmed: 36% zone)
         private const int StatMapExpeditionPlacementRangePct = 13685;    // "Increased Expedition Explosive Placement Range" (confirmed: 32% zone)
 
@@ -1104,7 +1117,7 @@ namespace RunecraftHelper
 
         // Auto-detect this map's Expedition modifiers from the AreaInstance map-mods vector and feed them into the
         // planner's placement-distance / blast-radius %s (replaces the old manual sliders). Vector = std::vector<
-        // { i32 StatsKey; i32 Value }> at areaAddr+0x158 (begin) / +0x160 (end); Value is a signed integer percent.
+        // { i32 StatsKey; i32 Value }> at areaAddr+0x150 (begin) / +0x158 (end); Value is a signed integer percent.
         // Absent stat ⇒ 0 (no mod). Read failure ⇒ values left untouched (no flicker); a genuinely empty vector ⇒ 0.
         // Keys are empirically confirmed (see constants) — the dumped Stats.dat names are misaligned for this build.
         private void ApplyExpeditionMapMods(IntPtr areaAddr)
@@ -3139,10 +3152,7 @@ namespace RunecraftHelper
             var largeMap = gameUi.LargeMap;
             if (largeMap == null || !largeMap.IsVisible || gameUi.WorldMapPanel.IsVisible) return;
 
-            var area = Core.States.InGameStateObject.CurrentAreaInstance;
-            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender)) return;
-            var trackingPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
-            float trackingHeight = playerRender.TerrainHeight;
+            if (!this.GetTrackingPosAndHeight(out var trackingPos, out var trackingHeight)) return;
 
             var baseRes = UiElementBaseFuncs.BaseResolution;
             double baseDiag = Math.Sqrt(((double)baseRes.X * baseRes.X) + ((double)baseRes.Y * baseRes.Y));
@@ -3232,9 +3242,7 @@ namespace RunecraftHelper
             if (largeMap == null || !largeMap.IsVisible || gameUi.WorldMapPanel.IsVisible) return;
 
             var area = Core.States.InGameStateObject.CurrentAreaInstance;
-            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender)) return;
-            var trackingPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
-            float trackingHeight = playerRender.TerrainHeight;
+            if (!this.GetTrackingPosAndHeight(out var trackingPos, out var trackingHeight)) return;
 
             var baseRes = UiElementBaseFuncs.BaseResolution;
             double baseDiag = Math.Sqrt(((double)baseRes.X * baseRes.X) + ((double)baseRes.Y * baseRes.Y));
@@ -3461,9 +3469,7 @@ namespace RunecraftHelper
             if (largeMap == null || !largeMap.IsVisible || gameUi.WorldMapPanel.IsVisible) return;
 
             var area = Core.States.InGameStateObject.CurrentAreaInstance;
-            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender)) return;
-            var trackingPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
-            float trackingHeight = playerRender.TerrainHeight;
+            if (!this.GetTrackingPosAndHeight(out var trackingPos, out var trackingHeight)) return;
 
             var baseRes = UiElementBaseFuncs.BaseResolution;
             double baseDiag = Math.Sqrt(((double)baseRes.X * baseRes.X) + ((double)baseRes.Y * baseRes.Y));

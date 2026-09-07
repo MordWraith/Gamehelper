@@ -10,6 +10,7 @@ namespace RunecraftHelper
     using GameHelper.Localization;
     using GameHelper.Plugin;
     using GameHelper.RemoteEnums;
+    using GameHelper.RemoteEnums.Entity;
     using GameHelper.RemoteObjects.Components;
     using GameHelper.RemoteObjects.States.InGameStateObjects;
     using GameOffsets.Natives;
@@ -74,6 +75,14 @@ namespace RunecraftHelper
         private const int ViewportStep = 2;
         private IntPtr resolvedViewport;
 
+        // Local co-op, recomputed once per frame by UpdateCoopState.
+        private bool coopActive;
+        private bool coopOtherKnown;
+        private Vector2 coopOtherPos;
+        private float coopOtherHeight;
+        private IntPtr coopPanelRoot;
+        private long coopSearchNextTicks;
+
         // Scroll content offset of a UiElement, at +0x120 (StdTuple2D<float>, just past RelativePosition
         // @ +0x118). On a scroll-viewport (mask) element this is the translation applied to its content
         // child as the list scrolls (Y goes negative scrolling down); it is NOT reflected in the content
@@ -93,6 +102,15 @@ namespace RunecraftHelper
         // MSVC layout confirms it (buffer/ptr at +0x00, size at +0x10 = 17, capacity at +0x18 = 23).
         private const int NameWStringOffset = 0x360;
         private const int UiElementChildrenOffset = 0x10;
+
+        // Local co-op panel hunt (see ResolvePanel): how deep under LeftPanel/RightPanel to look,
+        // how many children of one node are worth walking, and how often the hunt may run at all.
+        private const int CoopSearchMaxDepth = 4;
+        private const int CoopSearchMaxChildren = 100;
+        private const long CoopSearchIntervalMs = 500;
+
+        // How far off screen centre the local player must sit before co-op is assumed (Radar's value).
+        private const float CoopOffCentrePx = 35f;
         private const int UiElementFlagsOffset = 0x168;      // 0.5.5: -0x18 (was 0x180), measured
         private const int IsVisibleBit = 0x0B;
         private const uint IsVisibleMask = 1u << IsVisibleBit; // = 0x800
@@ -124,8 +142,21 @@ namespace RunecraftHelper
         private const int BaseItemTypeArtOffset = 0x78;    // → sub-object; +0x08 → ".dds" art path
         private const int ArtSubPathOffset = 0x08;         //   art path = poe.ninja image-id
 
-        // Combinations-panel row UiElement → its Expedition2Recipes_Row (live-verified back-ptr).
-        private const int RecipeRowBackPtrOffset = 0x540;
+        // Combinations-panel row UiElement -> its Expedition2Recipes_Row (live-verified back-ptr).
+        // 0.5.5 HF9: 0x540 -> 0x528. The row is a UiElement, so it rode the -0x18 UiElementBase
+        // shift; this one was simply missed when the base was fixed, because the old slot does not
+        // read as null -- it holds an all-0xFF sentinel, so the pointer looked live and every field
+        // behind it came back empty instead.
+        //
+        // Consequence while it was stale: Id / MetaId / DdsArt were blank for every panel row and
+        // pricing silently fell back to matching the LOCALIZED name -- invisible on an English
+        // client, broken on any other (same failure mode as the RU empty-dict bug).
+        //
+        // Verified by direct read, not inference: two visible rows held 0x319300DDB1F and
+        // 0x319300DD5A0 here, differing by 0x57F = exactly 7 x 0xC9 (the HF9 recipe stride), and
+        // the second decodes as a real row -- count 7, size 7, band 1..100, Id "7SlotCelestialAlloy1",
+        // matching the panel label "Celestial Alloy".
+        private const int RecipeRowBackPtrOffset = 0x528;
         // Expedition2Recipes_Row → reward BaseItemType* (null = "random currency" / no fixed item).
         private const int RecipeRewardItemOffset = 0x2c;
         // Expedition2Recipes_Row → level band (i32 MinLevelReq / i32 MaxLevelReq).
@@ -571,6 +602,10 @@ namespace RunecraftHelper
 
             if (!this.EnsureProcess()) return;
 
+            // Local co-op state first: both the panel walk below and every large-map overlay need it,
+            // and resolving it costs an entity scan -- so it happens exactly once per frame.
+            this.UpdateCoopState();
+
             // Resolve the Runeshape Combinations panel first: a non-zero result means it's open (the
             // fp-walk's gate requires a visible window-container). The monolith map labels use this to
             // hide themselves while the panel is up (HideMapValueWhenPanelOpen).
@@ -622,12 +657,107 @@ namespace RunecraftHelper
 
         // Walk from GameUi.Address down to the recipes container by matching each step's Flags
         // fingerprint (IsVisible bit masked), backtracking across sibling matches.
+        //
+        // In local co-op the panel is no longer a GameUi child: each player's UI hangs off
+        // LeftPanel / RightPanel, so the walk needs a second set of roots. That search is gated,
+        // cached and throttled rather than simply chained on, because ResolvePanel runs EVERY frame
+        // and a zero result is what tells the caller the panel is CLOSED -- the miss path is the
+        // normal case, not the exception, so anything expensive on it costs frames all session.
         private IntPtr ResolvePanel()
         {
             var gameUi = Core.States.InGameStateObject.GameUi.Address;
             this.resolvedViewport = IntPtr.Zero;
             if (gameUi == IntPtr.Zero) return IntPtr.Zero;
-            return this.WalkFp(gameUi, PanelFlagFingerprints, GateStep, 0);
+
+            var res = this.WalkFp(gameUi, PanelFlagFingerprints, GateStep, 0);
+            if (res != IntPtr.Zero) return res;
+
+            if (!this.coopActive) return IntPtr.Zero;
+
+            // A root that produced a hit stays valid while the co-op layout does.
+            if (this.coopPanelRoot != IntPtr.Zero)
+            {
+                res = this.WalkFp(this.coopPanelRoot, PanelFlagFingerprints, GateStep, 0);
+                if (res != IntPtr.Zero) return res;
+            }
+
+            var ui = Core.States.InGameStateObject.GameUi;
+            var roots = new[] { ui.LeftPanel.Address, ui.RightPanel.Address };
+
+            // The observed co-op layout, tried directly before any scanning.
+            foreach (var root in roots)
+            {
+                if (root == IntPtr.Zero) continue;
+                var known = this.GetChildPath(root, 3, 8, 0);
+                if (known == IntPtr.Zero) continue;
+                res = this.WalkFp(known, PanelFlagFingerprints, GateStep, 0);
+                if (res != IntPtr.Zero)
+                {
+                    this.coopPanelRoot = known;
+                    return res;
+                }
+            }
+
+            // Last resort for a layout those fixed indices no longer describe: scan the subtree. This
+            // one is genuinely expensive (a full fp-walk per visited node), so it runs a couple of
+            // times a second at most, and only until a root has been learned.
+            if (Environment.TickCount64 < this.coopSearchNextTicks) return IntPtr.Zero;
+            this.coopSearchNextTicks = Environment.TickCount64 + CoopSearchIntervalMs;
+            foreach (var root in roots)
+            {
+                if (root == IntPtr.Zero) continue;
+                res = this.SearchPanelUnderRoot(root, CoopSearchMaxDepth, out var hitRoot);
+                if (res != IntPtr.Zero)
+                {
+                    this.coopPanelRoot = hitRoot;
+                    return res;
+                }
+            }
+
+            return IntPtr.Zero;
+        }
+
+        private IntPtr GetChildPath(IntPtr addr, params int[] indices)
+        {
+            var curr = addr;
+            foreach (var idx in indices)
+            {
+                if (curr == IntPtr.Zero) return IntPtr.Zero;
+                curr = this.GetChild(curr, idx);
+            }
+
+            return curr;
+        }
+
+        // Depth-limited hunt for the panel anywhere under `root`, reporting the node the successful
+        // walk started from so the caller can skip straight back to it next time.
+        private IntPtr SearchPanelUnderRoot(IntPtr root, int maxDepth, out IntPtr hitRoot)
+        {
+            hitRoot = IntPtr.Zero;
+            if (root == IntPtr.Zero || maxDepth < 0) return IntPtr.Zero;
+
+            var res = this.WalkFp(root, PanelFlagFingerprints, GateStep, 0);
+            if (res != IntPtr.Zero)
+            {
+                hitRoot = root;
+                return res;
+            }
+
+            if (maxDepth == 0) return IntPtr.Zero;
+            if (!this.TryReadStdVector(root + UiElementChildrenOffset, out var first, out var last))
+                return IntPtr.Zero;
+            long n = ((long)last - (long)first) / 8;
+            if (n <= 0 || n > CoopSearchMaxChildren) return IntPtr.Zero;
+
+            for (int i = 0; i < n; i++)
+            {
+                var child = this.ReadPtr(first + (nint)(i * 8));
+                if (child == IntPtr.Zero) continue;
+                res = this.SearchPanelUnderRoot(child, maxDepth - 1, out hitRoot);
+                if (res != IntPtr.Zero) return res;
+            }
+
+            return IntPtr.Zero;
         }
 
         // Recursive backtracking fp-walk. At `step`, scan `parent`'s children for ones whose
@@ -1828,5 +1958,98 @@ namespace RunecraftHelper
         // DdsArt: .dds art filename = poe.ninja image-id (fallback price key).
         // Name: localized reward name — kept only as an English-client price fallback, never shown.
         private readonly record struct Recipe(int Count, IntPtr RowAddress, string MetaId, string DdsArt, string Name, string Id);
+
+        // ── Local co-op ───────────────────────────────────────────────────
+
+        // PoE2's couch co-op runs both players on ONE client sharing ONE camera (it is not split
+        // screen), so the camera stops following the local player alone and an overlay anchored on
+        // them is offset by half the gap between the two. Detection mirrors Radar's shipped
+        // implementation exactly, so both plugins agree about when co-op is on.
+        //
+        // The midpoint itself is INHERITED EMPIRICAL knowledge, not a documented rule: upstream's
+        // author tested it (Radar's own tooltip says "midpoint of P1 and P2"). What GGG actually
+        // documents is only that the camera zooms out as the players separate, up to a cap past
+        // which a player can leave the frame. If labels drift in co-op, re-derive this first.
+        //
+        // Called once per frame: finding the second player means scanning every awake entity, and
+        // four separate overlay passes want the answer.
+        private void UpdateCoopState()
+        {
+            this.coopActive = false;
+            this.coopOtherKnown = false;
+
+            var area = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender))
+                return;
+
+            Entity? playerOther = null;
+            foreach (var entity in area.AwakeEntities.Values)
+            {
+                if (entity.EntitySubtype == EntitySubtypes.PlayerOther)
+                {
+                    playerOther = entity;
+                    break;
+                }
+            }
+
+            if (!this.IsLocalCoopActive(playerRender, playerOther != null))
+                return;
+
+            this.coopActive = true;
+            if (playerOther != null && playerOther.TryGetComponent<Render>(out var otherRender))
+            {
+                this.coopOtherPos = new Vector2(otherRender.GridPosition.X, otherRender.GridPosition.Y);
+                this.coopOtherHeight = otherRender.TerrainHeight;
+                this.coopOtherKnown = true;
+            }
+        }
+
+        // Verbatim from Radar: local co-op needs controller mode and a second player, and shows
+        // itself by the local player NOT sitting at the centre of the screen the way they always do
+        // in single player.
+        private bool IsLocalCoopActive(Render playerRender, bool hasOtherPlayer)
+        {
+            if (!this.Settings.AutoDetectCoopMode)
+                return this.Settings.EnableCoopMode;
+
+            if (!Core.GHSettings.EnableControllerMode || !hasOtherPlayer)
+                return false;
+
+            var worldData = Core.States.InGameStateObject.CurrentWorldInstance;
+            if (worldData == null || worldData.Address == IntPtr.Zero)
+                return false;
+
+            var screenPos = worldData.WorldToScreen(playerRender.WorldPosition, playerRender.TerrainHeight);
+            if (screenPos == Vector2.Zero)
+                return false;
+
+            var screenCenter = new Vector2(
+                Core.Process.WindowArea.Width / 2f,
+                Core.Process.WindowArea.Height / 2f);
+            return Vector2.Distance(screenPos, screenCenter) > CoopOffCentrePx;
+        }
+
+        // Where the large-map overlays should project from: the local player, or the midpoint of both
+        // players while local co-op is active. False when there is no player to read at all.
+        private bool GetTrackingPosAndHeight(out Vector2 trackingPos, out float trackingHeight)
+        {
+            trackingPos = Vector2.Zero;
+            trackingHeight = 0f;
+
+            var area = Core.States.InGameStateObject.CurrentAreaInstance;
+            if (area?.Player == null || !area.Player.TryGetComponent<Render>(out var playerRender))
+                return false;
+
+            trackingPos = new Vector2(playerRender.GridPosition.X, playerRender.GridPosition.Y);
+            trackingHeight = playerRender.TerrainHeight;
+
+            if (this.coopActive && this.coopOtherKnown)
+            {
+                trackingPos = (trackingPos + this.coopOtherPos) / 2f;
+                trackingHeight = (trackingHeight + this.coopOtherHeight) / 2f;
+            }
+
+            return true;
+        }
     }
 }

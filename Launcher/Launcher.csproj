@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <Target Name="CopyLauncherToOutput" AfterTargets="Build">
-    <Copy SourceFiles="$(OutDir)$(AssemblyName).exe;$(OutDir)$(AssemblyName).dll;$(OutDir)$(AssemblyName).runtimeconfig.json;$(OutDir)AsmResolver.PE.dll;$(OutDir)AsmResolver.PE.File.dll;$(OutDir)AsmResolver.dll;$(OutDir)AsmResolver.PE.Win32Resources.dll;"
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).exe;$(OutDir)$(AssemblyName).dll;$(OutDir)$(AssemblyName).runtimeconfig.json;$(OutDir)$(AssemblyName).deps.json;$(OutDir)AsmResolver.PE.dll;$(OutDir)AsmResolver.PE.File.dll;$(OutDir)AsmResolver.dll;$(OutDir)AsmResolver.PE.Win32Resources.dll;"
           DestinationFolder="..\GameHelper\$(OutDir)"
           SkipUnchangedFiles="true"
           Condition="Exists('..\GameHelper\$(OutDir)')" />
