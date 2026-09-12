@@ -8,6 +8,7 @@ namespace RunecraftHelper
     using System.Numerics;
     using System.Threading;
     using System.Threading.Tasks;
+    using ClickableTransparentOverlay.Win32;
     using GameHelper;
     using GameHelper.RemoteEnums.Entity;
     using GameHelper.RemoteObjects.Components;
@@ -85,10 +86,12 @@ namespace RunecraftHelper
         // poe2/MapMods, live-verified 0.5.4BHF3). The planner reads the Expedition placement-range / explosive-radius
         // mods straight from here so they're applied automatically (no manual entry).
         //
-        // NB: these StatsKeys are EMPIRICALLY confirmed against live zones — the numeric ids do NOT line up with the
-        // names in the dumped Stats.dat for 0.5.4b (the id space is misaligned/scrambled: e.g. the radius mod reads
-        // on key 13471 even though Stats.dat calls that row "explosives"). Confirm any new one by reading the vector
-        // in a zone that has the mod and matching the displayed %, not by the .dat name.
+        // StatsKey numbering: the client's key is the Stats.dat ROW INDEX + 1. This is what the old note here
+        // called a "scrambled" id space -- it is not scrambled, it is off by exactly one, uniformly. Measured
+        // 2026-09-11 by decoding all 33 mods of a live area against a fresh Stats dump: at +1 every single one
+        // resolves to a map_* stat (33/33), at +0 only 25/33 do and the rest land on unrelated stats such as
+        // `local_flask_is_petrified`. So a key is derived as (dumped row) + 1, and NOT read off the dump directly.
+        //
         // 0.5.5: 0x158 -> 0x150. This is AreaInstance's EARLY region, which took the -8 that also moved
         // WorldArea row ptr 0xA0->0x98, CurrentAreaLevel 0xC4->0xBC and CurrentAreaHash 0x11C->0x114
         // (see obsidian poe2/GameOffsets-0.5.5-drift). A plugin-private copy like this one is outside
@@ -101,10 +104,20 @@ namespace RunecraftHelper
         //
         // Verified live in Stagnant Basin: the triple sits at +0x150/+0x158/+0x160 spanning 0x110 = 34
         // {i32 statId, i32 value} pairs, and it contains 13471 = 35 -- the +35% explosive radius this
-        // very map advertises. The stat ids below did NOT change.
+        // very map advertises.
         private const int AreaMapModsVecOffset = 0x150;
-        private const int StatMapExpeditionExplosiveRadiusPct = 13471;   // "Increased Expedition Explosive Radius" (confirmed: 36% zone)
-        private const int StatMapExpeditionPlacementRangePct = 13685;    // "Increased Expedition Explosive Placement Range" (confirmed: 32% zone)
+
+        // row 13470 map_expedition_explosion_radius_+% (+1). Confirmed live: 35 on a +35% zone.
+        private const int StatMapExpeditionExplosiveRadiusPct = 13471;
+
+        // row 13685 map_expedition_maximum_placement_distance_+% (+1). This was 13685 -- the dumped row, WITHOUT
+        // the +1 -- so the mod was never once applied on this build, while the radius beside it worked because
+        // its constant happened to already carry the +1. Reported as "0.5.5b broke map mods"; the offset was in
+        // fact fine and the vector read correctly. Confirmed live 2026-09-11 in ExpeditionLogBook_Tundra: the
+        // vector holds 13686 = 30 and no radius key at all, i.e. that zone's only Expedition mod is placement.
+        // Beware 13686 at face value: the dump calls that row map_expedition_number_of_monster_markers_+%, which
+        // is exactly the trap the +1 rule above exists to avoid.
+        private const int StatMapExpeditionPlacementRangePct = 13686;
 
         private const string ExpDetonatorPath = "Metadata/MiscellaneousObjects/Expedition/ExpeditionDetonator";
         private const string ExpExplosivePath = "Metadata/MiscellaneousObjects/Expedition/ExpeditionExplosive";
@@ -3953,19 +3966,32 @@ namespace RunecraftHelper
             this.DrawExpeditionRouteLargeMap();
             this.DrawExpeditionNextPointWorld();
 
+            var s = this.Settings;
+
+            // The plan is "stale" when anything it depends on changed since the last Run (or after an area
+            // change, which clears the stored fingerprint). Only Run -- the button or its hotkey -- recomputes.
+            string routeFp = this.BuildRouteFingerprint();
+            bool routeStale = routeFp != this.expRouteFingerprint;
+
+            // Hotkey equivalent of the Run button. It sits ABOVE ImGui.Begin on purpose: a collapsed window (or
+            // one dragged off-screen) returns false from Begin, and those are exactly the cases where reaching
+            // for the button is most annoying -- so the shortcut has to work without the window drawing.
+            //
+            // The button's preconditions all still hold here: this method has already returned unless we are in
+            // an expedition whose detonator is unpressed, LaunchRouteCompute is a no-op while a plan is cooking,
+            // and DrawUI returns early when neither the game nor GameHelper owns the foreground -- so a keypress
+            // meant for another application can never reach this line. That is why there is no focus check here.
+            if (s.ExpPlannerRunHotkeyEnabled && Utils.IsKeyPressedAndNotTimeout(s.ExpPlannerRunHotkey))
+            {
+                this.LaunchRouteCompute(routeFp);
+            }
+
             ImGui.SetNextWindowSize(new Vector2(340f, 0f), ImGuiCond.FirstUseEver);
             if (!ImGui.Begin(this.Loc.Title("exp.planner_title", "Expedition Planner", "RunecraftExpeditionPlanner")))
             {
                 ImGui.End();
                 return;
             }
-
-            var s = this.Settings;
-
-            // The plan is "stale" when anything it depends on changed since the last Run (or after an area
-            // change, which clears the stored fingerprint). The Run button is the ONLY thing that recomputes.
-            string routeFp = this.BuildRouteFingerprint();
-            bool routeStale = routeFp != this.expRouteFingerprint;
 
             if (this.expCtrlResolved)
             {
@@ -4012,9 +4038,17 @@ namespace RunecraftHelper
 
                 if (routeStale) ImGui.PopStyleColor(3);
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip(routeStale
+                {
+                    // Name the bound key in the tooltip -- otherwise the shortcut is invisible to anyone who
+                    // did not set it up themselves (e.g. a shared settings file).
+                    var tip = routeStale
                         ? this.L("exp.run_tip_stale", "Settings changed — click to (re)build the route.")
-                        : this.L("exp.run_tip_ok", "Route is up to date."));
+                        : this.L("exp.run_tip_ok", "Route is up to date.");
+                    if (s.ExpPlannerRunHotkeyEnabled)
+                        tip += "\n" + this.LF("exp.run_tip_hotkey", "Hotkey: {0}", s.ExpPlannerRunHotkey);
+
+                    ImGui.SetTooltip(tip);
+                }
             }
 
             // Neither the controller nor the HUD counter could be read this scan — let the player set the total so

@@ -1,6 +1,7 @@
 namespace RunecraftHelper
 {
     using System;
+    using System.Linq;
     using System.Collections.Generic;
     using System.Globalization;
     using System.Numerics;
@@ -502,6 +503,18 @@ namespace RunecraftHelper
         {
             try
             {
+                // Prefer InformationalVersion: it is the one that can carry the game-build letter ("0.5.5b"),
+                // which is what a reporter needs to state. The SDK may append "+<commit>" -- cut that.
+                var info = t.Assembly
+                    .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                    .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+                    .FirstOrDefault()?.InformationalVersion;
+                if (!string.IsNullOrWhiteSpace(info))
+                {
+                    int plus = info.IndexOf('+');
+                    return plus >= 0 ? info.Substring(0, plus) : info;
+                }
+
                 return t.Assembly.GetName().Version?.ToString() ?? "?";
             }
             catch (Exception)

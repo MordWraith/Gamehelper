@@ -6,6 +6,7 @@ namespace RunecraftHelper
     using System.Numerics;
     using System.Runtime.InteropServices;
     using System.Text;
+    using ClickableTransparentOverlay.Win32;
     using GameHelper;
     using GameHelper.Localization;
     using GameHelper.Plugin;
@@ -13,6 +14,7 @@ namespace RunecraftHelper
     using GameHelper.RemoteEnums.Entity;
     using GameHelper.RemoteObjects.Components;
     using GameHelper.RemoteObjects.States.InGameStateObjects;
+    using GameHelper.Utils;
     using GameOffsets.Natives;
     using GameOffsets.Objects.UiElement;
     using ImGuiNET;
@@ -320,6 +322,13 @@ namespace RunecraftHelper
 
                 ImGui.TextDisabled(this.L("mono.map_value_hint", "Paints each monolith's best value (ex) on the large-map overlay"));
                 ImGui.Checkbox(this.L("mono.draw_on_map", "Draw value on map overlay"), ref this.Settings.DrawMonolithValueOnMap);
+                if (this.Settings.DrawMonolithValueOnMap)
+                {
+                    ImGui.Indent();
+                    ImGui.Checkbox(this.L("mono.show_holes_on_map", "Show socket count"), ref this.Settings.ShowHoleCountOnMap);
+                    ImGui.TextDisabled(this.L("mono.show_holes_hint", "Prefixes the label with the socket count: \"[5] 49 ex\""));
+                    ImGui.Unindent();
+                }
 
                 ImGui.Spacing();
 
@@ -373,6 +382,21 @@ namespace RunecraftHelper
                 if (this.Settings.ShowExpeditionPlanner)
                 {
                     ImGui.TextDisabled(this.L("exp.planner_hint", "A planner window appears while the in-game explosive HUD is visible"));
+
+                    // Run hotkey. Kept next to the planner toggle rather than on a general "input" page: it is
+                    // meaningless unless the planner is on, and the key only does anything inside an expedition.
+                    ImGui.Checkbox(this.L("exp.run_hotkey", "Run hotkey"), ref this.Settings.ExpPlannerRunHotkeyEnabled);
+                    if (this.Settings.ExpPlannerRunHotkeyEnabled)
+                    {
+                        ImGui.Indent();
+                        ImGui.SetNextItemWidth(220f);
+                        ImGuiHelper.NonContinuousEnumComboBox(this.L("exp.run_hotkey_key", "Key"), ref this.Settings.ExpPlannerRunHotkey);
+                        ImGui.TextDisabled(this.L("exp.run_hotkey_hint",
+                            "Rebuilds the route without the mouse, and works while the planner window is\n" +
+                            "collapsed. It listens only during an expedition, before the detonator is\n" +
+                            "pressed, so a key the game uses elsewhere (Shift) is usually fine here."));
+                        ImGui.Unindent();
+                    }
                     if(ImGui.CollapsingHeader(this.Loc.Title("exp.reward_profile", "Reward / target profile", "rh_exp_reward"))) {
                         this.DrawExpeditionTargetProfileSettings();
                     }

@@ -1,0 +1,90 @@
+{
+  "26402": {
+    "stat": "map_expedition2_remnant_generation_has_x_lucky_rolls",
+    "name": "Lucky Remnant Rolls"
+  },
+  "26398": {
+    "stat": "map_expedition2_remnants_have_at_least_x_slots",
+    "name": "Remnants have X+ Slots"
+  },
+  "13718": {
+    "stat": "map_expedition_artifact_quantity_+%",
+    "name": "Artifact Quantity"
+  },
+  "13683": {
+    "stat": "map_expedition_chest_double_drops_chance_%",
+    "name": "Chest Double Drops Chance"
+  },
+  "13722": {
+    "stat": "map_expedition_chest_marker_count_+",
+    "name": "Chest Markers"
+  },
+  "13717": {
+    "stat": "map_expedition_common_chest_marker_count_+",
+    "name": "Common Chest Markers"
+  },
+  "13714": {
+    "stat": "map_expedition_elite_marker_count_+%",
+    "name": "Runic Monster Markers"
+  },
+  "13715": {
+    "stat": "map_expedition_epic_chest_marker_count_+",
+    "name": "Epic Chest Markers"
+  },
+  "13471": {
+    "stat": "map_expedition_explosion_radius_+%",
+    "name": "Explosion Radius"
+  },
+  "13473": {
+    "stat": "map_expedition_explosives_+%",
+    "name": "Explosives"
+  },
+  "13684": {
+    "stat": "map_expedition_extra_relic_suffix_chance_%",
+    "name": "Extra Relic Suffix Chance"
+  },
+  "13686": {
+    "stat": "map_expedition_maximum_placement_distance_+%",
+    "name": "Placement Distance"
+  },
+  "13687": {
+    "stat": "map_expedition_number_of_monster_markers_+%",
+    "name": "Monster Markers"
+  },
+  "13470": {
+    "stat": "map_expedition_relics_+%",
+    "name": "Relics"
+  },
+  "13633": {
+    "stat": "map_expedition_saga_contains_boss",
+    "name": "Saga contains Boss"
+  },
+  "21574": {
+    "stat": "map_expedition_twinned_elites",
+    "name": "Twinned Runic Monsters"
+  },
+  "13716": {
+    "stat": "map_expedition_uncommon_chest_marker_count_+",
+    "name": "Uncommon Chest Markers"
+  },
+  "13719": {
+    "stat": "map_expedition_vendor_reroll_currency_quantity_+%",
+    "name": "Vendor Reroll Currency"
+  },
+  "27082": {
+    "stat": "map_logbook_expedition_remnants_+",
+    "name": "Additional Remnants"
+  },
+  "26400": {
+    "stat": "map_logbook_has_at_least_1_expedition2_remnant_with_a_power_rune",
+    "name": "A Remnant with a Power Rune"
+  },
+  "26399": {
+    "stat": "map_logbook_has_at_least_1_expedition2_remnant_with_at_least_x_slots",
+    "name": "A Remnant with X+ Slots"
+  },
+  "26401": {
+    "stat": "map_verisium_stack_size_+%",
+    "name": "Verisium Stack Size"
+  }
+}

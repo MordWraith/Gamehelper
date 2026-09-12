@@ -24,7 +24,6 @@
   "status.items_cached": "Items cached: {0}",
   "status.divine_rate": "1 Divine = {0:F2} Exalted",
   "status.zero_rows": "poe.ninja answered, but has no rows for this league. Check the league name: it must be\nthe API name with spaces (\"Runes of Aldur\"), not the web slug (\"runesofaldur\").",
-
   "tab.monoliths": "Runestone monoliths",
   "tab.expedition": "Expedition",
   "common.debug": "Debug",
@@ -112,5 +111,11 @@
   "runechain.affects_route_hint": "Adds each monolith's best achievable chain value to its route weight. This is an UPPER\nBOUND — the real value depends on how many packs come after that monolith, which is\nonly known once the order is fixed. Off keeps the router exactly as it is today.",
   "runechain.table_hint": "Loot multiplier per propagated rune. 1.00 = no loot effect (pure danger). Below 1.00 = a\nnet cost (Oath seeds immortal loot-less waves; Wisdom only grants experience). Magnitudes\nare server-side, so these are estimates ordered by the community tier list.",
   "runechain.reset": "Reset to tier-list defaults",
-  "runechain.power_factor_hint": "A propagated Power rune empowers the other runes in the chain (official 0.5.4 fix). Whether\nPower is live is READ per monolith from the station (the same flag the game uses to draw the\nempowered rune art), so this only says by how much it multiplies their uplift."
+  "runechain.power_factor_hint": "A propagated Power rune empowers the other runes in the chain (official 0.5.4 fix). Whether\nPower is live is READ per monolith from the station (the same flag the game uses to draw the\nempowered rune art), so this only says by how much it multiplies their uplift.",
+  "exp.run_hotkey": "Run hotkey",
+  "exp.run_hotkey_key": "Key",
+  "exp.run_hotkey_hint": "Rebuilds the route without the mouse, and works while the planner window is\ncollapsed. It listens only during an expedition, before the detonator is\npressed, so a key the game uses elsewhere (Shift) is usually fine here.",
+  "exp.run_tip_hotkey": "Hotkey: {0}",
+  "mono.show_holes_on_map": "Show socket count",
+  "mono.show_holes_hint": "Prefixes the label with the socket count: \"[5] 49 ex\""
 }

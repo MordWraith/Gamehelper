@@ -2,4 +2,5 @@ bin/
 obj/
 gen_contenttokens.py
 gen_mapcontent.py
+gen_expeditionmods.py
 config/expedition_debug.jsonl

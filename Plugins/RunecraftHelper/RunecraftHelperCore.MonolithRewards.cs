@@ -367,7 +367,11 @@ namespace RunecraftHelper
                 {
                     // Same tint as the rewards-window header (shared helper); untinted → white on the map.
                     uint col = this.MonolithValueColor(v.Best, maxBest, out _);
-                    var text = $"{v.Best:F0} ex";
+                    // "[5] 49 ex" -- sockets in brackets ahead of the price. Dropped when HoleCount is
+                    // unresolved (0): a bracketed zero would claim the monolith HAS no sockets.
+                    var text = this.Settings.ShowHoleCountOnMap && v.HoleCount > 0
+                        ? $"[{v.HoleCount}] {v.Best:F0} ex"
+                        : $"{v.Best:F0} ex";
                     var ts = ImGui.CalcTextSize(text) * k;
                     var at = new Vector2(screen.X - (ts.X * 0.5f), priceTopY);
                     dl.AddRectFilled(at - pad, at + ts + pad, monoBg, 2f);
