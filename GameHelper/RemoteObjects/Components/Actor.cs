@@ -65,6 +65,16 @@ namespace GameHelper.RemoteObjects.Components
         /// </summary>
         public DeployedObjectCounter DeployedEntities { get; } = new();
 
+        /// <summary>Gets the current deployed entity records, including ownership IDs and source skill IDs.</summary>
+        public IReadOnlyList<DeployedEntityStructure> DeployedEntityRecords { get; private set; } = Array.Empty<DeployedEntityStructure>();
+
+        /// <inheritdoc />
+        protected override void CleanUpData()
+        {
+            base.CleanUpData();
+            this.DeployedEntityRecords = Array.Empty<DeployedEntityStructure>();
+        }
+
         /// <summary>
         ///     Converts the <see cref="Actor" /> class data to ImGui.
         /// </summary>
@@ -299,6 +309,7 @@ namespace GameHelper.RemoteObjects.Components
 
             this.DeployedEntities.Clear();
             var deployedEntities = reader.ReadStdVector<DeployedEntityStructure>(data.DeployedEntityArray);
+            this.DeployedEntityRecords = Array.AsReadOnly(deployedEntities);
             for (var i = 0; i < deployedEntities.Length; i++)
             {
                 this.DeployedEntities.Increment(deployedEntities[i].DeployedObjectType);

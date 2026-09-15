@@ -18,7 +18,7 @@
     using ImGuiNET;
     using Newtonsoft.Json;
 
-    public sealed class PlayerBuffBarCore : PCore<PlayerBuffBarSettings>
+    public sealed partial class PlayerBuffBarCore : PCore<PlayerBuffBarSettings>
     {
         private readonly BuffIconLoader iconLoader = new();
 
@@ -194,6 +194,7 @@
             var fieldWidth = ImGui.GetContentRegionAvail().X;
 
             ImGui.Checkbox(this.PluginText.Label("settings.enable_this_bar", "Enable this bar", $"PlayerBuffBarEnable_{barIndex}"), ref bar.Enabled);
+            ImGui.Checkbox(this.PluginText.Label("settings.show_totems", "Show Totems", $"PlayerBuffBarTotems_{barIndex}"), ref bar.ShowTotems);
             ImGui.Checkbox(this.PluginText.Label("settings.anchor_to_health_bar", "Anchor to health bar", $"PlayerBuffBarAnchor_{barIndex}"), ref bar.AnchorToHealthBar);
             if (!bar.AnchorToHealthBar)
             {
@@ -394,6 +395,7 @@
             player.TryGetComponent<Stats>(out var stats, true);
 
             var activeLookup = this.BuildActiveBuffLookup(buffs);
+            this.UpdateTotemEntries();
 
             if (this.Settings.DisplayMode != BuffBarDisplayMode.Text)
             {
@@ -658,6 +660,7 @@
                 }
 
                 var entries = this.BuildDisplayEntriesForBar(bar.Watchlist, activeLookup);
+                if (bar.ShowTotems) entries.AddRange(this.totemEntries);
                 var buffRow = entries.Where(e => e.IsActive || this.Settings.ShowInactiveWatchlist).ToList();
                 if (bar.ShowPositionDummy && !bar.AnchorToHealthBar)
                 {
@@ -944,7 +947,7 @@
                 draw.AddRect(rectMin, rectMax, ImGuiHelper.Color(new Vector4(0.4f, 0.4f, 0.4f, 0.8f)), 4f, ImDrawFlags.None, 1f);
             }
 
-            if (entry.IsActive && this.Settings.ShowStacks && entry.Stacks > 1)
+            if (entry.IsActive && ((this.Settings.ShowStacks && entry.Stacks > 1) || entry.IsTotem))
             {
                 this.DrawStackBadge(draw, rectMin, rectMax, entry.Stacks, alpha);
             }
@@ -1061,6 +1064,7 @@
                 }
 
                 var entries = this.BuildDisplayEntriesForBar(bar.Watchlist, activeLookup);
+                if (bar.ShowTotems) entries.AddRange(this.totemEntries);
                 if (entries.Count == 0)
                 {
                     continue;
@@ -1470,6 +1474,7 @@
 
         private sealed class BuffDisplayEntry
         {
+            public bool IsTotem;
             public string WatchId = string.Empty;
             public bool IsActive;
             public string Display = string.Empty;

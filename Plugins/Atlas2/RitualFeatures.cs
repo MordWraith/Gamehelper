@@ -151,15 +151,16 @@ namespace Atlas2
         // predictions build before the node pass hit-tests the cursor.
         private StdTuple2D<int>? ritualHoverGrid;
 
-        // Reads the committed line grids as (x,y) int pairs.
-        private static List<StdTuple2D<int>> ReadGridVector(IntPtr vecAddr)
+        // Reads a vector of atlas grids as (x,y) int pairs. Committed/candidate chains are tiny;
+        // the pre-start selectable set can contain a sizeable fraction of the atlas.
+        private static List<StdTuple2D<int>> ReadGridVector(IntPtr vecAddr, int maxEntries = 64)
         {
             var result = new List<StdTuple2D<int>>();
             var vec = Read<StdVector>(vecAddr);
             if (vec.First == IntPtr.Zero || vec.Last == IntPtr.Zero)
                 return result;
             long bytes = vec.Last.ToInt64() - vec.First.ToInt64();
-            if (bytes <= 0 || bytes % 8 != 0 || bytes > 8 * 64)
+            if (bytes <= 0 || bytes % 8 != 0 || bytes > 8L * maxEntries)
                 return result;
             int n = (int)(bytes / 8);
             for (int i = 0; i < n; i++)
@@ -626,10 +627,10 @@ namespace Atlas2
                 lineLen = committedReal + picksLeft;
             int maxDepth = Math.Min(RitualMaxLookaheadDepth, Math.Max(0, lineLen - committed.Count));
 
-            // Nodes the line can never be drawn onto — the game's own reach-check rule:
-            // completed (widget state ∉ {0,1}) or special-category map (RitualSpecial: the
-            // dat-row field the game tests; uniques/towers/hideouts/citadels/bosses). The
-            // maps.json tags stay as a fallback for a cache built before the toggle came on.
+            // Nodes the line can never be drawn onto. The old dat-row +0x7C category moved in
+            // 0.6.x and is no longer safe to use: it now marks ordinary eligible maps too.
+            // Keep the classifications we can still identify authoritatively from node state and
+            // maps.json until the new category field is recovered.
             // Blocked nodes KEEP their slot in the candidate rank space — the validated candIdx
             // model ranks the raw table minus committed only — but they get no predicted label
             // and the chain is not extended through them.
@@ -637,7 +638,6 @@ namespace Atlas2
             foreach (var nd in nodeCache)
             {
                 if (nd.State == AtlasNodeState.CompletedBase
-                    || nd.RitualSpecial
                     || string.Equals(nd.Type, "unique", StringComparison.OrdinalIgnoreCase)
                     || nd.Tags.Contains("tower", StringComparer.OrdinalIgnoreCase)
                     || nd.Tags.Contains("hideout", StringComparer.OrdinalIgnoreCase))
@@ -883,35 +883,43 @@ namespace Atlas2
             if (ritualPool == null || ritualPool.Count == 0)
                 return;
 
-            // Roots: while a line is being drawn its committed frontier is the only root; before
-            // the first pick EVERY node the line could start from (accessible, not blocked) is a
-            // root, so the window lists the whole atlas worth of options at once — no hover
-            // needed, the selected row's ray shows where that start is.
+            // Roots: while a line is being drawn its committed frontier is the only root. Before
+            // the first pick, the panel's pending vector is the game's authoritative selectable
+            // set. AtlasPanel's click handler rejects any grid absent from this vector, and it is
+            // populated for both the initial quest choice and later/repeat Rites.
             var committed = ReadGridVector(IntPtr.Add(panel, PanelCommittedVecOffset));
             int committedReal = committed.Count;
             plannerLineActive = committedReal > 0;
+            var candTable = ReadCandidateTable(panel,
+                plannerLineActive ? committed[^1] : (StdTuple2D<int>?)null);
 
-            // Ineligible nodes (same game-rule set as BuildRitualPredictions — completed state
-            // or special-category dat row): they keep their candIdx rank but can't join the
-            // line — nor start it. Also grid → display name.
+            // Ineligible nodes (same conservative set as BuildRitualPredictions): they keep
+            // their candIdx rank but can't join the line. Also build grid → display name.
             var blocked = new HashSet<StdTuple2D<int>>();
             var gridName = new Dictionary<StdTuple2D<int>, string>(nodeCache.Count);
-            var roots = new List<StdTuple2D<int>>();
             foreach (var nd in nodeCache)
             {
                 gridName[nd.GridPosition] = nd.Drawable ? nd.MapName : "???";
                 if (nd.State == AtlasNodeState.CompletedBase
-                    || nd.RitualSpecial
                     || string.Equals(nd.Type, "unique", StringComparison.OrdinalIgnoreCase)
                     || nd.Tags.Contains("tower", StringComparer.OrdinalIgnoreCase)
                     || nd.Tags.Contains("hideout", StringComparer.OrdinalIgnoreCase))
                     blocked.Add(nd.GridPosition);
-                else if (!plannerLineActive && nd.State == AtlasNodeState.AccessibleNow)
-                    roots.Add(nd.GridPosition);
             }
 
+            var roots = new List<StdTuple2D<int>>();
             if (plannerLineActive)
+            {
                 roots.Add(committed[^1]);
+            }
+            else
+            {
+                roots.AddRange(ReadGridVector(IntPtr.Add(panel, PanelPendingVecOffset),
+                        Math.Max(64, nodeCache.Count))
+                    .Where(g => !blocked.Contains(g))
+                    .Distinct());
+            }
+
             roots.Sort((a, b) => a.X != b.X ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
             plannerStartCount = roots.Count;
             if (roots.Count == 0)
@@ -947,9 +955,6 @@ namespace Atlas2
             plannerChains.Clear();
             plannerEnumerated = 0;
             plannerCapped = false;
-
-            var candTable = ReadCandidateTable(panel,
-                plannerLineActive ? committed[^1] : (StdTuple2D<int>?)null);
 
             var pool = new List<RitualRow>(ritualPool.Count);
             foreach (var row in ritualPool)

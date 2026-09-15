@@ -1,6 +1,13 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.10",
+                         "published":  "2026-09-12T15:17:58.1175553Z",
+                         "changelog":  [
+                                           "Atlas / Runecraft update"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.9",
                          "published":  "2026-09-11T15:29:38.7087078Z",
                          "changelog":  [

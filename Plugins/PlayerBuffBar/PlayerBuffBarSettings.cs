@@ -17,6 +17,8 @@ namespace PlayerBuffBar
     {
         public bool Enabled = true;
 
+        public bool ShowTotems;
+
         public bool AnchorToHealthBar = true;
 
         public bool ShowPositionDummy;

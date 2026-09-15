@@ -76,7 +76,10 @@ namespace Atlas2
         public bool ShowRitualPlanner = true;
         public string RitualRewardFilter = string.Empty;
         public float RitualPlannerFontScale = 1f;
-        public Dictionary<string, int> RitualRewardWeights = [];
+        // Nullable so a config written before market defaults existed can be migrated once,
+        // without repopulating weights after a user deliberately clears them.
+        public int? RitualRewardWeightsVersion;
+        public Dictionary<string, int> RitualRewardWeights = CreateDefaultRitualRewardWeights();
         public bool ShowMapBadges = true;
         public bool ShowMapCounts = false;
         public bool ShowContent = true;
@@ -132,6 +135,71 @@ namespace Atlas2
             MapGroups[^1].BackgroundColor = new(1f, 0.56f, 0f, 1f);
             AddNamed("Special", "special", new(1f, 1f, 1f, 1f), "Ice Cave");
         }
+
+        private static Dictionary<string, int> CreateDefaultRitualRewardWeights() => new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            // Approximate Forbidden Rites market value in Exalted Orbs (POE2 Scout, 2026-09-15).
+            ["Mageblood"] = 197615,
+            ["Headhunter"] = 93607,
+            ["Kalandra's Touch"] = 13114,
+            ["Dream Fragments"] = 108,
+            ["Yoke of Suffering"] = 50,
+            ["Astramentis"] = 23,
+            ["Defiance of Destiny"] = 18,
+            ["Original Sin"] = 5,
+            ["Alpha's Howl"] = 5,
+            ["Queen of the Forest"] = 4,
+
+            ["Omen: Sinistral Annulment"] = 5951,
+            ["Omen: Sinistral Erasure"] = 5524,
+            ["Omen: Chance"] = 4808,
+            ["Omen: Dextral Annulment"] = 3633,
+            ["Omen: Dextral Erasure"] = 3044,
+            ["Omen: Whittling"] = 2979,
+            ["Omen: Sanctification"] = 427,
+            ["Omen: Sinistral Crystallisation"] = 199,
+            ["Omen: Dextral Crystallisation"] = 185,
+            ["Omen: the Blessed"] = 106,
+            ["Omen: Amelioration"] = 32,
+            ["Omen: Sinistral Exaltation"] = 23,
+            ["Omen: Dextral Exaltation"] = 16,
+
+            ["Divine Orbs x5"] = 2169,
+            ["Divine Orbs x2"] = 868,
+            ["Divine Orb x1"] = 434,
+            ["Perfect Chaos Orbs"] = 1270,
+            ["Perfect Exalted Orbs"] = 973,
+            ["Chaos Orbs x8"] = 377,
+            ["Orbs of Annulment"] = 249,
+            ["Chaos Orbs x4"] = 188,
+            ["Greater Chaos Orbs"] = 136,
+            ["Perfect Orbs of Augmentation"] = 110,
+            ["Chaos Orbs x2"] = 94,
+            ["Perfect Regal Orbs"] = 23,
+            ["Perfect Orbs of Transmutation"] = 16,
+            ["Orbs of Chance"] = 14,
+            ["Greater Orbs of Augmentation x8"] = 37,
+            ["Greater Orbs of Augmentation x4"] = 18,
+            ["Greater Orbs of Transmutation x8"] = 14,
+            ["Greater Orbs of Augmentation x2"] = 9,
+            ["Exalted Orbs x8"] = 8,
+            ["Greater Orbs of Transmutation x4"] = 7,
+            ["Greater Exalted Orbs x2"] = 9,
+            ["Greater Orbs of Transmutation x2"] = 4,
+            ["Exalted Orbs x4"] = 4,
+            ["Greater Regal Orbs"] = 3,
+            ["Exalted Orbs x2"] = 2,
+
+            // Item reward without a direct market listing: conservative expected value.
+            ["Very Rare Unique"] = 500,
+
+            // Non-item utility rewards are deliberately neutral for now.
+            ["+Free Reroll"] = 1,
+            ["+Favours"] = 1,
+            ["+25% Tribute"] = 1,
+            ["-Reroll Cost"] = 1,
+            ["+Monster Packs"] = 1,
+        };
 
         private void AddBuiltIn(string name, string key, Vector4 color, Vector4 background, params string[] targets)
         {

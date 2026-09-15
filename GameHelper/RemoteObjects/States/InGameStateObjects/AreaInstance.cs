@@ -31,9 +31,10 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
     public class AreaInstance : RemoteObjectBase
     {
         // Large composite areas such as the Trial of the Sekhemas foyer legitimately exceed the
-        // old 25-million-cell ceiling. The exact TileDetails vector-shape check below remains the
+        // old 50-million-cell ceiling (222 x 493 tiles requires 57,896,934 cells).
+        // The exact TileDetails vector-shape check below remains the
         // primary guard against shifted metadata causing multi-gigabyte allocations.
-        private const long MaxTerrainGridCells = 50_000_000;
+        private const long MaxTerrainGridCells = 100_000_000;
         private const int TerrainTileStructureSize = 0x38;
 
         private static readonly EntityBackedBuffDefinition[] EntityBackedPlayerBuffs =
@@ -277,7 +278,8 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
                         $"[AreaInstance] Rejected invalid terrain metadata at 0x{this.Address.ToInt64():X}: " +
                         $"TotalTiles={this.TerrainMetadata.TotalTiles}, " +
                         $"TileDetails={this.TerrainMetadata.TileDetailsPtr}. " +
-                        "The AreaInstance/TerrainMetadata offsets may have shifted.");
+                        $"Terrain must fit within {MaxTerrainGridCells:N0} grid cells and have a matching tile vector. " +
+                        "The area may exceed the size limit, or the AreaInstance/TerrainMetadata offsets may have shifted.");
                 }
             }
 

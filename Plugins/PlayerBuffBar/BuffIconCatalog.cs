@@ -69,6 +69,7 @@ namespace PlayerBuffBar
 
         private static readonly Dictionary<string, string> DefaultDirectIcons = new(StringComparer.OrdinalIgnoreCase)
         {
+            ["spell_totem"] = "skillicons/4k/druidspelltotem.webp",
             ["unholy"] = "BuffIcons/UnholyMightBuff.webp",
             ["unholy_might"] = "BuffIcons/UnholyMightBuff.webp",
             ["fortify"] = "BuffIcons/Fortify.webp",

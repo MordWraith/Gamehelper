@@ -85,7 +85,6 @@
             public string Type;             // "normal" or "unique"
             public List<string> Tags;       // e.g. "lineage", "arbiter"
             public bool Drawable;
-            public bool RitualSpecial;
         }
         private readonly List<NodeData> nodeCache = new();
         private int cacheFrameCounter = int.MaxValue;   // force refresh on first frame
@@ -129,6 +128,13 @@
                 var defaults = new Atlas2Settings();
                 Settings.MapGroups = defaults.MapGroups;
                 Settings.CategorySettingsVersion = defaults.CategorySettingsVersion;
+            }
+
+            if (Settings.RitualRewardWeightsVersion.GetValueOrDefault() < 3)
+            {
+                var defaults = new Atlas2Settings();
+                Settings.RitualRewardWeights = defaults.RitualRewardWeights;
+                Settings.RitualRewardWeightsVersion = 3;
             }
 
             LoadBiomeMap();
@@ -777,7 +783,6 @@
                     Type = map.Type ?? "normal",
                     Tags = map.Tags.ToList(),
                     Drawable = drawable,
-                    RitualSpecial = IsRitualSpecialNode(map.Address),
                 });
             }
             cachedAtlasCount = atlasCount;
@@ -961,18 +966,6 @@
 
                 fogShipIcons.Add((group.Key, center, height * 0.5f));
             }
-        }
-
-        private static bool IsRitualSpecialNode(IntPtr address)
-        {
-            // yokkenUA found this by following the game's ritual-line reach check: node+0x300
-            // points to the per-map data row, whose category at +0x7C is zero for normal maps.
-            // The game rejects every nonzero category (unique maps, hideouts, towers, citadels,
-            // and league bosses), making this authoritative compared with guessing from map tags.
-            if (address == IntPtr.Zero)
-                return true;
-            var row = Read<IntPtr>(address + 0x300);
-            return row == IntPtr.Zero || Read<int>(row + 0x7C) != 0;
         }
 
         private void DrawUnchartedLeylines(ImDrawListPtr drawList, UiElementBase atlasUi, RectangleF panelRect,

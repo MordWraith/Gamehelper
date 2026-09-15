@@ -1,4 +1,5 @@
 {
+  "settings.show_totems": "Show Totems",
   "plugin.description": "Displays configurable player buff bars, charge icons, and rage status.",
   "button.apply_watchlist": "Apply watchlist",
   "button.download_missing_icons": "Download missing icons",
