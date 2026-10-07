@@ -38,6 +38,10 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         private static readonly int[] WorldMapPanelChildPath = { 22, 0 };
         private static readonly int[] LargeMapViewportChildPath = { 6, 0 };
         private static readonly int[] MiniMapViewportChildPath = { 6, 1 };
+        // Controller map parent children (verified live): [0] HUD container, [1] large map (only visible
+        // with the large map open), [2] minimap viewport (top-right, ~535x402), [3]/[4] other HUD.
+        private static readonly int[] ControllerLargeMapChildPath = { 1 };
+        private static readonly int[] ControllerMiniMapChildPath = { 2 };
         private static readonly int[] PassiveSkillTreeNodesChildPath = { 24, 2 };
         private static readonly int[] Act1PanelChildPath = { 22, 0, 0 };
         private static readonly int[] Act2PanelChildPath = { 22, 0, 1 };
@@ -495,7 +499,7 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
             var data1 = reader.ReadMemory<ImportantUiElementsOffsets>(Core.GHSettings.IsTaiwanClient ? this.Address - 0x08 : this.Address);
             if (Core.GHSettings.EnableControllerMode)
             {
-                this.UpdateMapAddresses();
+                this.UpdateControllerMapAddresses(data1.ControllerModeMapParentPtr);
                 this.UpdateWorldMapPanelAddresses();
                 if (this.IsCoopMode())
                 {
@@ -539,6 +543,24 @@ namespace GameHelper.RemoteObjects.States.InGameStateObjects
         {
             this.LargeMap.Address = ResolveChildAddress(this.Address, LargeMapViewportChildPath);
             this.MiniMap.Address = ResolveChildAddress(this.Address, MiniMapViewportChildPath);
+        }
+
+        // The controller GameUi tree differs from the mouse one: the map viewports hang off the
+        // dedicated controller map parent instead of GameUi child 6. Falls back to the shared child
+        // paths if it doesn't resolve to real Ui elements.
+        private void UpdateControllerMapAddresses(IntPtr mapParentPtr)
+        {
+            var parent = ValidUiElementOrZero(mapParentPtr);
+            var largeMap = ResolveChildAddress(parent, ControllerLargeMapChildPath);
+            var miniMap = ResolveChildAddress(parent, ControllerMiniMapChildPath);
+            if (largeMap == IntPtr.Zero || miniMap == IntPtr.Zero)
+            {
+                this.UpdateMapAddresses();
+                return;
+            }
+
+            this.LargeMap.Address = largeMap;
+            this.MiniMap.Address = miniMap;
         }
 
         private void UpdateWorldMapPanelAddresses()
