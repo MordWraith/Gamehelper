@@ -2099,7 +2099,7 @@ namespace StashUtility
 
             // Category mismatch guards: prevent matching e.g. "Spell Damage" to "Critical Spell Damage"
             bool gameHasCrit = cleanGame.Contains("crit");
-            bool defHasCrit = gameModId.Contains("crit") || defName.Contains("crit");
+            bool defHasCrit = gameModId.Contains("crit") || defName.Contains("critical");
             if (defHasCrit != gameHasCrit) return false;
 
             bool gameHasSpeed = cleanGame.Contains("speed");
@@ -2193,6 +2193,20 @@ namespace StashUtility
             var path = item.Path;
             var internalNameStr = baseComponent.InternalName;
 
+            // Debug Inspector: capture all item types
+            if (Settings.EnableDebugProbe && !freezeHoveredWaystone)
+            {
+                var mousePos = ImGui.GetMousePos();
+
+                if (mousePos.X >= pos.X &&
+                    mousePos.X <= pos.X + size.X &&
+                    mousePos.Y >= pos.Y &&
+                    mousePos.Y <= pos.Y + size.Y)
+                {
+                    lastHoveredWaystone = item;
+                }
+            }
+
             bool isWaystone = (!string.IsNullOrEmpty(name) && name.Contains("Waystone")) || path.Contains("MapKey", StringComparison.OrdinalIgnoreCase) || path.Contains("Waystone", StringComparison.OrdinalIgnoreCase);
             bool isTablet = (!string.IsNullOrEmpty(name) && name.Contains("Tablet")) || path.Contains("TowerAugment", StringComparison.OrdinalIgnoreCase) || path.Contains("Tablet", StringComparison.OrdinalIgnoreCase);
             bool isJewel = (!string.IsNullOrEmpty(name) && (name.Contains("Jewel") || name == "Sapphire" || name == "Ruby" || name == "Emerald" || name == "Diamond" || name.Contains("Time-Lost"))) || path.Contains("Metadata/Items/Jewels", StringComparison.OrdinalIgnoreCase) || path.Contains("Jewel", StringComparison.OrdinalIgnoreCase) || (!string.IsNullOrEmpty(internalNameStr) && internalNameStr.Contains("Jewel", StringComparison.OrdinalIgnoreCase));
@@ -2202,16 +2216,6 @@ namespace StashUtility
             if (isWaystone && !Settings.EnableWaystoneManager) return;
             if (isTablet && !Settings.EnableTabletManager) return;
             if (isJewel && !Settings.EnableJewelManager) return;
-
-            if (Settings.EnableDebugProbe && !freezeHoveredWaystone)
-            {
-                var mousePos = ImGui.GetMousePos();
-                if (mousePos.X >= pos.X && mousePos.X <= pos.X + size.X &&
-                    mousePos.Y >= pos.Y && mousePos.Y <= pos.Y + size.Y)
-                {
-                    lastHoveredWaystone = item;
-                }
-            }
 
             var rarity = GameHelper.RemoteEnums.Rarity.Normal;
             if (item.TryGetComponent<Mods>(out var modsComponent))
