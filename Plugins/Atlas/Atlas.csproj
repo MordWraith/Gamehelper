@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <!-- The client build this release targets is 0.5.5b, but "0.5.5b" is not a legal NuGet/semver
+    <!-- The client build this release targets is 0.5.5f, but "0.5.5f" is not a legal NuGet/semver
          string (NuGet.targets rejects it outright), so the assembly version stays numeric and the
          literal build name rides in InformationalVersion — that is what the DLL shows as its
          product version. -->
     <Version>0.5.5</Version>
-    <InformationalVersion>0.5.5b</InformationalVersion>
+    <InformationalVersion>0.5.5f</InformationalVersion>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>

@@ -67,7 +67,7 @@ namespace SekhemaHelper
         // 0.5.5: 0xD0 -> 0xC8 (AreaInstance's early region shifted -8). Verified live: +0xC8 holds
         // {first,last,end} spanning one pointer, and that pointer's +0x08 reads 0x20B5 = SanctumPlugin.
         // The stale 0xD0 read {last,end} as {first,last} -> span 0 -> "no SanctumPlugin".
-        private const int Area_TerrainPluginsVec = 0xC8;   // std::vector<plugin*>
+        private const int Area_TerrainPluginsVec = 0xD0;   // std::vector<plugin*>; 2026-11-07 patch: 0xC8 -> 0xD0 (early region +8), verified in Sanctum
 
         // 0.5.5: the placement records are now a PLAIN vector at AreaInstance+0x4C0 -- the old inline
         // holder at +0x498 (vec at holder+0x10/+0x18) is gone. Verified by content, not by shape alone:
@@ -78,7 +78,7 @@ namespace SekhemaHelper
         // NOTE: upstream GameOffsets declares AreaInstance.Environments at this very offset. It cannot
         // be both, and the content here (elements of 0x98 bytes starting with pointers) is not the
         // `int Key` vector Environments is declared as -- see the drift note.
-        private const int Area_PlacementVec = 0x4C0;
+        private const int Area_PlacementVec = 0x4C8;  // 2026-11-07 patch: 0x4C0 -> 0x4C8, verified in Sanctum
         private const int Vec_First = 0x00;
         private const int Vec_Last = 0x08;
 

@@ -1,6 +1,13 @@
 ﻿{
     "releases":  [
                      {
+                         "version":  "1.5.11",
+                         "published":  "2026-09-15T17:04:30.5632598Z",
+                         "changelog":  [
+                                           "Gordin push"
+                                       ]
+                     },
+                     {
                          "version":  "1.5.10",
                          "published":  "2026-09-12T15:17:58.1175553Z",
                          "changelog":  [

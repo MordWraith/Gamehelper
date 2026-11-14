@@ -89,7 +89,7 @@ namespace Atlas
         // The flag WORD moved 0x180 -> 0x168 on 0.5.5. This constant is only a bit MASK, so it is
         // unaffected; the three places that read the word raw use NodeFlagsOffset (see below).
         private const uint RitualLineFlagMask = 0x100000u;  // node widget +0x168 (was 0x180) bit 20 = "on the ritual line"
-        private const int RitualModsChildOffset = 0x3B8;    // ptr → text child carrying the Rite-mod lines
+        private const int RitualModsChildOffset = 0x3F8;    // ptr → text child carrying the Rite-mod lines. 2026-11-07 patch: 0x3B8 -> 0x3F8 (AtlasPanel_ritualLineToggleNode clears node+0x3F8 on un-pick)
         // 0.5.5: 0x4C0 -> 0x490. The wstrings on a derived TEXT element moved -0x30 (UiElementBase lost
         // 0x18 and the text class another 0x18 of its own). Measured by reading content back, not shifted.
         private const int TextElementTextOffset = 0x490;    // std::wstring on a game text element (uitree guide)
@@ -99,7 +99,7 @@ namespace Atlas
         // the panel's fields by the same delta rests on measured evidence rather than a guess -- but
         // these four only populate in ritual line mode and have NOT been observed live yet.
         private const int PanelLineModeOffset = 0x61F;      // u8 bool: ritual line mode (page mode 6) active
-        private const int PanelLineIdOffset = 0x624;        // u32 line id/seed word (TinyMT input word 0)
+        private const int PanelLineIdOffset = 0x628;        // u32 line id/seed word (TinyMT input word 0). 2026-11-07 patch: 0x624 -> 0x628 -- live value 0xB9206B28 == lineId in the 0.5.5 roll log
         private const int PanelPendingVecOffset = 0x630;    // std::vector<(i32,i32)> candidate grids
         private const int PanelCommittedVecOffset = 0x648;  // std::vector<(i32,i32)> committed line grids
         // Precomputed next-candidate table (AtlasPanel_ritualLineNextCandidates does a binary search
@@ -118,7 +118,7 @@ namespace Atlas
         // live over the whole atlas, re-tools/ritual/reachcheck_audit.py). The game's reach
         // check (ritualLineReachCheck 140b775f0) refuses ANY nonzero category, so this — not a
         // maps.json type/tag guess — is the authoritative "line can't pass here" discriminator.
-        private const int NodeDatRowPtrOffset = 0x300;
+        private const int NodeDatRowPtrOffset = 0x2F0;  // 2026-11-07: game reads *(node+0x2F0)+0x7C (EndgameMaps row, col9). 0x300 is now the WorldAreas row -> wrong category, which is why it "flagged ordinary maps"
         private const int DatRowSpecialCategoryOffset = 0x7C;
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -3855,7 +3855,7 @@ namespace Atlas
             if (o1 == IntPtr.Zero) return stats;
             var o2 = Read<IntPtr>(IntPtr.Add(o1, 0x1b0));
             if (o2 == IntPtr.Zero) return stats;
-            var holder = Read<IntPtr>(IntPtr.Add(o2, 0x3a20));
+            var holder = Read<IntPtr>(IntPtr.Add(o2, 0x3aa0));   // 2026-11-07 patch: 0x3a20 -> 0x3aa0 (ritualLineToggleNode)
             if (holder == IntPtr.Zero) return stats;
             var begin = Read<IntPtr>(IntPtr.Add(holder, 0x408));
             var end = Read<IntPtr>(IntPtr.Add(holder, 0x410));
@@ -5329,8 +5329,8 @@ namespace Atlas
         // UiElement at element+0x350 (begin) / +0x358 (end). Stable per content type (two
         // PowerfulMapBoss nodes give the identical vector). NOTE: populated only for VISIBLE
         // (rendered) nodes — culled/hidden nodes carry no tokens. See docs/re-findings.md §2.10.
-        private const int ContentVecBeginOffset = 0x350;
-        private const int ContentVecEndOffset = 0x358;
+        private const int ContentVecBeginOffset = 0x360;  // 2026-11-07 patch: +0x10, verified live
+        private const int ContentVecEndOffset = 0x368;
         private const int MaxContentTokens = 32;   // sanity cap (content lists are tiny)
         public static uint[] GetContentTokens(IntPtr nodeAddr)
         {
@@ -5461,8 +5461,8 @@ namespace Atlas
         // Powerful Map Boss. Note: token-vector content (+0x350: Breach/Ritual/Vaal Beacons/…) is NOT
         // here and is genuinely not sent for fog cells. See obsidian poe2/Atlas.md "Two content stores"
         // + Ghidra AtlasMapNodeWidget_ctor 140b143b0 / AtlasNode_badgeVec_insert 140b345a0.
-        private const int BadgeVecBeginOffset = 0x368;
-        private const int BadgeVecEndOffset = 0x370;
+        private const int BadgeVecBeginOffset = 0x378;  // 2026-11-07 patch: +0x10, verified live
+        private const int BadgeVecEndOffset = 0x380;
         private const int BadgeRowToContentId = 100;   // EndgameMapContent row → mapcontent.json id
         public static uint[] GetRawBadgeContentIds(IntPtr nodeAddr)
         {
